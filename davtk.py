@@ -11,8 +11,8 @@ def create_mappers():
 
     source = vtk.vtkSphereSource()
     source.SetRadius(1.0)
-    source.SetPhiResolution(16)
-    source.SetThetaResolution(8)
+    source.SetPhiResolution(8)
+    source.SetThetaResolution(16)
     mappers["sphere"] = vtk.vtkPolyDataMapper()
     mappers["sphere"].SetInputConnection(source.GetOutputPort())
 
@@ -25,7 +25,7 @@ def create_mappers():
 
     return mappers
 
-def atom_prop(defaults, atom_type, i=None, arrays=None):
+def get_atom_prop(defaults, atom_type, i=None, arrays=None):
     if defaults["atom_types"][atom_type]["colormap_func"] is not None and defaults["atom_types"][atom_type]["colormap_field"] is not None:
         prop = vtk.vtkProperty()
         prop.DeepCopy(defaults["atom_types"][atom_type]["prop"])
@@ -34,7 +34,7 @@ def atom_prop(defaults, atom_type, i=None, arrays=None):
     else:
         return defaults["atom_types"][atom_type]["prop"]
 
-def atom_radius(defaults, atom_type, i=None, arrays=None):
+def get_atom_radius(defaults, atom_type, i=None, arrays=None):
     if defaults["atom_types"][atom_type]["radius_field"] is not None:
         return arrays[defaults["atom_types"][atom_type]["radius_field"]][i]
     else:
@@ -48,6 +48,30 @@ class Frame(object):
         self.label_actors = []
         self.cell_box_actor = None
         return
+
+    def measure_picked(self):
+        print "measure:"
+        indices = []
+        for actor in self.at_actors:
+            if hasattr(actor,'prop_before_pick') and actor.prop_before_pick is not None:
+                indices.append(actor.i_at)
+        p = at.get_positions()
+        for i_at in indices:
+            print "selected ",i_at, p[i_at]
+
+    def delete_picked(self, renderer):
+        indices = []
+        for actor in self.at_actors:
+            if hasattr(actor,'prop_before_pick') and actor.prop_before_pick is not None:
+                indices.append(actor.i_at)
+        for i_at in sorted(indices, reverse=True):
+            renderer.RemoveActor(self.at_actors[i_at])
+            del self.at_actors[i_at]
+        del self.at[indices]
+        for i_at in range(len(self.at_actors)):
+            self.at_actors[i_at].i_at = i_at
+
+        renderer.GetRenderWindow().Render()
 
     def activate(self, renderer):
         renderer.RemoveAllViewProps()
@@ -161,15 +185,14 @@ class Frame(object):
         for i_at in range(len(at)):
             actor = self.at_actors[i_at]
             actor.SetMapper(mappers["sphere"])
-            prop = atom_prop(defaults, atom_type[i_at], i_at, at.arrays)
+            prop = get_atom_prop(defaults, atom_type[i_at], i_at, at.arrays)
             actor.SetProperty(prop)
             transform = vtk.vtkTransform()
             transform.Translate(pos[i_at])
-            r = atom_radius(defaults, atom_type[i_at], i_at, at.arrays)
+            r = get_atom_radius(defaults, atom_type[i_at], i_at, at.arrays)
             transform.Scale(r, r, r)
             actor.SetUserMatrix(transform.GetMatrix())
             actor.i_at = i_at
-            self.at_actors.append(actor)
 
 def toggle_pick(actor):
     if hasattr(actor,'prop_before_pick') and actor.prop_before_pick is not None:
@@ -235,6 +258,10 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         if k == 's':
             self.GetInteractor().SetInteractorStyle(self.select_style)
             self.select_style.set_prev_style(self)
+        elif k == 'd':
+            self.frames[self.cur_frame].delete_picked(self.GetDefaultRenderer())
+        elif k == 'm':
+            self.frames[self.cur_frame].measure_picked()
         elif k == 'plus':
             self.cur_frame = (self.cur_frame+1) % len(self.frames)
             frames[self.cur_frame].activate(self.GetDefaultRenderer())
@@ -242,7 +269,11 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.cur_frame = (self.cur_frame-1) % len(self.frames)
             frames[self.cur_frame].activate(self.GetDefaultRenderer())
 
-        self.OnKeyPress()
+        if self.GetInteractor() is not None:
+            self.GetInteractor().Render()
+        self.GetDefaultRenderer().GetRenderWindow().Render()
+
+        # self.OnKeyPress()
         return
 
     def rightButtonPressEvent(self,obj,event):
