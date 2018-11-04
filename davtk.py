@@ -55,9 +55,13 @@ class Frame(object):
         for actor in self.at_actors:
             if hasattr(actor,'prop_before_pick') and actor.prop_before_pick is not None:
                 indices.append(actor.i_at)
-        p = at.get_positions()
+        p = self.at.get_positions()
         for i_at in indices:
             print "selected ",i_at, p[i_at]
+        for i in range(len(indices)):
+            i_at = indices[i]
+            for j_at in indices[i+1:]:
+                print "distance",i_at,j_at,self.at.get_distance(i_at,j_at,mic=True)
 
     def delete_picked(self, renderer):
         indices = []
@@ -289,6 +293,8 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             toggle_pick(self.NewPickedActor)
             if hasattr(self.NewPickedActor,'other_half'):
                 toggle_pick(self.NewPickedActor.other_half)
+
+        self.GetInteractor().Render()
 
         self.OnRightButtonDown()
         return
