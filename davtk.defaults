@@ -1,0 +1,4 @@
+colormap --name cmap 0.0   1.0 0.0 0.0   1.0    1.0 1.0 1.0
+#atom_type --name 14 --color 1.0 1.0 1.0 --opacity 1.0 --radius 0.4
+atom_type --name 14 --colormap cmap --colormap_field val --opacity 1.0 --radius 0.4
+bond_type --name default --color 1.0 1.0 1.0 --radius 0.1
