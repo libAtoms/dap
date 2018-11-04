@@ -25,6 +25,13 @@ def create_mappers():
 
     return mappers
 
+def get_atom_type_a(at):
+    if "atom_type" in at.arrays:
+        atom_type = at.arrays["atom_type"]
+    else:
+        atom_type = [str(Z) for Z in at.get_atomic_numbers()]
+    return atom_type
+
 def get_atom_label(config, atom_type, i, arrays):
     if "atom_label" in arrays and len(arrays["atom_label"][i]) > 0:
         label = str(arrays["atom_label"][i])
@@ -75,19 +82,27 @@ class Frame(object):
             for j_at in indices[i+1:]:
                 print "distance",i_at,j_at,self.at.get_distance(i_at,j_at,mic=True)
 
+    def delete_atoms(self, renderer, indices):
+        # delete actors
+        for i_at in sorted(indices, reverse=True):
+            renderer.RemoveActor(self.at_actors[i_at])
+            del self.at_actors[i_at]
+            renderer.RemoveActor(self.label_actors[i_at])
+            del self.label_actors[i_at]
+        # delete atoms
+        del self.at[indices]
+        # reset i_at components of atoms actors
+        for i_at in range(len(self.at_actors)):
+            self.at_actors[i_at].i_at = i_at
+
+        renderer.GetRenderWindow().Render()
+
     def delete_picked(self, renderer):
         indices = []
         for actor in self.at_actors:
             if hasattr(actor,'prop_before_pick') and actor.prop_before_pick is not None:
                 indices.append(actor.i_at)
-        for i_at in sorted(indices, reverse=True):
-            renderer.RemoveActor(self.at_actors[i_at])
-            del self.at_actors[i_at]
-        del self.at[indices]
-        for i_at in range(len(self.at_actors)):
-            self.at_actors[i_at].i_at = i_at
-
-        renderer.GetRenderWindow().Render()
+        self.delete_atoms(renderer, indices)
 
     def activate(self, renderer):
         renderer.RemoveAllViewProps()
@@ -184,16 +199,13 @@ class Frame(object):
         self.update_labels(config)
 
     def update_labels(self, config):
-        if "atom_type" in self.at.arrays:
-            atom_type = self.at.arrays["atom_type"]
-        else:
-            atom_type = [str(Z) for Z in self.at.get_atomic_numbers()]
+        atom_type_a = get_atom_type_a(self.at)
         pos = self.at.get_positions()
         for i_at in range(len(self.at)):
             label = vtk.vtkBillboardTextActor3D()
-            label.SetInput(get_atom_label(config, atom_type[i_at], i_at, at.arrays))
+            label.SetInput(get_atom_label(config, atom_type_a[i_at], i_at, at.arrays))
             label.SetPosition(pos[i_at])
-            r = get_atom_radius(config, atom_type[i_at], i_at, at.arrays)
+            r = get_atom_radius(config, atom_type_a[i_at], i_at, at.arrays)
             label.SetDisplayOffset(int(r*50),int(r*50))
             label.GetTextProperty().SetFontSize ( 24 )
             label.GetTextProperty().SetJustificationToLeft()
@@ -212,21 +224,18 @@ class Frame(object):
     def update_atoms(self, config):
         print "update_atoms"
         # get atom_type
-        if "atom_type" in self.at.arrays:
-            atom_type = self.at.arrays["atom_type"]
-        else:
-            atom_type = [str(Z) for Z in self.at.get_atomic_numbers()]
+        atom_type_a = get_atom_type_a(self.at)
 
         # update actors
         pos = self.at.get_positions()
         for i_at in range(len(at)):
             actor = self.at_actors[i_at]
             actor.SetMapper(mappers["sphere"])
-            prop = get_atom_prop(config, atom_type[i_at], i_at, at.arrays)
+            prop = get_atom_prop(config, atom_type_a[i_at], i_at, at.arrays)
             actor.SetProperty(prop)
             transform = vtk.vtkTransform()
             transform.Translate(pos[i_at])
-            r = get_atom_radius(config, atom_type[i_at], i_at, at.arrays)
+            r = get_atom_radius(config, atom_type_a[i_at], i_at, at.arrays)
             transform.Scale(r, r, r)
             actor.SetUserMatrix(transform.GetMatrix())
             actor.i_at = i_at
