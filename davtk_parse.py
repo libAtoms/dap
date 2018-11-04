@@ -10,14 +10,17 @@ def piecewise_linear(x, t):
         f = t[i*4]-x
         return f*t[(i-1)*4+1:(i-1)*4+4] + (1.0-f)*t[i*4+1:i*4+4]
 
+parsers = {}
+
 parser_colormap = argparse.ArgumentParser(prog="colormap")
 parser_colormap.add_argument("--name",type=str,required=True)
 parser_colormap.add_argument("colormap",nargs='+',type=float)
-def parse_colormap(defaults, line):
+def parse_colormap(config, line):
     args = parser_colormap.parse_args(line.split()[1:])
     if len(args.colormap) % 4 != 0:
         raise ValueError("colormap arguments must be multiple of 4: v r g b")
-    defaults["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
+    config["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
+parsers["colormap"] = parse_colormap
 
 parser_atom_type = argparse.ArgumentParser(prog="atom_type")
 parser_atom_type.add_argument("--name",type=str,required=True)
@@ -27,69 +30,71 @@ parser_atom_type.add_argument("--colormap_field",type=str,default=None)
 parser_atom_type.add_argument("--radius",type=float,default=None)
 parser_atom_type.add_argument("--radius_field",type=str,default=None)
 parser_atom_type.add_argument("--opacity",type=float,default=None)
-def parse_atom_type(defaults, line):
+parser_atom_type.add_argument("--label_field",type=str,default=None)
+def parse_atom_type(config, line):
     args = parser_atom_type.parse_args(line.split()[1:])
-    if "args.name" not in defaults["atom_types"]:
-        defaults["atom_types"][args.name] = {}
-        defaults["atom_types"][args.name]["radius"] = 0.3
-        defaults["atom_types"][args.name]["colormap_func"] = None
-        defaults["atom_types"][args.name]["colormap_field"] = None
-        defaults["atom_types"][args.name]["radius_field"] = None
+    if "args.name" not in config["atom_types"]:
+        config["atom_types"][args.name] = {}
+        config["atom_types"][args.name]["radius"] = 0.3
+        config["atom_types"][args.name]["colormap_func"] = None
+        config["atom_types"][args.name]["colormap_field"] = None
+        config["atom_types"][args.name]["radius_field"] = None
         prop = vtk.vtkProperty()
         prop.SetOpacity(1.0)
         prop.SetSpecularColor(1.0,1.0,1.0)
         prop.SetSpecularPower(10.0)
-        defaults["atom_types"][args.name]["prop"] = prop
+        config["atom_types"][args.name]["prop"] = prop
     if args.color is not None:
-        defaults["atom_types"][args.name]["prop"].SetDiffuseColor(args.color)
+        config["atom_types"][args.name]["prop"].SetDiffuseColor(args.color)
     if args.colormap is not None:
-        defaults["atom_types"][args.name]["colormap_func"] = defaults["colormaps"][args.colormap]
+        config["atom_types"][args.name]["colormap_func"] = config["colormaps"][args.colormap]
     if args.colormap_field is not None:
-        defaults["atom_types"][args.name]["colormap_field"] = args.colormap_field
+        config["atom_types"][args.name]["colormap_field"] = args.colormap_field
     if args.opacity is not None:
-        defaults["atom_types"][args.name]["prop"].SetOpacity(args.opacity)
+        config["atom_types"][args.name]["prop"].SetOpacity(args.opacity)
     if args.radius is not None:
-        defaults["atom_types"][args.name]["radius"] = args.radius
+        config["atom_types"][args.name]["radius"] = args.radius
     if args.radius_field is not None:
-        defaults["atom_types"][args.name]["radius_field"] = args.radius_field
+        config["atom_types"][args.name]["radius_field"] = args.radius_field
+    if args.label_field is not None:
+        config["atom_types"][args.name]["label_field"] = args.label_field
+parsers["atom_type"] = parse_atom_type
 
 parser_bond_type = argparse.ArgumentParser(prog="bond_type")
 parser_bond_type.add_argument("--name",type=str,required=True)
 parser_bond_type.add_argument("--color",nargs=3,type=float,default=None)
 parser_bond_type.add_argument("--radius",type=float,default=None)
 parser_bond_type.add_argument("--opacity",type=float,default=None)
-def parse_bond_type(defaults, line):
+def parse_bond_type(config, line):
     args = parser_bond_type.parse_args(line.split()[1:])
-    if "args.name" not in defaults["bond_types"]:
-        defaults["bond_types"][args.name] = {}
-        defaults["bond_types"][args.name]["opacity"] = 1.0
-        defaults["bond_types"][args.name]["radius"] = 0.3
+    if "args.name" not in config["bond_types"]:
+        config["bond_types"][args.name] = {}
+        config["bond_types"][args.name]["opacity"] = 1.0
+        config["bond_types"][args.name]["radius"] = 0.3
         prop = vtk.vtkProperty()
         prop.SetOpacity(1.0)
         prop.SetSpecularColor(1.0,1.0,1.0)
         prop.SetSpecularPower(10.0)
-        defaults["bond_types"][args.name]["prop"] = prop
+        config["bond_types"][args.name]["prop"] = prop
     if args.color is not None:
-        defaults["bond_types"][args.name]["prop"].SetDiffuseColor(args.color)
+        config["bond_types"][args.name]["prop"].SetDiffuseColor(args.color)
     if args.opacity is not None:
-        defaults["bond_types"][args.name]["prop"].SetOpacity(args.opacity)
+        config["bond_types"][args.name]["prop"].SetOpacity(args.opacity)
     if args.radius is not None:
-        defaults["bond_types"][args.name]["radius"] = args.radius
+        config["bond_types"][args.name]["radius"] = args.radius
+parsers["bond_type"] = parse_bond_type
 
-def parse_line(defaults, line):
-    if line.startswith("atom_type"):
-        parse_atom_type(defaults, line)
-    elif line.startswith("bond_type"):
-        parse_bond_type(defaults, line)
-    elif line.startswith("colormap"):
-        parse_colormap(defaults,line)
+def parse_line(config, line):
+    keyword = line.split()[0]
+    if keyword in parsers:
+        parsers[keyword](config, line)
     elif line.startswith("cell_box_color"):
-        defaults["cell_box_color"] = [float(c) for c in line.split()[1:]]
+        config["cell_box_color"] = [float(c) for c in line.split()[1:]]
     elif line.startswith("background_color"):
-        defaults["background_color"] = [float(c) for c in line.split()[1:]]
+        config["background_color"] = [float(c) for c in line.split()[1:]]
 
-def parse_defaults(filename):
-    defaults = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {}, "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0]  }
+def parse_config(filename):
+    config = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {}, "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0]  }
     for line in open(filename).readlines():
-        parse_line(defaults, line)
-    return defaults
+        parse_line(config, line)
+    return config

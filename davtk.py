@@ -25,20 +25,32 @@ def create_mappers():
 
     return mappers
 
-def get_atom_prop(defaults, atom_type, i=None, arrays=None):
-    if defaults["atom_types"][atom_type]["colormap_func"] is not None and defaults["atom_types"][atom_type]["colormap_field"] is not None:
+def get_atom_label(config, atom_type, i, arrays):
+    if "atom_label" in arrays and len(arrays["atom_label"][i]) > 0:
+        label = str(arrays["atom_label"][i])
+    elif config["atom_types"][atom_type]["label_field"] is not None:
+        if config["atom_types"][atom_type]["label_field"] == "NUMBER":
+            label = str(i)
+        else:
+            label = str(arrays[config["atom_types"][atom_type]["label_field"]][i])
+    else:
+        label = str(i)
+    return label
+
+def get_atom_prop(config, atom_type, i=None, arrays=None):
+    if config["atom_types"][atom_type]["colormap_func"] is not None and config["atom_types"][atom_type]["colormap_field"] is not None:
         prop = vtk.vtkProperty()
-        prop.DeepCopy(defaults["atom_types"][atom_type]["prop"])
-        prop.SetDiffuseColor(defaults["atom_types"][atom_type]["colormap_func"](arrays[defaults["atom_types"][atom_type]["colormap_field"]][i]))
+        prop.DeepCopy(config["atom_types"][atom_type]["prop"])
+        prop.SetDiffuseColor(config["atom_types"][atom_type]["colormap_func"](arrays[config["atom_types"][atom_type]["colormap_field"]][i]))
         return prop
     else:
-        return defaults["atom_types"][atom_type]["prop"]
+        return config["atom_types"][atom_type]["prop"]
 
-def get_atom_radius(defaults, atom_type, i=None, arrays=None):
-    if defaults["atom_types"][atom_type]["radius_field"] is not None:
-        return arrays[defaults["atom_types"][atom_type]["radius_field"]][i]
+def get_atom_radius(config, atom_type, i=None, arrays=None):
+    if config["atom_types"][atom_type]["radius_field"] is not None:
+        return arrays[config["atom_types"][atom_type]["radius_field"]][i]
     else:
-        return defaults["atom_types"][atom_type]["radius"]
+        return config["atom_types"][atom_type]["radius"]
 
 class Frame(object):
     def __init__(self):
@@ -91,7 +103,7 @@ class Frame(object):
 
         renderer.GetRenderWindow().Render()
 
-    def create_cell_box(self, cell, defaults):
+    def create_cell_box(self, cell, config):
         pts = vtk.vtkPoints()
         for i0 in range(2):
             for i1 in range(2):
@@ -163,10 +175,31 @@ class Frame(object):
         mapper.SetInputData(linesPolyData)
         self.cell_box_actor = vtk.vtkActor()
         self.cell_box_actor.SetMapper(mapper)
-        self.cell_box_actor.GetProperty().SetColor(defaults["cell_box_color"])
+        self.cell_box_actor.GetProperty().SetColor(config["cell_box_color"])
         self.cell_box_actor.PickableOff()
 
-    def add_atoms(self, at, defaults):
+    def add_labels(self, at, config):
+        self.label_actors = [None] * len(at)
+
+        self.update_labels(config)
+
+    def update_labels(self, config):
+        if "atom_type" in self.at.arrays:
+            atom_type = self.at.arrays["atom_type"]
+        else:
+            atom_type = [str(Z) for Z in self.at.get_atomic_numbers()]
+        pos = self.at.get_positions()
+        for i_at in range(len(self.at)):
+            label = vtk.vtkBillboardTextActor3D()
+            label.SetInput(get_atom_label(config, atom_type[i_at], i_at, at.arrays))
+            label.SetPosition(pos[i_at])
+            r = get_atom_radius(config, atom_type[i_at], i_at, at.arrays)
+            label.SetDisplayOffset(int(r*50),int(r*50))
+            label.GetTextProperty().SetFontSize ( 24 )
+            label.GetTextProperty().SetJustificationToLeft()
+            self.label_actors[i_at] = label
+
+    def add_atoms(self, at, config):
         # save ref to at
         self.at = at
 
@@ -174,9 +207,9 @@ class Frame(object):
             actor = vtk.vtkActor()
             self.at_actors.append(actor)
 
-        self.update_atoms(defaults)
+        self.update_atoms(config)
 
-    def update_atoms(self, defaults):
+    def update_atoms(self, config):
         print "update_atoms"
         # get atom_type
         if "atom_type" in self.at.arrays:
@@ -189,11 +222,11 @@ class Frame(object):
         for i_at in range(len(at)):
             actor = self.at_actors[i_at]
             actor.SetMapper(mappers["sphere"])
-            prop = get_atom_prop(defaults, atom_type[i_at], i_at, at.arrays)
+            prop = get_atom_prop(config, atom_type[i_at], i_at, at.arrays)
             actor.SetProperty(prop)
             transform = vtk.vtkTransform()
             transform.Translate(pos[i_at])
-            r = get_atom_radius(defaults, atom_type[i_at], i_at, at.arrays)
+            r = get_atom_radius(config, atom_type[i_at], i_at, at.arrays)
             transform.Scale(r, r, r)
             actor.SetUserMatrix(transform.GetMatrix())
             actor.i_at = i_at
@@ -302,9 +335,9 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 # create mappers for spheres, cylinders, etc
 mappers = create_mappers()
 
-# read defaults
-defaults = parse_defaults("davtk.defaults")
-print defaults
+# read config
+config = parse_config("davtk.config")
+print config
 
 # loop over configurations, adding them to frames, and keeping track of min, max pos for viewport
 max_pos = np.array([-1.0e38] * 3)
@@ -317,8 +350,9 @@ for f in sys.argv[1:]:
 
         frames.append(f)
 
-        f.add_atoms(at, defaults)
-        f.create_cell_box(at.get_cell(), defaults)
+        f.add_atoms(at, config)
+        f.add_labels(at, config)
+        f.create_cell_box(at.get_cell(), config)
 
         # update min, max pos
         p = at.get_positions()
@@ -339,7 +373,7 @@ for f in sys.argv[1:]:
 
 # A renderer and render window
 renderer = vtk.vtkRenderer()
-renderer.SetBackground(defaults["background_color"])
+renderer.SetBackground(config["background_color"])
 renwin = vtk.vtkRenderWindow()
 renwin.SetSize(800,800)
 renwin.AddRenderer(renderer)
