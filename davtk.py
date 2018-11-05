@@ -5,6 +5,7 @@ import numpy as np
 import vtk
 import ase.io, ase.neighborlist
 from davtk_parse import *
+import select
 
 def create_mappers():
     mappers = {}
@@ -60,12 +61,26 @@ def get_atom_radius(config, atom_type, i=None, arrays=None):
         return config["atom_types"][atom_type]["radius"]
 
 class Frame(object):
-    def __init__(self):
-        self.at = None
-        self.at_actors = []
+    def __init__(self, at, config):
+        self.at = at
+        self.config = config
+
         self.bond_actors = []
-        self.label_actors = []
-        self.cell_box_actor = None
+
+        # atoms
+        self.at_actors = []
+        for i_at in range(len(self.at)):
+            actor = vtk.vtkActor()
+            self.at_actors.append(actor)
+        self.update_atoms()
+
+        #labels
+        self.label_actors = [None] * len(self.at)
+        self.update_labels()
+
+        # cell box
+        self.create_cell_box()
+
         return
 
     def measure_picked(self):
@@ -118,7 +133,9 @@ class Frame(object):
 
         renderer.GetRenderWindow().Render()
 
-    def create_cell_box(self, cell, config):
+    def create_cell_box(self):
+        cell = self.at.get_cell()
+
         pts = vtk.vtkPoints()
         for i0 in range(2):
             for i1 in range(2):
@@ -190,52 +207,37 @@ class Frame(object):
         mapper.SetInputData(linesPolyData)
         self.cell_box_actor = vtk.vtkActor()
         self.cell_box_actor.SetMapper(mapper)
-        self.cell_box_actor.GetProperty().SetColor(config["cell_box_color"])
+        self.cell_box_actor.GetProperty().SetColor(self.config["cell_box_color"])
         self.cell_box_actor.PickableOff()
 
-    def add_labels(self, at, config):
-        self.label_actors = [None] * len(at)
-
-        self.update_labels(config)
-
-    def update_labels(self, config):
+    def update_labels(self):
         atom_type_a = get_atom_type_a(self.at)
         pos = self.at.get_positions()
         for i_at in range(len(self.at)):
             label = vtk.vtkBillboardTextActor3D()
-            label.SetInput(get_atom_label(config, atom_type_a[i_at], i_at, at.arrays))
+            label.SetInput(get_atom_label(self.config, atom_type_a[i_at], i_at, self.at.arrays))
             label.SetPosition(pos[i_at])
-            r = get_atom_radius(config, atom_type_a[i_at], i_at, at.arrays)
+            r = get_atom_radius(self.config, atom_type_a[i_at], i_at, self.at.arrays)
             label.SetDisplayOffset(int(r*50),int(r*50))
             label.GetTextProperty().SetFontSize ( 24 )
             label.GetTextProperty().SetJustificationToLeft()
             self.label_actors[i_at] = label
 
-    def add_atoms(self, at, config):
-        # save ref to at
-        self.at = at
-
-        for i_at in range(len(at)):
-            actor = vtk.vtkActor()
-            self.at_actors.append(actor)
-
-        self.update_atoms(config)
-
-    def update_atoms(self, config):
+    def update_atoms(self):
         print "update_atoms"
         # get atom_type
         atom_type_a = get_atom_type_a(self.at)
 
         # update actors
         pos = self.at.get_positions()
-        for i_at in range(len(at)):
+        for i_at in range(len(self.at)):
             actor = self.at_actors[i_at]
             actor.SetMapper(mappers["sphere"])
-            prop = get_atom_prop(config, atom_type_a[i_at], i_at, at.arrays)
+            prop = get_atom_prop(self.config, atom_type_a[i_at], i_at, self.at.arrays)
             actor.SetProperty(prop)
             transform = vtk.vtkTransform()
             transform.Translate(pos[i_at])
-            r = get_atom_radius(config, atom_type_a[i_at], i_at, at.arrays)
+            r = get_atom_radius(self.config, atom_type_a[i_at], i_at, self.at.arrays)
             transform.Scale(r, r, r)
             actor.SetUserMatrix(transform.GetMatrix())
             actor.i_at = i_at
@@ -285,9 +287,10 @@ class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
 
 class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 
-    def __init__(self,select_style,frames,parent=None):
+    def __init__(self,config,select_style,frames,parent=None):
         self.AddObserver("RightButtonPressEvent",self.rightButtonPressEvent)
         self.AddObserver("KeyPressEvent",self.keyPressEvent)
+        self.AddObserver("TimerEvent",self.timerEvent)
 
         if(parent is not None):
             self.parent = parent
@@ -297,7 +300,24 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.select_style = select_style
         self.frames = frames
         self.cur_frame = 0
+        self.config = config
 
+    def timerEvent(self,obj,event):
+        # print "timer (10 ms?)"
+        if select.select([sys.stdin], [], [], 0)[0]:
+            line = sys.stdin.readline()
+            try:
+                print "parsing line", line.rstrip()
+                refresh = config_parse_line(self.config, line.rstrip())
+                if refresh:
+                    for frame in self.frames:
+                        frame.update_atoms()
+            except Exception, e:
+                print "error parsing line",str(e)
+
+            if self.GetInteractor() is not None:
+                self.GetInteractor().Render()
+            self.GetDefaultRenderer().GetRenderWindow().Render()
 
     def keyPressEvent(self,obj,event):
         k = self.parent.GetKeySym()
@@ -314,6 +334,13 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'minus':
             self.cur_frame = (self.cur_frame-1) % len(self.frames)
             frames[self.cur_frame].activate(self.GetDefaultRenderer())
+        elif k == 'c':
+            import select
+
+            if select.select([sys.stdin,],[],[],0.0)[0]:
+                print "Have data!"
+            else:
+                print "No data"
 
         if self.GetInteractor() is not None:
             self.GetInteractor().Render()
@@ -355,13 +382,7 @@ frames = []
 for f in sys.argv[1:]:
     this_file_ats = ase.io.read(f, ":")
     for at in this_file_ats:
-        f = Frame()
-
-        frames.append(f)
-
-        f.add_atoms(at, config)
-        f.add_labels(at, config)
-        f.create_cell_box(at.get_cell(), config)
+        frames.append(Frame(at,config))
 
         # update min, max pos
         p = at.get_positions()
@@ -395,8 +416,10 @@ interactor.SetRenderWindow(renwin)
 sel_style = RubberbandSelect(parent=interactor)
 sel_style.SetDefaultRenderer(renderer)
 
-def_style = MouseInteractorHighLightActor(parent=interactor,select_style=sel_style,frames=frames)
+def_style = MouseInteractorHighLightActor(parent=interactor,config=config,select_style=sel_style,frames=frames)
 def_style.SetDefaultRenderer(renderer)
+def_style.UseTimersOn()
+interactor.CreateRepeatingTimer(100)
 
 interactor.SetInteractorStyle(def_style)
 
