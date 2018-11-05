@@ -12,8 +12,17 @@ def piecewise_linear(x, t):
 
 config_parsers = {}
 
-parser_colormap = argparse.ArgumentParser(prog="colormap")
-parser_colormap.add_argument("-name",type=str,required=True)
+# subclass ArgumentParser to throw errors instead of exiting
+class ArgumentParserError(Exception): pass
+
+class ThrowingArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ArgumentParserError(message)
+    def exit(self):
+        raise ArgumentParserError("help")
+
+parser_colormap = ThrowingArgumentParser(prog="colormap")
+parser_colormap.add_argument("-name",type=str)
 parser_colormap.add_argument("colormap",nargs='+',type=float)
 def parse_colormap(config, line):
     args = parser_colormap.parse_args(line.split()[1:])
@@ -22,8 +31,8 @@ def parse_colormap(config, line):
     config["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
 config_parsers["colormap"] = parse_colormap
 
-parser_atom_type = argparse.ArgumentParser(prog="atom_type")
-parser_atom_type.add_argument("-name",type=str,required=True)
+parser_atom_type = ThrowingArgumentParser(prog="atom_type")
+parser_atom_type.add_argument("-name",type=str)
 parser_atom_type.add_argument("-color",nargs=3,type=float,default=None)
 parser_atom_type.add_argument("-colormap",nargs=2,type=str,default=None)
 parser_atom_type.add_argument("-radius",type=float,default=None)
@@ -68,14 +77,16 @@ def parse_atom_type(config, line):
         config["atom_types"][args.name]["radius"] = None
     if args.label_field is not None:
         if args.label_field == 'NONE':
+            print "unsetting label field"
             config["atom_types"][args.name]["label_field"] = None
         else:
             config["atom_types"][args.name]["label_field"] = args.label_field
+        refresh = True
     return refresh
 config_parsers["atom_type"] = parse_atom_type
 
-parser_bond_type = argparse.ArgumentParser(prog="bond_type")
-parser_bond_type.add_argument("-name",type=str,required=True)
+parser_bond_type = ThrowingArgumentParser(prog="bond_type")
+parser_bond_type.add_argument("-name",type=str)
 parser_bond_type.add_argument("-color",nargs=3,type=float,default=None)
 parser_bond_type.add_argument("-radius",type=float,default=None)
 parser_bond_type.add_argument("-opacity",type=float,default=None)
@@ -102,7 +113,7 @@ def parse_bond_type(config, line):
     return refresh
 config_parsers["bond_type"] = parse_bond_type
 
-parser_cell_box_color = argparse.ArgumentParser(prog="cell_box_color")
+parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
 parser_cell_box_color.add_argument("-color",nargs=3,type=float,default=None)
 def parse_bond_type(config, line):
     refresh = True
@@ -111,7 +122,7 @@ def parse_bond_type(config, line):
     return refresh
 config_parsers["cell_box_color"] = parse_bond_type
 
-parser_background_color = argparse.ArgumentParser(prog="background_color")
+parser_background_color = ThrowingArgumentParser(prog="background_color")
 parser_background_color.add_argument("-color",nargs=3,type=float,default=None)
 def parse_bond_type(config, line):
     refresh = True

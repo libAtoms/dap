@@ -42,7 +42,7 @@ def get_atom_label(config, atom_type, i, arrays):
         else:
             label = str(arrays[config["atom_types"][atom_type]["label_field"]][i])
     else:
-        label = str(i)
+        label = None
     return label
 
 def get_atom_prop(config, atom_type, i=None, arrays=None):
@@ -102,7 +102,8 @@ class Frame(object):
         for i_at in sorted(indices, reverse=True):
             renderer.RemoveActor(self.at_actors[i_at])
             del self.at_actors[i_at]
-            renderer.RemoveActor(self.label_actors[i_at])
+            if self.label_actors[i_at] is not None:
+                renderer.RemoveActor(self.label_actors[i_at])
             del self.label_actors[i_at]
         # delete atoms
         del self.at[indices]
@@ -129,7 +130,8 @@ class Frame(object):
         for actor in self.bond_actors:
             renderer.AddActor(actor)
         for actor in self.label_actors:
-            renderer.AddActor(actor)
+            if actor is not None:
+                renderer.AddActor(actor)
 
         renderer.GetRenderWindow().Render()
 
@@ -214,14 +216,22 @@ class Frame(object):
         atom_type_a = get_atom_type_a(self.at)
         pos = self.at.get_positions()
         for i_at in range(len(self.at)):
-            label = vtk.vtkBillboardTextActor3D()
-            label.SetInput(get_atom_label(self.config, atom_type_a[i_at], i_at, self.at.arrays))
-            label.SetPosition(pos[i_at])
-            r = get_atom_radius(self.config, atom_type_a[i_at], i_at, self.at.arrays)
-            label.SetDisplayOffset(int(r*50),int(r*50))
-            label.GetTextProperty().SetFontSize ( 24 )
-            label.GetTextProperty().SetJustificationToLeft()
-            self.label_actors[i_at] = label
+            l = get_atom_label(self.config, atom_type_a[i_at], i_at, self.at.arrays)
+            if l is not None:
+                if self.label_actors[i_at] is not None:
+                    label = self.label_actors[i_at]
+                else:
+                    label = vtk.vtkBillboardTextActor3D()
+                    self.label_actors[i_at] = label
+                label.SetInput(l)
+                label.SetPosition(pos[i_at])
+                r = get_atom_radius(self.config, atom_type_a[i_at], i_at, self.at.arrays)
+                label.SetDisplayOffset(int(r*50),int(r*50))
+                label.GetTextProperty().SetFontSize ( 24 )
+                label.GetTextProperty().SetJustificationToLeft()
+            else:
+                if self.label_actors[i_at] is not None:
+                    self.label_actors[i_at].VisibilityOff()
 
     def update_atoms(self):
         print "update_atoms"
@@ -312,6 +322,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
                 if refresh:
                     for frame in self.frames:
                         frame.update_atoms()
+                        frame.update_labels()
             except Exception, e:
                 print "error parsing line",str(e)
 
