@@ -345,7 +345,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 mappers = create_mappers()
 
 # read config
-config = parse_config("davtk.config")
+config = config_parse_file("davtk.config")
 print config
 
 # loop over configurations, adding them to frames, and keeping track of min, max pos for viewport
