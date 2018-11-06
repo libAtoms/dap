@@ -214,3 +214,18 @@ class daVTK(object):
 
         renderer.GetRenderWindow().Render()
 
+    def measure_picked(self):
+        at = self.at_list[self.cur_frame]
+
+        indices = np.where(at.arrays["_vtk_picked"])[0]
+        p = at.get_positions()
+
+        print "measure:"
+        for i_at in indices:
+            print "atom {} pos {} {} {}".format(i_at,p[i_at][0],p[i_at][1],p[i_at][2])
+        for i in range(len(indices)):
+            i_at = indices[i]
+            for j_at in indices[i+1:]:
+                dv = -at.get_distance(i_at,j_at,mic=True,vector=True)
+                print "pair {} {} distance {} {} {} ({})".format(i_at,j_at,dv[0],dv[1],dv[2],np.linalg.norm(dv))
+
