@@ -87,7 +87,6 @@ class daVTK(object):
         self.update_atoms(frames)
 
     def update_atoms(self, frames=None):
-
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
             atom_type_array = get_atom_type_a(at)
@@ -105,12 +104,93 @@ class daVTK(object):
                 actor.SetUserMatrix(transform.GetMatrix())
                 actor.i_at = i_at
 
+    def update_cell_boxes(self, frames=None):
+        for frame_i in self.frame_list(frames):
+            cell = self.at_list[frame_i].get_cell()
+
+            pts = vtk.vtkPoints()
+            for i0 in range(2):
+                for i1 in range(2):
+                    for i2 in range(2):
+                        pts.InsertNextPoint(i0*cell[0] + i1*cell[1] + i2*cell[2])
+            # 0 0 0    0 0 1    0 1 0    0 1 1     1 0 0  1 0 1   1 1 0   1 1 1
+            lines = vtk.vtkCellArray()
+
+            # origin to a1, a2, a3
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,0)
+            l.GetPointIds().SetId(1,1)
+            lines.InsertNextCell(l)
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,0)
+            l.GetPointIds().SetId(1,2)
+            lines.InsertNextCell(l)
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,0)
+            l.GetPointIds().SetId(1,4)
+            lines.InsertNextCell(l)
+
+            # a1, a2, a3 to 6 more
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,1)
+            l.GetPointIds().SetId(1,3)
+            lines.InsertNextCell(l)
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,1)
+            l.GetPointIds().SetId(1,5)
+            lines.InsertNextCell(l)
+
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,2)
+            l.GetPointIds().SetId(1,3)
+            lines.InsertNextCell(l)
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,2)
+            l.GetPointIds().SetId(1,6)
+            lines.InsertNextCell(l)
+
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,4)
+            l.GetPointIds().SetId(1,5)
+            lines.InsertNextCell(l)
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,4)
+            l.GetPointIds().SetId(1,6)
+            lines.InsertNextCell(l)
+
+            # a1+a2+a3 to 3
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,3)
+            l.GetPointIds().SetId(1,7)
+            lines.InsertNextCell(l)
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,5)
+            l.GetPointIds().SetId(1,7)
+            lines.InsertNextCell(l)
+            l = vtk.vtkLine()
+            l.GetPointIds().SetId(0,6)
+            l.GetPointIds().SetId(1,7)
+            lines.InsertNextCell(l)
+
+            linesPolyData = vtk.vtkPolyData()
+            linesPolyData.SetPoints(pts)
+            linesPolyData.SetLines(lines)
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputData(linesPolyData)
+
+            actor = self.at_list[frame_i].info["_vtk_cell_box_actor"]
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetColor(self.config["cell_box_color"])
+            actor.PickableOff()
+
     def create_vtk_structures(self):
         for at in self.at_list:
             at.arrays["_vtk_at_actor"] = [vtk.vtkActor() for i in range(len(at)) ]
             at.arrays["_vtk_picked"] = [False] * len(at)
+            at.info["_vtk_cell_box_actor"] = vtk.vtkActor()
 
         self.update_atoms()
+        self.update_cell_boxes()
 
     def set_shown_frame(self, renderer, dframe=None, frame_i=None):
         if dframe is not None:
@@ -126,8 +206,11 @@ class daVTK(object):
         # change list of shown actors
         renderer.RemoveAllViewProps()
 
+        # actors for atoms
         for actor in self.at_list[self.cur_frame].arrays["_vtk_at_actor"]:
             renderer.AddActor(actor)
+
+        renderer.AddActor(self.at_list[self.cur_frame].info["_vtk_cell_box_actor"])
 
         renderer.GetRenderWindow().Render()
 

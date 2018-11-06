@@ -93,8 +93,6 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'minus':
             self.davtk_state.set_shown_frame(renderer=self.GetDefaultRenderer(), dframe=-1)
         elif k == 'c':
-            import select
-
             if select.select([sys.stdin,],[],[],0.0)[0]:
                 print "Have data!"
             else:
