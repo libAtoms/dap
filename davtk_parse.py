@@ -40,7 +40,7 @@ parser_atom_type.add_argument("-radius_field",type=str,default=None)
 parser_atom_type.add_argument("-opacity",type=float,default=None)
 parser_atom_type.add_argument("-label_field",type=str,default=None)
 def parse_atom_type(config, line):
-    refresh = False
+    refresh = None
     args = parser_atom_type.parse_args(line.split()[1:])
     if args.name not in config["atom_types"]:
         config["atom_types"][args.name] = {}
@@ -54,34 +54,38 @@ def parse_atom_type(config, line):
         prop.SetSpecularColor(1.0,1.0,1.0)
         prop.SetSpecularPower(10.0)
         config["atom_types"][args.name]["prop"] = prop
-        refresh = True
+        refresh = "all"
     if args.color is not None:
-        refresh = config["atom_types"][args.name]["colormap_func"] is not None
+        refresh = None
+        if config["atom_types"][args.name]["colormap_func"] is not None:
+            refresh = "all"
         config["atom_types"][args.name]["prop"].SetColor(args.color)
         config["atom_types"][args.name]["colormap_func"] = None
         config["atom_types"][args.name]["colormap_field"] = None
     if args.colormap is not None:
-        refresh = True
+        refresh = "all"
         config["atom_types"][args.name]["colormap_func"] = config["colormaps"][args.colormap[0]]
         config["atom_types"][args.name]["colormap_field"] = args.colormap[1]
         config["atom_types"][args.name]["color"] = None
     if args.opacity is not None:
         config["atom_types"][args.name]["prop"].SetOpacity(args.opacity)
     if args.radius is not None:
-        refresh = config["atom_types"][args.name]["radius_field"] is not None
+        refresh = None
+        if config["atom_types"][args.name]["radius_field"] is not None:
+            refresh = "all"
         config["atom_types"][args.name]["radius"] = args.radius
         config["atom_types"][args.name]["radius_field"] = None
     if args.radius_field is not None:
-        refresh = True
+        refresh = "all"
         config["atom_types"][args.name]["radius_field"] = args.radius_field
         config["atom_types"][args.name]["radius"] = None
     if args.label_field is not None:
+        refresh = "all"
         if args.label_field == 'NONE':
             print "unsetting label field"
             config["atom_types"][args.name]["label_field"] = None
         else:
             config["atom_types"][args.name]["label_field"] = args.label_field
-        refresh = True
     return refresh
 config_parsers["atom_type"] = parse_atom_type
 
@@ -91,7 +95,7 @@ parser_bond_type.add_argument("-color",nargs=3,type=float,default=None)
 parser_bond_type.add_argument("-radius",type=float,default=None)
 parser_bond_type.add_argument("-opacity",type=float,default=None)
 def parse_bond_type(config, line):
-    refresh = False
+    refresh = None
     args = parser_bond_type.parse_args(line.split()[1:])
     if args.name not in config["bond_types"]:
         config["bond_types"][args.name] = {}
@@ -102,13 +106,13 @@ def parse_bond_type(config, line):
         prop.SetSpecularColor(1.0,1.0,1.0)
         prop.SetSpecularPower(10.0)
         config["bond_types"][args.name]["prop"] = prop
-        refresh = True
+        refresh = "all"
     if args.color is not None:
         config["bond_types"][args.name]["prop"].SetColor(args.color)
     if args.opacity is not None:
         config["bond_types"][args.name]["prop"].SetOpacity(args.opacity)
     if args.radius is not None:
-        refresh = True
+        refresh = "all"
         config["bond_types"][args.name]["radius"] = args.radius
     return refresh
 config_parsers["bond_type"] = parse_bond_type
@@ -116,16 +120,25 @@ config_parsers["bond_type"] = parse_bond_type
 parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
 parser_cell_box_color.add_argument("-color",nargs=3,type=float,default=None)
 def parse_bond_type(config, line):
-    refresh = True
+    refresh = "all"
     args = parser_cell_box_color.parse_args(line.split()[1:])
     config["cell_box_color"] = args.color
     return refresh
 config_parsers["cell_box_color"] = parse_bond_type
 
+parser_picked_color = ThrowingArgumentParser(prog="picked_color")
+parser_picked_color.add_argument("-color",nargs=3,type=float,default=None)
+def parse_bond_type(config, line):
+    refresh = "all"
+    args = parser_picked_color.parse_args(line.split()[1:])
+    config["picked_color"] = args.color
+    return refresh
+config_parsers["picked_color"] = parse_bond_type
+
 parser_background_color = ThrowingArgumentParser(prog="background_color")
 parser_background_color.add_argument("-color",nargs=3,type=float,default=None)
 def parse_bond_type(config, line):
-    refresh = True
+    refresh = "all"
     args = parser_background_color.parse_args(line.split()[1:])
     config["background_color"] = args.color
     return refresh
@@ -137,7 +150,17 @@ def config_parse_line(config, line):
         return config_parsers[keyword](config, line)
 
 def config_parse_file(filename):
-    config = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {}, "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0]  }
+    config = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {}, 
+        "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
+        "picked_color" : [1.0, 1.0, 0.0] }
     for line in open(filename).readlines():
         config_parse_line(config, line)
+
+    # properties
+    for f in ["cell_box","picked"]:
+        prop = vtk.vtkProperty()
+        prop.SetOpacity(1.0)
+        prop.SetColor(config[f+"_color"])
+        config[f+"_prop"] = prop
+
     return config
