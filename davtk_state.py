@@ -103,12 +103,12 @@ class DaVTKState(object):
                 del at[at_inds]
 
         self.update(frames)
-        self.set_shown_frame(dframe=0)
+        self.show_frame(dframe=0)
 
     def update(self, frames=None):
         self.update_atoms(frames)
         self.update_cell_boxes(frames)
-        self.set_shown_frame(dframe=0)
+        self.show_frame(dframe=0)
 
     def update_atoms(self, frames=None, atoms=None):
         for frame_i in self.frame_list(frames):
@@ -226,7 +226,7 @@ class DaVTKState(object):
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
             at.info["_vtk_cell_box_actor"] = vtk.vtkActor()
 
-    def set_shown_frame(self, dframe=None, frame_i=None):
+    def show_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
             if frame_i is not None:
                 raise ValueError("set_show_frame got both dframe and frame_i")

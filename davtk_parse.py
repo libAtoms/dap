@@ -21,7 +21,7 @@ parser_next = ThrowingArgumentParser(prog="next",description="go forward a numbe
 parser_next.add_argument("-n",type=int,default=1,help="number of frames to change")
 def parse_next(davtk_state, renderer, args):
     args = parser_next.parse_args(args)
-    davtk_state.set_shown_frame(dframe = args.n, renderer=renderer)
+    davtk_state.show_frame(dframe = args.n, renderer=renderer)
     return None
 parsers["next"] = (parse_next, parser_next.format_usage(), parser_next.format_help())
 
@@ -29,7 +29,7 @@ parser_prev = ThrowingArgumentParser(prog="prev", description="go back a number 
 parser_prev.add_argument("-n",type=int,default=1, help="number of frames to change")
 def parse_prev(davtk_state, renderer, args):
     args = parser_prev.parse_args(args)
-    davtk_state.set_shown_frame(dframe = -args.n, renderer=renderer)
+    davtk_state.show_frame(dframe = -args.n, renderer=renderer)
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
@@ -110,7 +110,7 @@ def parse_images(davtk_state, renderer, args):
     else:
         davtk_state.cur_at().info["images"] = args.n
 
-    davtk_state.set_shown_frame(dframe=0)
+    davtk_state.show_frame(dframe=0)
 
     return None
 parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.format_help())

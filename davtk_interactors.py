@@ -83,9 +83,9 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'm':
             self.davtk_state.measure_picked()
         elif k == 'plus':
-            self.davtk_state.set_shown_frame(dframe=1)
+            self.davtk_state.show_frame(dframe=1)
         elif k == 'minus':
-            self.davtk_state.set_shown_frame(dframe=-1)
+            self.davtk_state.show_frame(dframe=-1)
         # elif k == 'c':
             # if select.select([sys.stdin,],[],[],0.0)[0]:
                 # print "Have data!"
