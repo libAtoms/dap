@@ -35,6 +35,7 @@ class DavTKSettings(object):
         self.parser_atom_type.add_argument("-radius_field",type=str,default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
         self.parser_atom_type.add_argument("-label",type=str,default=None)
+        self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
         self.parsers["atom_type"] = self.parse_atom_type
 
         self.parser_bond_type = ThrowingArgumentParser(prog="bond_type")
@@ -46,15 +47,15 @@ class DavTKSettings(object):
 
         self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
         self.parser_cell_box_color.add_argument("-color",nargs=3,type=float,default=None)
-        self.parsers["cell_box_color"] = self.parse_bond_type
+        self.parsers["cell_box_color"] = self.parse_cell_box_color
 
         self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
         self.parser_picked_color.add_argument("-color",nargs=3,type=float,default=None)
-        self.parsers["picked_color"] = self.parse_bond_type
+        self.parsers["picked_color"] = self.parse_picked_color
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
         self.parser_background_color.add_argument("-color",nargs=3,type=float,default=None)
-        self.parsers["background_color"] = self.parse_bond_type
+        self.parsers["background_color"] = self.parse_background_color
 
         # properties
         for f in ["cell_box","picked"]:
@@ -82,6 +83,7 @@ class DavTKSettings(object):
             self.settings["atom_types"][args.name]["colormap_field"] = None
             self.settings["atom_types"][args.name]["radius_field"] = None
             self.settings["atom_types"][args.name]["label"] = None
+            self.settings["atom_types"][args.name]["bonding_radius"] = None
             prop = vtk.vtkProperty()
             prop.SetOpacity(1.0)
             prop.SetSpecularColor(1.0,1.0,1.0)
@@ -119,11 +121,15 @@ class DavTKSettings(object):
                 self.settings["atom_types"][args.name]["label"] = None
             else:
                 self.settings["atom_types"][args.name]["label"] = args.label
+        if args.bonding_radius is not None:
+            self.settings["atom_types"][args.name]["bonding_radius"] = args.bonding_radius
         return refresh
 
     def parse_bond_type(self, args):
         refresh = None
         args = self.parser_bond_type.parse_args(args)
+        if len(self.settings["bond_types"].keys()) == 0:
+            self.settings["default_bond_type"] = args.name
         if args.name not in self.settings["bond_types"]:
             self.settings["bond_types"][args.name] = {}
             self.settings["bond_types"][args.name]["opacity"] = 1.0

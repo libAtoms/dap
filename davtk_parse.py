@@ -115,6 +115,24 @@ def parse_images(davtk_state, renderer, args):
     return None
 parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.format_help())
 
+
+parser_bond = ThrowingArgumentParser(prog="bond",description="create bonds")
+parser_bond.add_argument("-all",action="store_true",help="apply to all frames")
+parser_bond.add_argument("-name",type=str,help="name of bond type", default=None)
+parser_bond.add_argument("cutoff",type=float,nargs='?',help="cutoff (overriding atom type)",default=None)
+def parse_bond(davtk_state, renderer, args):
+    args = parser_bond.parse_args(args)
+
+    if args.all:
+        davtk_state.bond(args.cutoff, args.name, None)
+    else:
+        davtk_state.bond(args.cutoff, args.name, "cur")
+
+    davtk_state.show_frame(dframe=0)
+
+    return None
+parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_help())
+
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):

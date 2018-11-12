@@ -1,6 +1,8 @@
 import sys, ase.io
 import numpy as np
 import vtk
+import ase.neighborlist
+from itertools import izip
 
 def find_min_max(at_list):
     min_pos = sys.float_info.max
@@ -107,21 +109,76 @@ class DaVTKState(object):
 
     def update(self, frames=None):
         self.update_atoms(frames)
+        self.update_bonds(frames)
         self.update_cell_boxes(frames)
         self.show_frame(dframe=0)
 
-    def update_atoms(self, frames=None, atoms=None):
+    def update_bonds(self, frames=None):
+        for frame_i in self.frame_list(frames):
+            at = self.at_list[frame_i]
+            pos = at.get_positions()
+            at.bond_actors = []
+            if 'bonds' not in at.arrays:
+                continue
+            for i_at in range(len(at)):
+                v = at.arrays["bonds"][i_at].split()
+                for i_bond in range(0,len(v),6):
+                    i = i_at
+                    j = int(v[i_bond])
+                    dr = np.array([float(x) for x in v[i_bond+1:i_bond+4]])
+                    dr_norm = float(v[i_bond+4])
+                    name = v[i_bond+5]
+
+                    rad = self.settings["bond_types"][name]["radius"]
+
+                    actor_1 = vtk.vtkActor()
+                    actor_1.SetMapper(self.mappers["cylinder"])
+                    transform = vtk.vtkTransform()
+                    axis = np.cross(dr, [0.0, 1.0, 0.0])
+                    if np.linalg.norm(axis) == 0.0:
+                        axis = None
+                    else:
+                        axis /= np.linalg.norm(axis)
+                    dr_hat = dr / dr_norm
+                    angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
+                    transform.Translate(pos[i]+dr/4.0)
+                    if axis is not None:
+                        transform.RotateWXYZ(angle, axis)
+                    transform.Scale(rad, dr_norm/2.0, rad)
+                    actor_1.SetUserMatrix(transform.GetMatrix())
+                    actor_1.SetProperty(self.settings["bond_types"][name]["prop"])
+
+                    # second half bond
+                    actor_2 = vtk.vtkActor()
+                    actor_2.SetMapper(self.mappers["cylinder"])
+                    transform = vtk.vtkTransform()
+                    axis = np.cross(dr, [0.0, 1.0, 0.0])
+                    if np.linalg.norm(axis) == 0.0:
+                        axis = None
+                    else:
+                        axis /= np.linalg.norm(axis)
+                    dr_hat = dr / dr_norm
+                    angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
+                    transform.Translate(pos[j]-dr/4.0)
+                    if axis is not None:
+                        transform.RotateWXYZ(angle, axis)
+                    transform.Scale(rad, dr_norm/2.0, rad)
+                    actor_2.SetUserMatrix(transform.GetMatrix())
+                    actor_2.SetProperty(self.settings["bond_types"][name]["prop"])
+
+                    actor_1.other_half = actor_2
+                    actor_2.other_half = actor_1
+
+                    at.bond_actors.append(actor_1)
+                    at.bond_actors.append(actor_2)
+
+    def update_atoms(self, frames=None):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
             atom_type_array = get_atom_type_a(at)
             pos = at.get_positions()
 
-            if atoms is None:
-                at_set = range(len(at))
-            else:
-                at_set = atoms
-
-            for i_at in at_set:
+            for i_at in range(len(at)):
                 actor = at.arrays["_vtk_at_actor"][i_at]
                 actor.SetMapper(self.mappers["sphere"])
                 if at.arrays["_vtk_picked"][i_at]: 
@@ -272,6 +329,9 @@ class DaVTKState(object):
                             self.renderer.AddActor(img_actor)
 
         # need to do other actors, e.g. labels and bonds
+        if hasattr(at, "bond_actors"):
+            for actor in at.bond_actors:
+                self.renderer.AddActor(actor)
 
         # refresh display
         self.renderer.GetRenderWindow().Render()
@@ -313,4 +373,23 @@ class DaVTKState(object):
             at.set_cell(np.dot([n_dup[0], n_dup[1], n_dup[2]], at.info["orig_cell"]))
 
         self.create_vtk_structures(frames)
+        self.update(frames)
+
+    def bond(self, cutoff, name, frames=None):
+        if name is None:
+            name = self.settings["default_bond_type"]
+        for frame_i in self.frame_list(frames):
+            at = self.at_list[frame_i]
+            if cutoff is None:
+                atom_type_array = get_atom_type_a(at)
+                cutoff = max([self.settings["atom_types"][atom_type_array[i]]["bonding_radius"] for i in range(len(at))])
+            if cutoff == 0.0:
+                return
+            print "making neighborlist", cutoff
+            nn_list = ase.neighborlist.neighbor_list('ijDd', at, cutoff, self_interaction=True)
+            bonds = [""] * len(at)
+            for (i, j, v, d) in izip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
+                if d > 0.0 and j <= i:
+                    bonds[i] += "{} {} {} {} {} {} ".format(j, v[0], v[1], v[2], d, name)
+            at.arrays["bonds"] = np.array(bonds)
         self.update(frames)
