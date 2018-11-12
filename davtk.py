@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import ase.io, vtk, sys
-from davtk_parse import config_parse_file
+from davtk_parse_config import config_parse_file
 from davtk_util import *
 from davtk_interactors import *
 import argparse
@@ -20,7 +20,7 @@ for f in args.files:
 
 config = config_parse_file("davtk.config")
 
-davtk_state = daVTK(at_list, config)
+davtk_state = DaVTKState(at_list, config)
 
 (min_pos, max_pos) = find_min_max(at_list)
 

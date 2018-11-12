@@ -1,4 +1,5 @@
 import argparse, numpy as np, vtk
+from davtk_parse_utils import ThrowingArgumentParser
 
 def piecewise_linear(x, t):
     i = np.searchsorted(t[::4], x)
@@ -11,15 +12,6 @@ def piecewise_linear(x, t):
         return f*t[(i-1)*4+1:(i-1)*4+4] + (1.0-f)*t[i*4+1:i*4+4]
 
 config_parsers = {}
-
-# subclass ArgumentParser to throw errors instead of exiting
-class ArgumentParserError(Exception): pass
-
-class ThrowingArgumentParser(argparse.ArgumentParser):
-    def error(self, message):
-        raise ArgumentParserError(message)
-    def exit(self):
-        raise ArgumentParserError("help")
 
 parser_colormap = ThrowingArgumentParser(prog="colormap")
 parser_colormap.add_argument("-name",type=str)
@@ -38,7 +30,7 @@ parser_atom_type.add_argument("-colormap",nargs=2,type=str,default=None)
 parser_atom_type.add_argument("-radius",type=float,default=None)
 parser_atom_type.add_argument("-radius_field",type=str,default=None)
 parser_atom_type.add_argument("-opacity",type=float,default=None)
-parser_atom_type.add_argument("-label_field",type=str,default=None)
+parser_atom_type.add_argument("-label",type=str,default=None)
 def parse_atom_type(config, line):
     refresh = None
     args = parser_atom_type.parse_args(line.split()[1:])
@@ -48,7 +40,7 @@ def parse_atom_type(config, line):
         config["atom_types"][args.name]["colormap_func"] = None
         config["atom_types"][args.name]["colormap_field"] = None
         config["atom_types"][args.name]["radius_field"] = None
-        config["atom_types"][args.name]["label_field"] = None
+        config["atom_types"][args.name]["label"] = None
         prop = vtk.vtkProperty()
         prop.SetOpacity(1.0)
         prop.SetSpecularColor(1.0,1.0,1.0)
@@ -79,13 +71,13 @@ def parse_atom_type(config, line):
         refresh = "all"
         config["atom_types"][args.name]["radius_field"] = args.radius_field
         config["atom_types"][args.name]["radius"] = None
-    if args.label_field is not None:
+    if args.label is not None:
         refresh = "all"
-        if args.label_field == 'NONE':
+        if args.label == 'NONE':
             print "unsetting label field"
-            config["atom_types"][args.name]["label_field"] = None
+            config["atom_types"][args.name]["label"] = None
         else:
-            config["atom_types"][args.name]["label_field"] = args.label_field
+            config["atom_types"][args.name]["label"] = args.label
     return refresh
 config_parsers["atom_type"] = parse_atom_type
 
@@ -148,13 +140,16 @@ def config_parse_line(config, line):
     keyword = line.split()[0]
     if keyword in config_parsers:
         return config_parsers[keyword](config, line)
+    else:
+        raise ValueError("not a config keyword '{}'".format(keyword))
 
 def config_parse_file(filename):
     config = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {}, 
         "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
         "picked_color" : [1.0, 1.0, 0.0] }
     for line in open(filename).readlines():
-        config_parse_line(config, line)
+        if len(line) > 0 and not line.startswith("#"):
+            config_parse_line(config, line)
 
     # properties
     for f in ["cell_box","picked"]:

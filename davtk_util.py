@@ -46,7 +46,7 @@ def get_atom_radius(config, atom_type, i=None, arrays=None):
     else:
         return config["atom_types"][atom_type]["radius"]
 
-class daVTK(object):
+class DaVTKState(object):
     def __init__(self, at_list, config):
         self.at_list = at_list
         self.config = config
@@ -197,11 +197,13 @@ class daVTK(object):
             if frame_i is not None:
                 raise ValueError("set_show_frame got both dframe and frame_i")
             self.cur_frame += dframe
-        else:
+        else: # dframe is None
             if frame_i is None:
                 raise ValueError("set_show_frame got neither dframe and frame_i")
-
             self.cur_frame = frame_i
+
+        # wrap around
+        self.cur_frame = self.cur_frame % len(self.at_list)
 
         # change list of shown actors
         renderer.RemoveAllViewProps()
@@ -210,8 +212,12 @@ class daVTK(object):
         for actor in self.at_list[self.cur_frame].arrays["_vtk_at_actor"]:
             renderer.AddActor(actor)
 
+        # actor for cell box
         renderer.AddActor(self.at_list[self.cur_frame].info["_vtk_cell_box_actor"])
 
+        # need to do other actors, e.g. labels and bonds
+
+        # refresh display
         renderer.GetRenderWindow().Render()
 
     def measure_picked(self):
