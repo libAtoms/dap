@@ -50,11 +50,14 @@ class DaVTKState(object):
     def __init__(self, at_list, config):
         self.at_list = at_list
         self.config = config
-        self.mappers = self.create_mappers()
+        self.mappers = self.create_shape_mappers()
         self.create_vtk_structures()
         self.cur_frame = 0
 
-    def create_mappers(self):
+    def cur_at(self):
+        return self.at_list[self.cur_frame]
+
+    def create_shape_mappers(self):
         mappers = {}
 
         source = vtk.vtkSphereSource()
@@ -83,26 +86,34 @@ class DaVTKState(object):
         else:
             return frames
 
-    def update(self, frames=None):
-        self.update_atoms(frames)
+    def update(self, frames=None, atoms=None):
+        self.update_atoms(frames, atoms)
+        self.update_cell_boxes(frames)
 
-    def update_atoms(self, frames=None):
+    def update_atoms(self, frames=None, atoms=None):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
             atom_type_array = get_atom_type_a(at)
             pos = at.get_positions()
 
-            for i_at in range(len(at)):
+            if atoms is None:
+                at_set = range(len(at))
+            else:
+                at_set = atoms
+
+            for i_at in at_set:
                 actor = at.arrays["_vtk_at_actor"][i_at]
                 actor.SetMapper(self.mappers["sphere"])
-                prop = get_atom_prop(self.config, atom_type_array[i_at], i_at, at.arrays)
+                if at.arrays["_vtk_picked"][i_at]: 
+                    prop = self.config["picked_prop"]
+                else:
+                    prop = get_atom_prop(self.config, atom_type_array[i_at], i_at, at.arrays)
                 actor.SetProperty(prop)
                 transform = vtk.vtkTransform()
                 transform.Translate(pos[i_at])
                 r = get_atom_radius(self.config, atom_type_array[i_at], i_at, at.arrays)
                 transform.Scale(r, r, r)
                 actor.SetUserMatrix(transform.GetMatrix())
-                actor.i_at = i_at
 
     def update_cell_boxes(self, frames=None):
         for frame_i in self.frame_list(frames):
@@ -186,6 +197,8 @@ class DaVTKState(object):
     def create_vtk_structures(self):
         for at in self.at_list:
             at.arrays["_vtk_at_actor"] = [vtk.vtkActor() for i in range(len(at)) ]
+            for (i_at, actor) in enumerate(at.arrays["_vtk_at_actor"]):
+                actor.i_at = i_at
             at.arrays["_vtk_picked"] = [False] * len(at)
             at.info["_vtk_cell_box_actor"] = vtk.vtkActor()
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 import ase.io, vtk, sys
-from davtk_parse_config import config_parse_file
+from davtk_config import DavTKConfig
+from davtk_parse import parse_file
 from davtk_util import *
 from davtk_interactors import *
 import argparse
@@ -18,7 +19,8 @@ for f in args.files:
         at.info["_vtk_filename"] = f
         at_list.append(at)
 
-config = config_parse_file("davtk.config")
+config = DavTKConfig()
+parse_file("davtk.config", config=config)
 
 davtk_state = DaVTKState(at_list, config)
 
@@ -36,7 +38,7 @@ interactor = vtk.vtkRenderWindowInteractor()
 interactor.SetRenderWindow(renwin)
 
 # add the custom styles for regular interaction and area selection
-sel_style = RubberbandSelect(davtk_state,config["picked_prop"],parent=interactor)
+sel_style = RubberbandSelect(davtk_state,parent=interactor)
 sel_style.SetDefaultRenderer(renderer)
 
 def_style = MouseInteractorHighLightActor(config,davtk_state,sel_style,parent=interactor)

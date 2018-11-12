@@ -1,7 +1,8 @@
 import argparse
 
 # subclass ArgumentParser to throw errors instead of exiting
-class ArgumentParserError(Exception): pass
+class ArgumentParserError(Exception):
+    pass
 
 class ThrowingArgumentParser(argparse.ArgumentParser):
     def error(self, message):

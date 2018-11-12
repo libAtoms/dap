@@ -1,25 +1,12 @@
 import select, sys
 import vtk
-
-def toggle_pick(actor, picked_prop, at):
-    if hasattr(actor,'prop_before_pick') and actor.prop_before_pick is not None:
-        # restore to previous prop
-        actor.SetProperty(actor.prop_before_pick)
-        # reset saved prop to None
-        actor.prop_before_pick = None
-        at.arrays["_vtk_picked"][actor.i_at] = False
-    else:
-        # save current property, and set to picked prop
-        actor.prop_before_pick = actor.GetProperty()
-        actor.SetProperty(picked_prop)
-        at.arrays["_vtk_picked"][actor.i_at] = True
+from davtk_parse import parse_line
 
 class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
-    def __init__(self,davtk_state,picked_prop,parent=None):
+    def __init__(self,davtk_state,parent=None):
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.prev_style = None
         self.davtk_state = davtk_state
-        self.picked_prop = picked_prop
 
     def set_prev_style(self, prev_style):
         self.prev_style = prev_style
@@ -30,8 +17,15 @@ class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
 
         picker = vtk.vtkAreaPicker()
         picker.AreaPick(p0[0], p0[1], p1[0], p1[1], self.GetDefaultRenderer())
+        at = self.davtk_state.cur_at()
+        picked_ats = []
         for p in picker.GetProp3Ds():
-            toggle_pick(p, self.picked_prop, self.davtk_state.at_list[self.davtk_state.cur_frame])
+            if hasattr(p,"i_at"):
+                at.arrays["_vtk_picked"][p.i_at] = not at.arrays["_vtk_picked"][p.i_at] 
+                picked_ats.append(p.i_at)
+            else:
+                raise ValueError("picked something that's not an atom "+str(p))
+        self.davtk_state.update_atoms(frames="cur",atoms=picked_ats)
 
         self.OnLeftButtonUp()
 
@@ -65,11 +59,11 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             line = sys.stdin.readline()
             try:
                 print "parsing line", line.rstrip()
-                refresh = config_parse_line(self.config, line.rstrip())
+                refresh = parse_line(line.rstrip(),self.config, self.davtk_state, self.GetDefaultRenderer())
                 if refresh == "all":
                     self.davtk_state.update()
                 elif refresh == "cur":
-                    self.davtk_state.update("cur")
+                    self.davtk_state.update(frames="cur")
                 elif refresh is not None:
                     raise ValueError("unknown refresh type "+str(refresh))
             except Exception, e:
@@ -92,11 +86,11 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.davtk_state.set_shown_frame(renderer=self.GetDefaultRenderer(), dframe=1)
         elif k == 'minus':
             self.davtk_state.set_shown_frame(renderer=self.GetDefaultRenderer(), dframe=-1)
-        elif k == 'c':
-            if select.select([sys.stdin,],[],[],0.0)[0]:
-                print "Have data!"
-            else:
-                print "No data"
+        # elif k == 'c':
+            # if select.select([sys.stdin,],[],[],0.0)[0]:
+                # print "Have data!"
+            # else:
+                # print "No data"
 
         if self.GetInteractor() is not None:
             self.GetInteractor().Render()
@@ -114,10 +108,15 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.NewPickedActor = picker.GetActor()
 
         # If something was selected
+        at = self.davtk_state.cur_at()
+        picked_ats = []
         if self.NewPickedActor:
-            toggle_pick(self.NewPickedActor, self.select_style.picked_prop, self.davtk_state.at_list[self.davtk_state.cur_frame])
-            if hasattr(self.NewPickedActor,'other_half'):
-                toggle_pick(self.NewPickedActor.other_half, self.select_style.picked_prop, self.davtk_state.at_list[self.davtk_state.cur_frame])
+            if hasattr(self.NewPickedActor,"i_at"):
+                at.arrays["_vtk_picked"][self.NewPickedActor.i_at] = not at.arrays["_vtk_picked"][self.NewPickedActor.i_at] 
+                picked_ats.append(self.NewPickedActor.i_at)
+            else:
+                raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
+        self.davtk_state.update_atoms(frames="cur",atoms=picked_ats)
 
         self.GetInteractor().Render()
 
