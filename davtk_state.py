@@ -1,4 +1,4 @@
-import sys
+import sys, ase.io
 import numpy as np
 import vtk
 
@@ -55,6 +55,8 @@ class DaVTKState(object):
         self.cur_frame = 0
         self.renderer = renderer
 
+        self.update()
+
     def cur_at(self):
         return self.at_list[self.cur_frame]
 
@@ -87,10 +89,6 @@ class DaVTKState(object):
         else:
             return frames
 
-    def update(self, frames=None, atoms=None):
-        self.update_atoms(frames, atoms)
-        self.update_cell_boxes(frames)
-
     def delete(self, atoms=None, frames="cur"):
         for frame_i in self.frame_list(frames):
             if atoms is not None:
@@ -104,8 +102,12 @@ class DaVTKState(object):
                 print "del",at_inds
                 del at[at_inds]
 
-            self.update_atoms(frames)
+        self.update(frames)
+        self.set_shown_frame(dframe=0)
 
+    def update(self, frames=None):
+        self.update_atoms(frames)
+        self.update_cell_boxes(frames)
         self.set_shown_frame(dframe=0)
 
     def update_atoms(self, frames=None, atoms=None):
@@ -214,16 +216,15 @@ class DaVTKState(object):
             actor.GetProperty().SetColor(self.settings["cell_box_color"])
             actor.PickableOff()
 
-    def create_vtk_structures(self):
-        for at in self.at_list:
+    def create_vtk_structures(self, frames=None):
+        for frame_i in self.frame_list(frames):
+            at = self.at_list[frame_i]
+
             at.arrays["_vtk_at_actor"] = np.array([vtk.vtkActor() for i in range(len(at)) ])
             for (i_at, actor) in enumerate(at.arrays["_vtk_at_actor"]):
                 actor.i_at = i_at
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
             at.info["_vtk_cell_box_actor"] = vtk.vtkActor()
-
-        self.update_atoms()
-        self.update_cell_boxes()
 
     def set_shown_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
@@ -238,15 +239,35 @@ class DaVTKState(object):
         # wrap around
         self.cur_frame = self.cur_frame % len(self.at_list)
 
-        # change list of shown actors
+        at = self.at_list[self.cur_frame]
+
+        # remove all existing actors
         self.renderer.RemoveAllViewProps()
 
-        # actors for atoms
-        for actor in self.at_list[self.cur_frame].arrays["_vtk_at_actor"]:
-            self.renderer.AddActor(actor)
-
         # actor for cell box
-        self.renderer.AddActor(self.at_list[self.cur_frame].info["_vtk_cell_box_actor"])
+        self.renderer.AddActor(at.info["_vtk_cell_box_actor"])
+
+        # create actors for atoms
+        pos = at.get_positions()
+        cell = at.get_cell()
+        for (i_at, actor) in enumerate(at.arrays["_vtk_at_actor"]):
+            # real image
+            self.renderer.AddActor(actor)
+            # periodic images if needed
+            if "images" in at.info:
+                for i0 in range(-at.info["images"][0], at.info["images"][0]+1):
+                    for i1 in range(-at.info["images"][1], at.info["images"][1]+1):
+                        for i2 in range(-at.info["images"][2], at.info["images"][2]+1):
+                            if (i0,i1,i2) == (0,0,0):
+                                continue
+                            img_actor = vtk.vtkActor()
+                            img_actor.SetProperty(actor.GetProperty())
+                            img_actor.SetMapper(actor.GetMapper())
+                            transform = vtk.vtkTransform()
+                            transform.Translate(pos[i_at] + np.dot([i0, i1, i2], cell))
+                            img_actor.SetUserMatrix(transform.GetMatrix())
+                            img_actor.i_at = i_at
+                            self.renderer.AddActor(img_actor)
 
         # need to do other actors, e.g. labels and bonds
 
@@ -268,3 +289,26 @@ class DaVTKState(object):
                 dv = -at.get_distance(i_at,j_at,mic=True,vector=True)
                 print "pair {} {} distance {} {} {} ({})".format(i_at,j_at,dv[0],dv[1],dv[2],np.linalg.norm(dv))
 
+    def duplicate(self, n_dup, frames=None):
+        for frame_i in self.frame_list(frames):
+            at = self.at_list[frame_i]
+            if "orig_n" not in at.info:
+                at.info["orig_n"] = len(at)
+            if "orig_cell" not in at.info:
+                at.info["orig_cell"] = at.get_cell()
+            if at.info["orig_n"] < len(at):
+                del at[range(at.info["orig_n"],len(at))]
+            p0 = at.get_positions()
+            p = list(p0)
+            for i0 in range(n_dup[0]):
+                for i1 in range(n_dup[1]):
+                    for i2 in range(n_dup[2]):
+                        if (i0, i1, i2) == (0, 0, 0):
+                            continue
+                        at.extend(at[0:at.info["orig_n"]])
+                        p.extend(p0 + np.dot([i0,i1,i2], at.info["orig_cell"]))
+            at.set_positions(p)
+            at.set_cell(np.dot([n_dup[0], n_dup[1], n_dup[2]], at.info["orig_cell"]))
+
+        self.create_vtk_structures(frames)
+        self.update(frames)

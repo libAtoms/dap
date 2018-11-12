@@ -1,7 +1,21 @@
+import numpy as np
 from davtk_parse_utils import ThrowingArgumentParser
 from davtk_settings import UnknownSettingsKeywordError
 
 parsers = {}
+
+def parse_usage(davtk_state, renderer, args):
+    for keyword in sorted(parsers.keys()):
+        print keyword, parsers[keyword][1],
+parsers["usage"] = (parse_usage, "usage: usage\n", "usage: usage\n")
+
+def parse_help(davtk_state, renderer, args):
+    for keyword in sorted(parsers.keys()):
+        print "--------------------------------------------------------------------------------"
+        print keyword, parsers[keyword][2],
+parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
+
+################################################################################
 
 parser_next = ThrowingArgumentParser(prog="next",description="go forward a number of frames")
 parser_next.add_argument("-n",type=int,default=1,help="number of frames to change")
@@ -60,19 +74,48 @@ def parse_delete(davtk_state, renderer, args):
     else:
         davtk_state.delete(atoms=args.n, frames=frame_list)
     return None
-
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 
-def parse_usage(davtk_state, renderer, args):
-    for keyword in sorted(parsers.keys()):
-        print keyword, parsers[keyword][1],
-parsers["usage"] = (parse_usage, "usage: usage\n", "usage: usage\n")
+parser_dup = ThrowingArgumentParser(prog="dup",description="duplicate cell")
+parser_dup.add_argument("-all",action="store_true",help="apply to all frames")
+parser_dup.add_argument("n",type=int,nargs='+', help="number of images to set (scalar or 3-vector)")
+def parse_dup(davtk_state, renderer, args):
+    args = parser_dup.parse_args(args)
+    if args.all:
+        frame_list=None
+    else:
+        frame_list="cur"
+    if len(args.n) == 1:
+        args.n *= 3
+    elif len(args.n) != 3:
+        raise ValueError("wrong number of elements (not 1 or 3) in n "+str(args.n))
+    davtk_state.duplicate(args.n, frames=frame_list)
+    return None
+parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help())
 
-def parse_help(davtk_state, renderer, args):
-    for keyword in sorted(parsers.keys()):
-        print "--------------------------------------------------------------------------------"
-        print keyword, parsers[keyword][2],
-parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
+parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
+parser_images.add_argument("-all",action="store_true",help="apply to all frames")
+parser_images.add_argument("n",type=int,nargs='+', help="number of images to set (scalar or 3-vector)")
+def parse_images(davtk_state, renderer, args):
+    args = parser_images.parse_args(args)
+
+    if len(args.n) == 1:
+        args.n *= 3
+    elif len(args.n) != 3:
+        raise ValueError("'"+str(args.n)+" not scalar or 3-vector")
+
+    if args.all:
+        for at in davtk_state.at_list:
+            at.info["images"] = args.n
+    else:
+        davtk_state.cur_at().info["images"] = args.n
+
+    davtk_state.set_shown_frame(dframe=0)
+
+    return None
+parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.format_help())
+
+################################################################################
 
 def parse_line(line, settings, state, renderer=None):
     try:

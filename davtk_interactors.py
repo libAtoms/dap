@@ -25,7 +25,7 @@ class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
                 picked_ats.append(p.i_at)
             else:
                 raise ValueError("picked something that's not an atom "+str(p))
-        self.davtk_state.update_atoms(frames="cur",atoms=picked_ats)
+        self.davtk_state.update(frames="cur")
 
         self.OnLeftButtonUp()
 
@@ -116,7 +116,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
                 picked_ats.append(self.NewPickedActor.i_at)
             else:
                 raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
-        self.davtk_state.update_atoms(frames="cur",atoms=picked_ats)
+        self.davtk_state.update(frames="cur")
 
         self.GetInteractor().Render()
 
