@@ -61,7 +61,9 @@ camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 print "setting up first frame"
 davtk_state.show_frame(frame_i=0)
 
+
 print "starting"
 # Start
+print "> ",; sys.stdout.flush()
 interactor.Initialize()
 interactor.Start()

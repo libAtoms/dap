@@ -132,6 +132,7 @@ class DaVTKState(object):
                 transform = vtk.vtkTransform()
                 transform.Translate(pos[i_at])
                 r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
+                actor.r = r
                 transform.Scale(r, r, r)
                 actor.SetUserMatrix(transform.GetMatrix())
                 # update in case numbers changed
@@ -265,6 +266,7 @@ class DaVTKState(object):
                             img_actor.SetMapper(actor.GetMapper())
                             transform = vtk.vtkTransform()
                             transform.Translate(pos[i_at] + np.dot([i0, i1, i2], cell))
+                            transform.Scale(actor.r, actor.r, actor.r)
                             img_actor.SetUserMatrix(transform.GetMatrix())
                             img_actor.i_at = i_at
                             self.renderer.AddActor(img_actor)
