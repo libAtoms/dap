@@ -47,12 +47,13 @@ def get_atom_radius(settings, atom_type, i=None, arrays=None):
         return settings["atom_types"][atom_type]["radius"]
 
 class DaVTKState(object):
-    def __init__(self, at_list, settings):
+    def __init__(self, at_list, settings, renderer):
         self.at_list = at_list
         self.settings = settings
         self.mappers = self.create_shape_mappers()
         self.create_vtk_structures()
         self.cur_frame = 0
+        self.renderer = renderer
 
     def cur_at(self):
         return self.at_list[self.cur_frame]
@@ -90,6 +91,23 @@ class DaVTKState(object):
         self.update_atoms(frames, atoms)
         self.update_cell_boxes(frames)
 
+    def delete(self, atoms=None, frames="cur"):
+        for frame_i in self.frame_list(frames):
+            if atoms is not None:
+                at = self.at_list[frame_i]
+                if atoms == "picked":
+                    at_inds = np.where(at.arrays["_vtk_picked"])[0]
+                elif isinstance(atoms,int):
+                    at_inds = np.array([atoms])
+                else:
+                    at_inds = np.array(atoms)
+                print "del",at_inds
+                del at[at_inds]
+
+            self.update_atoms(frames)
+
+        self.set_shown_frame(dframe=0)
+
     def update_atoms(self, frames=None, atoms=None):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
@@ -114,6 +132,8 @@ class DaVTKState(object):
                 r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
                 transform.Scale(r, r, r)
                 actor.SetUserMatrix(transform.GetMatrix())
+                # update in case numbers changed
+                actor.i_at = i_at
 
     def update_cell_boxes(self, frames=None):
         for frame_i in self.frame_list(frames):
@@ -196,7 +216,7 @@ class DaVTKState(object):
 
     def create_vtk_structures(self):
         for at in self.at_list:
-            at.arrays["_vtk_at_actor"] = [vtk.vtkActor() for i in range(len(at)) ]
+            at.arrays["_vtk_at_actor"] = np.array([vtk.vtkActor() for i in range(len(at)) ])
             for (i_at, actor) in enumerate(at.arrays["_vtk_at_actor"]):
                 actor.i_at = i_at
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
@@ -205,7 +225,7 @@ class DaVTKState(object):
         self.update_atoms()
         self.update_cell_boxes()
 
-    def set_shown_frame(self, renderer, dframe=None, frame_i=None):
+    def set_shown_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
             if frame_i is not None:
                 raise ValueError("set_show_frame got both dframe and frame_i")
@@ -219,19 +239,19 @@ class DaVTKState(object):
         self.cur_frame = self.cur_frame % len(self.at_list)
 
         # change list of shown actors
-        renderer.RemoveAllViewProps()
+        self.renderer.RemoveAllViewProps()
 
         # actors for atoms
         for actor in self.at_list[self.cur_frame].arrays["_vtk_at_actor"]:
-            renderer.AddActor(actor)
+            self.renderer.AddActor(actor)
 
         # actor for cell box
-        renderer.AddActor(self.at_list[self.cur_frame].info["_vtk_cell_box_actor"])
+        self.renderer.AddActor(self.at_list[self.cur_frame].info["_vtk_cell_box_actor"])
 
         # need to do other actors, e.g. labels and bonds
 
         # refresh display
-        renderer.GetRenderWindow().Render()
+        self.renderer.GetRenderWindow().Render()
 
     def measure_picked(self):
         at = self.at_list[self.cur_frame]

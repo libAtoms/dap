@@ -22,16 +22,14 @@ for f in args.files:
 settings = DavTKSettings()
 parse_file("davtk.settings", settings=settings)
 
-davtk_state = DaVTKState(at_list, settings)
-
-(min_pos, max_pos) = find_min_max(at_list)
-
 # A renderer and render window
 renderer = vtk.vtkRenderer()
 renderer.SetBackground(settings["background_color"])
 renwin = vtk.vtkRenderWindow()
 renwin.SetSize(args.geometry[0], args.geometry[1])
 renwin.AddRenderer(renderer)
+
+davtk_state = DaVTKState(at_list, settings, renderer)
 
 # An interactor for mouse stuff
 interactor = vtk.vtkRenderWindowInteractor()
@@ -49,6 +47,7 @@ interactor.CreateRepeatingTimer(100)
 interactor.SetInteractorStyle(def_style)
 
 # set up camera
+(min_pos, max_pos) = find_min_max(at_list)
 camera = renderer.GetActiveCamera()
 camera.ParallelProjectionOn()
 camera.SetParallelScale(np.max(max_pos-min_pos))
@@ -60,7 +59,7 @@ camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
 # start viewing first frame
 print "setting up first frame"
-davtk_state.set_shown_frame(renderer, frame_i=0)
+davtk_state.set_shown_frame(frame_i=0)
 
 print "starting"
 # Start
