@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import ase.io, vtk, sys
-from davtk_config import DavTKConfig
+from davtk_settings import DavTKSettings
 from davtk_parse import parse_file
-from davtk_util import *
+from davtk_state import *
 from davtk_interactors import *
 import argparse
 
@@ -19,16 +19,16 @@ for f in args.files:
         at.info["_vtk_filename"] = f
         at_list.append(at)
 
-config = DavTKConfig()
-parse_file("davtk.config", config=config)
+settings = DavTKSettings()
+parse_file("davtk.settings", settings=settings)
 
-davtk_state = DaVTKState(at_list, config)
+davtk_state = DaVTKState(at_list, settings)
 
 (min_pos, max_pos) = find_min_max(at_list)
 
 # A renderer and render window
 renderer = vtk.vtkRenderer()
-renderer.SetBackground(config["background_color"])
+renderer.SetBackground(settings["background_color"])
 renwin = vtk.vtkRenderWindow()
 renwin.SetSize(args.geometry[0], args.geometry[1])
 renwin.AddRenderer(renderer)
@@ -41,7 +41,7 @@ interactor.SetRenderWindow(renwin)
 sel_style = RubberbandSelect(davtk_state,parent=interactor)
 sel_style.SetDefaultRenderer(renderer)
 
-def_style = MouseInteractorHighLightActor(config,davtk_state,sel_style,parent=interactor)
+def_style = MouseInteractorHighLightActor(settings,davtk_state,sel_style,parent=interactor)
 def_style.SetDefaultRenderer(renderer)
 def_style.UseTimersOn()
 interactor.CreateRepeatingTimer(100)

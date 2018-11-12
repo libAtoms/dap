@@ -11,12 +11,12 @@ def piecewise_linear(x, t):
         f = t[i*4]-x
         return f*t[(i-1)*4+1:(i-1)*4+4] + (1.0-f)*t[i*4+1:i*4+4]
 
-class UnknownConfigKeywordError(Exception):
+class UnknownSettingsKeywordError(Exception):
     pass
 
-class DavTKConfig(object):
+class DavTKSettings(object):
     def __init__(self):
-        self.config = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {},
+        self.settings = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {},
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
             "picked_color" : [1.0, 1.0, 0.0] }
 
@@ -60,104 +60,104 @@ class DavTKConfig(object):
         for f in ["cell_box","picked"]:
             prop = vtk.vtkProperty()
             prop.SetOpacity(1.0)
-            prop.SetColor(self.config[f+"_color"])
-            self.config[f+"_prop"] = prop
+            prop.SetColor(self.settings[f+"_color"])
+            self.settings[f+"_prop"] = prop
 
     def __getitem__(self,key):
-        return self.config[key]
+        return self.settings[key]
 
     def parse_colormap(self, args):
         args = self.parser_colormap.parse_args(args)
         if len(args.colormap) % 4 != 0:
             raise ValueError("colormap arguments must be multiple of 4: v r g b")
-        self.config["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
+        self.settings["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
 
     def parse_atom_type(self, args):
         refresh = None
         args = self.parser_atom_type.parse_args(args)
-        if args.name not in self.config["atom_types"]:
-            self.config["atom_types"][args.name] = {}
-            self.config["atom_types"][args.name]["radius"] = 0.3
-            self.config["atom_types"][args.name]["colormap_func"] = None
-            self.config["atom_types"][args.name]["colormap_field"] = None
-            self.config["atom_types"][args.name]["radius_field"] = None
-            self.config["atom_types"][args.name]["label"] = None
+        if args.name not in self.settings["atom_types"]:
+            self.settings["atom_types"][args.name] = {}
+            self.settings["atom_types"][args.name]["radius"] = 0.3
+            self.settings["atom_types"][args.name]["colormap_func"] = None
+            self.settings["atom_types"][args.name]["colormap_field"] = None
+            self.settings["atom_types"][args.name]["radius_field"] = None
+            self.settings["atom_types"][args.name]["label"] = None
             prop = vtk.vtkProperty()
             prop.SetOpacity(1.0)
             prop.SetSpecularColor(1.0,1.0,1.0)
             prop.SetSpecularPower(10.0)
-            self.config["atom_types"][args.name]["prop"] = prop
+            self.settings["atom_types"][args.name]["prop"] = prop
             refresh = "all"
         if args.color is not None:
             refresh = None
-            if self.config["atom_types"][args.name]["colormap_func"] is not None:
+            if self.settings["atom_types"][args.name]["colormap_func"] is not None:
                 refresh = "all"
-            self.config["atom_types"][args.name]["prop"].SetColor(args.color)
-            self.config["atom_types"][args.name]["colormap_func"] = None
-            self.config["atom_types"][args.name]["colormap_field"] = None
+            self.settings["atom_types"][args.name]["prop"].SetColor(args.color)
+            self.settings["atom_types"][args.name]["colormap_func"] = None
+            self.settings["atom_types"][args.name]["colormap_field"] = None
         if args.colormap is not None:
             refresh = "all"
-            self.config["atom_types"][args.name]["colormap_func"] = self.config["colormaps"][args.colormap[0]]
-            self.config["atom_types"][args.name]["colormap_field"] = args.colormap[1]
-            self.config["atom_types"][args.name]["color"] = None
+            self.settings["atom_types"][args.name]["colormap_func"] = self.settings["colormaps"][args.colormap[0]]
+            self.settings["atom_types"][args.name]["colormap_field"] = args.colormap[1]
+            self.settings["atom_types"][args.name]["color"] = None
         if args.opacity is not None:
-            self.config["atom_types"][args.name]["prop"].SetOpacity(args.opacity)
+            self.settings["atom_types"][args.name]["prop"].SetOpacity(args.opacity)
         if args.radius is not None:
             refresh = None
-            if self.config["atom_types"][args.name]["radius_field"] is not None:
+            if self.settings["atom_types"][args.name]["radius_field"] is not None:
                 refresh = "all"
-            self.config["atom_types"][args.name]["radius"] = args.radius
-            self.config["atom_types"][args.name]["radius_field"] = None
+            self.settings["atom_types"][args.name]["radius"] = args.radius
+            self.settings["atom_types"][args.name]["radius_field"] = None
         if args.radius_field is not None:
             refresh = "all"
-            self.config["atom_types"][args.name]["radius_field"] = args.radius_field
-            self.config["atom_types"][args.name]["radius"] = None
+            self.settings["atom_types"][args.name]["radius_field"] = args.radius_field
+            self.settings["atom_types"][args.name]["radius"] = None
         if args.label is not None:
             refresh = "all"
             if args.label == 'NONE':
                 print "unsetting label field"
-                self.config["atom_types"][args.name]["label"] = None
+                self.settings["atom_types"][args.name]["label"] = None
             else:
-                self.config["atom_types"][args.name]["label"] = args.label
+                self.settings["atom_types"][args.name]["label"] = args.label
         return refresh
 
     def parse_bond_type(self, args):
         refresh = None
         args = self.parser_bond_type.parse_args(args)
-        if args.name not in self.config["bond_types"]:
-            self.config["bond_types"][args.name] = {}
-            self.config["bond_types"][args.name]["opacity"] = 1.0
-            self.config["bond_types"][args.name]["radius"] = 0.3
+        if args.name not in self.settings["bond_types"]:
+            self.settings["bond_types"][args.name] = {}
+            self.settings["bond_types"][args.name]["opacity"] = 1.0
+            self.settings["bond_types"][args.name]["radius"] = 0.3
             prop = vtk.vtkProperty()
             prop.SetOpacity(1.0)
             prop.SetSpecularColor(1.0,1.0,1.0)
             prop.SetSpecularPower(10.0)
-            self.config["bond_types"][args.name]["prop"] = prop
+            self.settings["bond_types"][args.name]["prop"] = prop
             refresh = "all"
         if args.color is not None:
-            self.config["bond_types"][args.name]["prop"].SetColor(args.color)
+            self.settings["bond_types"][args.name]["prop"].SetColor(args.color)
         if args.opacity is not None:
-            self.config["bond_types"][args.name]["prop"].SetOpacity(args.opacity)
+            self.settings["bond_types"][args.name]["prop"].SetOpacity(args.opacity)
         if args.radius is not None:
             refresh = "all"
-            self.config["bond_types"][args.name]["radius"] = args.radius
+            self.settings["bond_types"][args.name]["radius"] = args.radius
         return refresh
 
     def parse_cell_box_color(self, args):
         args = self.parser_cell_box_color.parse_args(args)
-        self.config["cell_box_color"] = args.color
-        self.config["cell_box_prop"].SetColor(self.config["cell_box_color"])
+        self.settings["cell_box_color"] = args.color
+        self.settings["cell_box_prop"].SetColor(self.settings["cell_box_color"])
         return "none"
 
     def parse_picked_color(self, args):
         args = self.parser_picked_color.parse_args(args)
-        self.config["picked_color"] = args.color
-        self.config["picked_prop"].SetColor(self.config["picked_color"])
+        self.settings["picked_color"] = args.color
+        self.settings["picked_prop"].SetColor(self.settings["picked_color"])
         return "none"
 
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)
-        self.config["background_color"] = args.color
+        self.settings["background_color"] = args.color
         return "renderer"
 
     def parse_line(self, line):
@@ -165,4 +165,4 @@ class DavTKConfig(object):
         if args[0] in self.parsers:
             return self.parsers[args[0]](args[1:])
         else:
-            raise UnknownConfigKeywordError(args[0])
+            raise UnknownSettingsKeywordError(args[0])

@@ -31,25 +31,25 @@ def get_atom_type_a(at):
         atom_type = [str(Z) for Z in at.get_atomic_numbers()]
     return atom_type
 
-def get_atom_prop(config, atom_type, i=None, arrays=None):
-    if config["atom_types"][atom_type]["colormap_func"] is not None and config["atom_types"][atom_type]["colormap_field"] is not None:
+def get_atom_prop(settings, atom_type, i=None, arrays=None):
+    if settings["atom_types"][atom_type]["colormap_func"] is not None and settings["atom_types"][atom_type]["colormap_field"] is not None:
         prop = vtk.vtkProperty()
-        prop.DeepCopy(config["atom_types"][atom_type]["prop"])
-        prop.SetDiffuseColor(config["atom_types"][atom_type]["colormap_func"](arrays[config["atom_types"][atom_type]["colormap_field"]][i]))
+        prop.DeepCopy(settings["atom_types"][atom_type]["prop"])
+        prop.SetDiffuseColor(settings["atom_types"][atom_type]["colormap_func"](arrays[settings["atom_types"][atom_type]["colormap_field"]][i]))
         return prop
     else:
-        return config["atom_types"][atom_type]["prop"]
+        return settings["atom_types"][atom_type]["prop"]
 
-def get_atom_radius(config, atom_type, i=None, arrays=None):
-    if config["atom_types"][atom_type]["radius_field"] is not None:
-        return arrays[config["atom_types"][atom_type]["radius_field"]][i]
+def get_atom_radius(settings, atom_type, i=None, arrays=None):
+    if settings["atom_types"][atom_type]["radius_field"] is not None:
+        return arrays[settings["atom_types"][atom_type]["radius_field"]][i]
     else:
-        return config["atom_types"][atom_type]["radius"]
+        return settings["atom_types"][atom_type]["radius"]
 
 class DaVTKState(object):
-    def __init__(self, at_list, config):
+    def __init__(self, at_list, settings):
         self.at_list = at_list
-        self.config = config
+        self.settings = settings
         self.mappers = self.create_shape_mappers()
         self.create_vtk_structures()
         self.cur_frame = 0
@@ -105,13 +105,13 @@ class DaVTKState(object):
                 actor = at.arrays["_vtk_at_actor"][i_at]
                 actor.SetMapper(self.mappers["sphere"])
                 if at.arrays["_vtk_picked"][i_at]: 
-                    prop = self.config["picked_prop"]
+                    prop = self.settings["picked_prop"]
                 else:
-                    prop = get_atom_prop(self.config, atom_type_array[i_at], i_at, at.arrays)
+                    prop = get_atom_prop(self.settings, atom_type_array[i_at], i_at, at.arrays)
                 actor.SetProperty(prop)
                 transform = vtk.vtkTransform()
                 transform.Translate(pos[i_at])
-                r = get_atom_radius(self.config, atom_type_array[i_at], i_at, at.arrays)
+                r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
                 transform.Scale(r, r, r)
                 actor.SetUserMatrix(transform.GetMatrix())
 
@@ -191,7 +191,7 @@ class DaVTKState(object):
 
             actor = self.at_list[frame_i].info["_vtk_cell_box_actor"]
             actor.SetMapper(mapper)
-            actor.GetProperty().SetColor(self.config["cell_box_color"])
+            actor.GetProperty().SetColor(self.settings["cell_box_color"])
             actor.PickableOff()
 
     def create_vtk_structures(self):
@@ -199,7 +199,7 @@ class DaVTKState(object):
             at.arrays["_vtk_at_actor"] = [vtk.vtkActor() for i in range(len(at)) ]
             for (i_at, actor) in enumerate(at.arrays["_vtk_at_actor"]):
                 actor.i_at = i_at
-            at.arrays["_vtk_picked"] = [False] * len(at)
+            at.arrays["_vtk_picked"] = np.array([False] * len(at))
             at.info["_vtk_cell_box_actor"] = vtk.vtkActor()
 
         self.update_atoms()

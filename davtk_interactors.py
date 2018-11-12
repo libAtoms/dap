@@ -40,7 +40,7 @@ class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
 
 class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 
-    def __init__(self,config,davtk_state,select_style,parent=None):
+    def __init__(self,settings,davtk_state,select_style,parent=None):
         self.AddObserver("RightButtonPressEvent",self.rightButtonPressEvent)
         self.AddObserver("KeyPressEvent",self.keyPressEvent)
         self.AddObserver("TimerEvent",self.timerEvent)
@@ -51,7 +51,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.parent = vtk.vtkRenderWindowInteractor()
 
         self.davtk_state = davtk_state
-        self.config = config
+        self.settings = settings
         self.select_style = select_style
 
     def timerEvent(self,obj,event):
@@ -59,7 +59,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             line = sys.stdin.readline()
             try:
                 print "parsing line", line.rstrip()
-                refresh = parse_line(line.rstrip(),self.config, self.davtk_state, self.GetDefaultRenderer())
+                refresh = parse_line(line.rstrip(), self.settings, self.davtk_state, self.GetDefaultRenderer())
                 if refresh == "all":
                     self.davtk_state.update()
                 elif refresh == "cur":
