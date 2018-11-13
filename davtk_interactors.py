@@ -15,7 +15,7 @@ def pick_actors(at, actors):
             raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
 
     for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
-        at.bonds[i_at][i_bond]["picked"] = stat
+        at.bonds.set_picked(i_at, i_bond, stat)
 
 class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
     def __init__(self,davtk_state,parent=None):

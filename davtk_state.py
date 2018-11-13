@@ -76,6 +76,17 @@ class DavTKBonds(object):
         self.bonds[pair[0]].append( {"j" : pair[1], "v" : v, "d" : np.linalg.norm(v), "S" : [0], "name" : name, "picked" : False } )
         self.bonds[pair[1]].append( {"j" : pair[0], "v" : -v, "d" : np.linalg.norm(v), "S" : [0], "name" : name, "picked" : False } )
 
+    def set_picked(self, i_at, j_ind, stat):
+        b = self.bonds[i_at][j_ind]
+        b["picked"] = stat
+        j_at = b["j"]
+        if j_at != i_at:
+            for (bb_i, bb) in enumerate(self.bonds[j_at]):
+                if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
+                    self.bonds[b["j"]][bb_i]["picked"] = stat
+                    return
+        raise ValueError("delete_one failed to find opposite for {} {}".format(i_at, j_at))
+
     def delete_one(self, i_at, j_ind):
         b = self.bonds[i_at][j_ind]
         del self.bonds[i_at][j_ind]
@@ -421,17 +432,32 @@ class DaVTKState(object):
     def measure_picked(self):
         at = self.at_list[self.cur_frame]
 
-        indices = np.where(at.arrays["_vtk_picked"])[0]
+        at_indices = np.where(at.arrays["_vtk_picked"])[0]
         p = at.get_positions()
 
         print "measure:"
-        for i_at in indices:
+        for i_at in at_indices:
             print "atom {} pos {} {} {}".format(i_at,p[i_at][0],p[i_at][1],p[i_at][2])
-        for i in range(len(indices)):
-            i_at = indices[i]
-            for j_at in indices[i+1:]:
+        for i in range(len(at_indices)):
+            i_at = at_indices[i]
+            for j_at in at_indices[i+1:]:
                 dv = -at.get_distance(i_at,j_at,mic=True,vector=True)
-                print "pair {} {} distance {} {} {} ({})".format(i_at,j_at,dv[0],dv[1],dv[2],np.linalg.norm(dv))
+                print "atom-distance {} {} vec {} {} {} ({})".format(i_at,j_at,dv[0],dv[1],dv[2],np.linalg.norm(dv))
+
+        if hasattr(at, "bonds"):
+            for i_at in range(len(at)):
+                for b in at.bonds[i_at]:
+                    if b["picked"] and b["j"] >= i_at:
+                        print "bond {} {} vec {} {} {} ({})".format(i_at, b["j"], b["v"][0], b["v"][1], b["v"][2], b["d"])
+            for i_at in range(len(at)):
+                for b in at.bonds[i_at]:
+                    j_at = b["j"]
+                    if b["picked"]:
+                        for bb in at.bonds[j_at]:
+                            k_at = bb["j"]
+                            if bb["picked"] and k_at <= i_at and (k_at != i_at or np.any(b["S"] != -bb["S"])):
+                                ang = 180.0/np.pi * np.arccos(np.dot(b["v"],-bb["v"])/(np.linalg.norm(b["v"])*np.linalg.norm(bb["v"])))
+                                print "bond-angle {} {} {} angle {}".format(i_at, j_at, k_at, ang)
 
     def duplicate(self, n_dup, frames=None):
         for frame_i in self.frame_list(frames):
