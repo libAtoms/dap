@@ -20,8 +20,14 @@ for f in args.files:
         at_list.append(at)
 
 settings = DavTKSettings()
-parse_file(os.path.join(os.environ["HOME"],".davtkrc"), settings=settings)
-parse_file(".davtkrc", settings=settings)
+try:
+    parse_file(os.path.join(os.environ["HOME"],".davtkrc"), settings=settings)
+except IOError:
+    pass
+try:
+    parse_file(".davtkrc", settings=settings)
+except IOError:
+    pass
 
 # A renderer and render window
 renderer = vtk.vtkRenderer()

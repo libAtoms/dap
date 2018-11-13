@@ -26,8 +26,8 @@ def find_min_max(at_list):
     return (min_pos, max_pos)
 
 def get_atom_type_a(at):
-    if "_vtk_atom_type" in at.arrays:
-        atom_type = at.arrays["_vtk_atom_type"]
+    if "_vtk_type" in at.arrays:
+        atom_type = at.arrays["_vtk_type"]
     else:
         atom_type = [str(Z) for Z in at.get_atomic_numbers()]
     return atom_type
@@ -176,7 +176,8 @@ class DaVTKState(object):
                 else:
                     at_inds = np.array(atoms)
                 del at[at_inds]
-                at.bonds.delete_atoms(at_inds)
+                if hasattr(at, "bonds"):
+                    at.bonds.delete_atoms(at_inds)
 
             # delete requested bonds
             if bonds is not None and hasattr(at, "bonds"):
@@ -278,13 +279,13 @@ class DaVTKState(object):
             for i_at in range(len(at)):
                 label_actor = vtk.vtkBillboardTextActor3D()
                 label_str = None
-                if "_vtk_atom_label" in at.arrays:
-                    if at.arrays["_vtk_atom_label"][i_at] == "_NONE_":
+                if "_vtk_label" in at.arrays:
+                    if at.arrays["_vtk_label"][i_at] == "_NONE_":
                         label_str = ""
-                    elif len(at.arrays["_vtk_atom_label"][i_at]) == 0 or at.arrays["_vtk_atom_label"][i_at] == "'''" or at.arrays["_vtk_atom_label"][i_at] == '""':
+                    elif len(at.arrays["_vtk_label"][i_at]) == 0 or at.arrays["_vtk_label"][i_at] == "'''" or at.arrays["_vtk_label"][i_at] == '""':
                         label_str = None
                     else:
-                        label_str = at.arrays["_vtk_atom_label"][i_at]
+                        label_str = at.arrays["_vtk_label"][i_at]
                 if label_str is None:
                     label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
                     if label_field is None or label_field == "ID":
