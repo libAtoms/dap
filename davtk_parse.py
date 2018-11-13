@@ -63,6 +63,7 @@ parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_he
 parser_delete = ThrowingArgumentParser(prog="delete",description="delete picked unless indices are listed")
 parser_delete.add_argument("-all",action="store_true",help="apply to all frames")
 parser_delete.add_argument("-atoms",type=int,nargs='+',help="delete by these indices ")
+parser_delete.add_argument("-bonds",action="store_true",help="delete all bonds")
 def parse_delete(davtk_state, renderer, args):
     args = parser_delete.parse_args(args)
     if args.all:
@@ -73,6 +74,9 @@ def parse_delete(davtk_state, renderer, args):
         davtk_state.delete(atoms="picked", bonds="picked", frames=frame_list)
     else:
         davtk_state.delete(atoms=args.atoms, frames=frame_list)
+
+    if args.bonds:
+        davtk_state.delete(bonds="all", frames=frame_list)
     return None
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 
@@ -119,17 +123,25 @@ parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.f
 parser_bond = ThrowingArgumentParser(prog="bond",description="create bonds")
 parser_bond.add_argument("-all",action="store_true",help="apply to all frames")
 parser_bond.add_argument("-name",type=str,help="name of bond type", default=None)
-parser_bond.add_argument("cutoff",type=float,nargs='?',help="cutoff (overriding atom type)",default=None)
+parser_bond.add_argument("a",type=float,nargs='*', help="scalar float (overriding atom type) or pair of atom index ints")
 def parse_bond(davtk_state, renderer, args):
     args = parser_bond.parse_args(args)
 
     if args.all:
-        davtk_state.bond(args.cutoff, args.name, None)
+        frames = None
     else:
-        davtk_state.bond(args.cutoff, args.name, "cur")
+        frames = "cur"
+
+    if len(args.a) == 0:
+        davtk_state.bond("auto_cutoff", args.name, frames)
+    elif len(args.a) == 1:
+        davtk_state.bond(args.a[0], args.name, frames)
+    elif len(args.a) == 2:
+        davtk_state.bond((int(args.a[0]),int(args.a[1])), args.name, frames)
+    else:
+        raise ValueError("bond got more than 2 values (1 is cutoff, 2 is index pair)")
 
     davtk_state.show_frame(dframe=0)
-
     return None
 parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_help())
 

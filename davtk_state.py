@@ -47,6 +47,69 @@ def get_atom_radius(settings, atom_type, i=None, arrays=None):
     else:
         return settings["atom_types"][atom_type]["radius"]
 
+class DavTKBonds(object):
+    def __init__(self, at, settings):
+        self.at = at
+        self.settings = settings
+        self.reinit()
+
+    def __getitem__(self, key):
+        return self.bonds[key]
+
+    def reinit(self):
+        self.bonds = [ [] for i in range(len(self.at)) ]
+
+    def cutoff(self, cutoff, name):
+        if cutoff is None:
+            atom_type_array = get_atom_type_a(self.at)
+            cutoff = max([self.settings["atom_types"][atom_type_array[i]]["bonding_radius"] for i in range(len(self.at))])
+        if cutoff == 0.0:
+            return
+
+        nn_list = ase.neighborlist.neighbor_list('ijDdS', self.at, cutoff, self_interaction=True)
+        for (i, j, v, d, S) in izip(nn_list[0], nn_list[1], nn_list[2], nn_list[3], nn_list[4]):
+            if d > 0.0:
+                self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
+
+    def pair_mic(self, pair, name):
+        print "bond pair_mic"
+        v = self.at.get_distance(pair[0], pair[1], mic=True, vector=True)
+        print pair, v
+        print self.bonds
+        self.bonds[pair[0]].append( {"j" : pair[1], "v" : v, "d" : np.linalg.norm(v), "S" : [0], "name" : name } )
+        self.bonds[pair[1]].append( {"j" : pair[0], "v" : -v, "d" : np.linalg.norm(v), "S" : [0], "name" : name } )
+
+    def delete_one(self, i_at, j_ind):
+        b = self.bonds[i_at][j_ind]
+        del self.bonds[i_at][j_ind]
+        j_at = b["j"]
+        if j_at != i_at:
+            for (bb_i, bb) in enumerate(self.bonds[j_at]):
+                if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
+                    del self.bonds[b["j"]][bb_i]
+                    return
+        raise ValueError("delete_one failed to find opposite for {} {}".format(i_at, j_at))
+
+    def delete_atoms(self, at_inds):
+        orig_n = len(self.bonds)
+
+        new_indices = np.array( [-1] * orig_n )
+        new_indices[self.at.arrays["_vtk_orig_indices"]] = range(len(self.at))
+
+        # remove records for atoms
+        for i_at in sorted(at_inds, reverse=True):
+            del self.bonds[i_at]
+        # remove records that refer to atoms
+        for i_at in range(len(self.at)):
+            del_i_bonds = []
+            for (i_bond, b) in enumerate(self.bonds[i_at]):
+                if new_indices[b["j"]] < 0:
+                    del_i_bonds.append(i_bond)
+                else:
+                    b["j"] = new_indices[b["j"]]
+            for j in sorted(del_i_bonds, reverse=True):
+                del self.bonds[i_at][j]
+
 class DaVTKState(object):
     def __init__(self, at_list, settings, renderer):
         self.at_list = at_list
@@ -92,9 +155,9 @@ class DaVTKState(object):
 
     def delete(self, atoms=None, bonds=None, frames="cur"):
         for frame_i in self.frame_list(frames):
+
             # delete atoms and their bonds
             at = self.at_list[frame_i]
-            orig_n = len(at)
             at.arrays["_vtk_orig_indices"] = np.array(range(len(at)))
             if atoms is not None:
                 if atoms == "picked":
@@ -104,40 +167,18 @@ class DaVTKState(object):
                 else:
                     at_inds = np.array(atoms)
                 del at[at_inds]
-            new_indices = np.array( [-1] * orig_n )
-            new_indices[at.arrays["_vtk_orig_indices"]] = range(len(at))
-            if hasattr(at, "bonds"):
-                for i_at in sorted(at_inds, reverse=True):
-                    del at.bonds[i_at]
-                for i_at in range(len(at)):
-                    del_i_bonds = []
-                    for (i_bond, b) in enumerate(at.bonds[i_at]):
-                        if new_indices[b[0]] < 0:
-                            del_i_bonds.append(i_bond)
-                        else:
-                            b[0] = new_indices[b[0]]
-                    for j in sorted(del_i_bonds, reverse=True):
-                        del at.bonds[i_at][j]
+                at.bonds.delete_atoms(at_inds)
 
+            # delete requested bonds
             if bonds is not None and hasattr(at, "bonds"):
                 if bonds == "picked":
                     for i_at in range(len(at)):
-                        j_picked = [j_at for j_at in range(len(at.bonds[i_at])) if at.bonds[i_at][j_at][3]]
-                        deleted_list = []
-                        for j in sorted(j_picked, reverse=True):
-                            deleted_list.append(at.bonds[i_at][j])
-                            del at.bonds[i_at][j]
-                        for b in deleted_list:
-                            j_at = b[0]
-                            i_picked = []
-                            for (bb_i, bb) in enumerate(at.bonds[j_at]):
-                                if bb[0] == i_at and np.max(np.abs(bb[1] + b[1])) < 1.0e-6:
-                                    i_picked.append(bb_i)
-                            for i in sorted(i_picked, reverse=True):
-                                del at.bonds[j_at][i]
+                        for j_ind in [jj for jj in range(len(at.bonds[i_at])) if at.bonds[i_at][jj]["picked"]]:
+                            at.bonds.delete_one(i_at, j_ind)
+                elif bonds == "all":
+                    at.bonds.reinit()
                 else:
-                    for (i_at, j_at) in bonds:
-                        print "del bond", i_at, j_at
+                    raise ValueError("delete bonds only accepts 'picked' or 'all' or 'all'")
 
         self.update(frames)
         self.show_frame(dframe=0)
@@ -158,13 +199,13 @@ class DaVTKState(object):
             for i_at in range(len(at)):
                 for (i_bond, b) in enumerate(at.bonds[i_at]):
                     i = i_at
-                    j = b[0]
+                    j = b["j"]
                     if j < i:
                         continue
-                    dr = np.array(b[1])
-                    dr_norm = b[2]
-                    picked = b[3]
-                    name = b[4]
+                    dr = np.array(b["v"])
+                    dr_norm = b["d"]
+                    picked = b["picked"]
+                    name = b["name"]
 
                     rad = self.settings["bond_types"][name]["radius"]
 
@@ -223,8 +264,9 @@ class DaVTKState(object):
             atom_type_array = get_atom_type_a(at)
             pos = at.get_positions()
 
+            at.at_actors = []
             for i_at in range(len(at)):
-                actor = at.arrays["_NOPRINT_vtk_at_actor"][i_at]
+                actor = vtk.vtkActor()
                 actor.SetMapper(self.mappers["sphere"])
                 if at.arrays["_vtk_picked"][i_at]: 
                     prop = self.settings["picked_prop"]
@@ -239,6 +281,7 @@ class DaVTKState(object):
                 actor.SetUserMatrix(transform.GetMatrix())
                 # update in case numbers changed
                 actor.i_at = i_at
+                at.at_actors.append(actor)
 
     def update_cell_boxes(self, frames=None):
         for frame_i in self.frame_list(frames):
@@ -323,9 +366,6 @@ class DaVTKState(object):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
 
-            at.arrays["_NOPRINT_vtk_at_actor"] = np.array([vtk.vtkActor() for i in range(len(at)) ])
-            for (i_at, actor) in enumerate(at.arrays["_NOPRINT_vtk_at_actor"]):
-                actor.i_at = i_at
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
             at.info["_NOPRINT_vtk_cell_box_actor"] = vtk.vtkActor()
 
@@ -353,7 +393,7 @@ class DaVTKState(object):
         # create actors for atoms
         pos = at.get_positions()
         cell = at.get_cell()
-        for (i_at, actor) in enumerate(at.arrays["_NOPRINT_vtk_at_actor"]):
+        for (i_at, actor) in enumerate(at.at_actors):
             # real image
             self.renderer.AddActor(actor)
             # periodic images if needed
@@ -420,19 +460,21 @@ class DaVTKState(object):
         self.create_vtk_structures(frames)
         self.update(frames)
 
-    def bond(self, cutoff, name, frames=None):
+    def bond(self, criterion, name, frames=None):
         if name is None:
             name = self.settings["default_bond_type"]
+
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
-            if cutoff is None:
-                atom_type_array = get_atom_type_a(at)
-                cutoff = max([self.settings["atom_types"][atom_type_array[i]]["bonding_radius"] for i in range(len(at))])
-            if cutoff == 0.0:
-                return
-            nn_list = ase.neighborlist.neighbor_list('ijDd', at, cutoff, self_interaction=True)
-            at.bonds = [ [] for i in range(len(at)) ]
-            for (i, j, v, d) in izip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
-                if d > 0.0:
-                    at.bonds[i].append([j, v, d, False, name])
+
+            if not hasattr(at, "bonds"):
+                at.bonds = DavTKBonds(at, self.settings)
+
+            if criterion == "auto_cutoff":
+                at.bonds.cutoff(None, name)
+            elif isinstance(criterion, float):
+                at.bonds.cutoff(criterion, name)
+            else:
+                at.bonds.pair_mic(criterion, name)
+
         self.update(frames)

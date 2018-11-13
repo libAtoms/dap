@@ -10,12 +10,12 @@ def pick_actors(at, actors):
             at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
         elif hasattr(actor, "i_at_bond"):
             (i_at, i_bond) = actor.i_at_bond
-            new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond][3] 
+            new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond]["picked"] 
         else:
             raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
 
     for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
-        at.bonds[i_at][i_bond][3] = stat
+        at.bonds[i_at][i_bond]["picked"] = stat
 
 class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
     def __init__(self,davtk_state,parent=None):
