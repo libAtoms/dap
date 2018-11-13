@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import ase.io, vtk, sys
+import ase.io, vtk, sys, os
 from davtk_settings import DavTKSettings
 from davtk_parse import parse_file
 from davtk_state import *
@@ -20,7 +20,8 @@ for f in args.files:
         at_list.append(at)
 
 settings = DavTKSettings()
-parse_file("davtk.settings", settings=settings)
+parse_file(os.path.join(os.environ["HOME"],".davtkrc"), settings=settings)
+parse_file(".davtkrc", settings=settings)
 
 # A renderer and render window
 renderer = vtk.vtkRenderer()
