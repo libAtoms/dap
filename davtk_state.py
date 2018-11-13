@@ -72,12 +72,9 @@ class DavTKBonds(object):
                 self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
 
     def pair_mic(self, pair, name):
-        print "bond pair_mic"
         v = self.at.get_distance(pair[0], pair[1], mic=True, vector=True)
-        print pair, v
-        print self.bonds
-        self.bonds[pair[0]].append( {"j" : pair[1], "v" : v, "d" : np.linalg.norm(v), "S" : [0], "name" : name } )
-        self.bonds[pair[1]].append( {"j" : pair[0], "v" : -v, "d" : np.linalg.norm(v), "S" : [0], "name" : name } )
+        self.bonds[pair[0]].append( {"j" : pair[1], "v" : v, "d" : np.linalg.norm(v), "S" : [0], "name" : name, "picked" : False } )
+        self.bonds[pair[1]].append( {"j" : pair[0], "v" : -v, "d" : np.linalg.norm(v), "S" : [0], "name" : name, "picked" : False } )
 
     def delete_one(self, i_at, j_ind):
         b = self.bonds[i_at][j_ind]
@@ -472,6 +469,12 @@ class DaVTKState(object):
 
             if criterion == "auto_cutoff":
                 at.bonds.cutoff(None, name)
+            elif criterion == "picked":
+                indices = np.where(self.cur_at().arrays["_vtk_picked"])[0]
+                if len(indices) != 2:
+                    raise ValueError("tried to bond picked without 2 atoms picked")
+                at.bonds.pair_mic(indices, name)
+                at.arrays["_vtk_picked"][indices] = False
             elif isinstance(criterion, float):
                 at.bonds.cutoff(criterion, name)
             else:
