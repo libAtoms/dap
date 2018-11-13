@@ -67,8 +67,8 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         if select.select([sys.stdin], [], [], 0)[0]:
             line = sys.stdin.readline()
             try:
-                print "parsing line", line.rstrip()
                 refresh = parse_line(line.rstrip(), self.settings, self.davtk_state, self.GetDefaultRenderer())
+                print "> ",; sys.stdout.flush()
                 if refresh == "all":
                     self.davtk_state.update()
                 elif refresh == "cur":

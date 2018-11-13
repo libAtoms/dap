@@ -37,7 +37,7 @@ parser_unpick = ThrowingArgumentParser(prog="unpick")
 parser_unpick.add_argument("-all_frames",action="store_true")
 def parse_unpick(davtk_state, renderer, args):
     args = parser_unpick.parse_args(args)
-    if args.all:
+    if args.all_frames:
         ats = davtk_state.at_list
     else:
         ats = [davtk_state.cur_at()]
@@ -51,7 +51,7 @@ parser_pick.add_argument("-all_frames",action="store_true")
 parser_pick.add_argument("n",type=int,nargs='+')
 def parse_pick(davtk_state, renderer, args):
     args = parser_pick.parse_args(args)
-    if args.all:
+    if args.all_frames:
         ats = davtk_state.at_list
     else:
         ats = [davtk_state.cur_at()]
@@ -66,7 +66,7 @@ parser_delete.add_argument("-atoms",type=int,nargs='+',help="delete by these ind
 parser_delete.add_argument("-bonds",action="store_true",help="delete all bonds")
 def parse_delete(davtk_state, renderer, args):
     args = parser_delete.parse_args(args)
-    if args.all:
+    if args.all_frames:
         frame_list=None
     else:
         frame_list="cur"
@@ -85,7 +85,7 @@ parser_dup.add_argument("-all_frames",action="store_true",help="apply to all fra
 parser_dup.add_argument("n",type=int,nargs='+', help="number of images to set (scalar or 3-vector)")
 def parse_dup(davtk_state, renderer, args):
     args = parser_dup.parse_args(args)
-    if args.all:
+    if args.all_frames:
         frame_list=None
     else:
         frame_list="cur"
@@ -108,7 +108,7 @@ def parse_images(davtk_state, renderer, args):
     elif len(args.n) != 3:
         raise ValueError("'"+str(args.n)+" not scalar or 3-vector")
 
-    if args.all:
+    if args.all_frames:
         for at in davtk_state.at_list:
             at.info["images"] = args.n
     else:
@@ -127,7 +127,7 @@ parser_bond.add_argument("a",type=float,nargs='*', help="scalar float (overridin
 def parse_bond(davtk_state, renderer, args):
     args = parser_bond.parse_args(args)
 
-    if args.all:
+    if args.all_frames:
         frames = None
     else:
         frames = "cur"
@@ -153,16 +153,34 @@ def parse_snapshot(davtk_state, renderer, args):
     davtk_state.snapshot(args.file, args.mag)
 parsers["snapshot"] = (parse_snapshot, parser_snapshot.format_usage(), parser_snapshot.format_help())
 
+parser_ASE = ThrowingArgumentParser(prog="ASE",description="evaluate with ASE")
+parser_ASE.add_argument("-all_frames",action="store_true",help="apply to all frames")
+parser_ASE.add_argument("args",type=str,nargs='+',help="ASE command line words")
+def parse_ASE(davtk_state, renderer, args):
+    args = parser_ASE.parse_args(args)
+    ase_command = " ".join(args.args)
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+    for at in ats:
+        exec(ase_command)
+    return "all"
+parsers["ASE"] = (parse_ASE, parser_ASE.format_usage(), parser_ASE.format_help())
+
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):
-    try:
-        return settings.parse_line(line)
-    except UnknownSettingsKeywordError:
-        pass
+    if len(line.strip()) > 0:
+        try:
+            return settings.parse_line(line)
+        except UnknownSettingsKeywordError:
+            pass
 
-    args = line.split()
-    return parsers[args[0]][0](state, renderer, args[1:])
+        args = line.split()
+        return parsers[args[0]][0](state, renderer, args[1:])
+    else:
+        return None
 
 def parse_file(filename, settings, state=None):
     with open(filename) as fin:
