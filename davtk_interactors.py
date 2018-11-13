@@ -93,6 +93,9 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.davtk_state.measure_picked()
         elif k == 'b':
             self.davtk_state.bond("picked", name=None, frames="cur")
+        elif k == 'l':
+            self.davtk_state.update_labels(frames="cur")
+            self.davtk_state.show_frame(dframe=0)
         elif k == 'plus':
             self.davtk_state.show_frame(dframe=1)
         elif k == 'minus':

@@ -119,13 +119,14 @@ class DavTKBonds(object):
                 del self.bonds[i_at][j]
 
 class DaVTKState(object):
-    def __init__(self, at_list, settings, renderer):
+    def __init__(self, at_list, settings, renderer, iRen=None):
         self.at_list = at_list
         self.settings = settings
         self.mappers = self.create_shape_mappers()
         self.create_vtk_structures()
         self.cur_frame = 0
         self.renderer = renderer
+        self.iRen = iRen
 
         self.update()
 
@@ -193,6 +194,7 @@ class DaVTKState(object):
 
     def update(self, frames=None):
         self.update_atoms(frames)
+        self.update_labels(frames)
         self.update_bonds(frames)
         self.update_cell_boxes(frames)
         self.show_frame(dframe=0)
@@ -265,6 +267,39 @@ class DaVTKState(object):
                     at.bond_actors.append(actor_1)
                     actor_2.i_at_bond = (i_at, i_bond)
                     at.bond_actors.append(actor_2)
+
+    def update_labels(self, frames=None):
+        for frame_i in self.frame_list(frames):
+            at = self.at_list[frame_i]
+            atom_type_array = get_atom_type_a(at)
+            pos = at.get_positions()
+
+            at.label_actors = []
+            for i_at in range(len(at)):
+                label_actor = vtk.vtkBillboardTextActor3D()
+                label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
+                if label_field is None or label_field == "ID":
+                    label_str = str(i_at)
+                else:
+                    label_str = str(at.arrays[label_field][i_at])
+                label_actor.SetInput(label_str)
+                label_actor.SetPosition(pos[i_at])
+                r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
+                if i_at == 0:
+                    pt_disp = [0.0, 0.0, 0.0]
+                    self.iRen.GetInteractorStyle().ComputeWorldToDisplay(self.renderer, pos[i_at][0], pos[i_at][1], pos[i_at][2], pt_disp)
+                    pt_disp[0] += 1.0
+                    pt_world = [0.0, 0.0, 0.0, 0.0]
+                    self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
+                    dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))
+                    if dp_world > 0:
+                        dp_disp = r/dp_world
+                    else:
+                        dp_disp = 0
+                label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
+                label_actor.GetTextProperty().SetFontSize(36)
+                label_actor.PickableOff()
+                at.label_actors.append(label_actor)
 
     def update_atoms(self, frames=None):
         for frame_i in self.frame_list(frames):
@@ -436,6 +471,10 @@ class DaVTKState(object):
         # need to do other actors, e.g. labels and bonds
         if hasattr(at, "bond_actors"):
             for actor in at.bond_actors:
+                self.renderer.AddActor(actor)
+
+        if hasattr(at, "label_actors"):
+            for actor in at.label_actors:
                 self.renderer.AddActor(actor)
 
         # config_n

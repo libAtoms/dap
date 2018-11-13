@@ -29,11 +29,11 @@ renwin = vtk.vtkRenderWindow()
 renwin.SetSize(args.geometry[0], args.geometry[1])
 renwin.AddRenderer(renderer)
 
-davtk_state = DaVTKState(at_list, settings, renderer)
-
 # An interactor for mouse stuff
 interactor = vtk.vtkRenderWindowInteractor()
 interactor.SetRenderWindow(renwin)
+
+davtk_state = DaVTKState(at_list, settings, renderer, interactor)
 
 # add the custom styles for regular interaction and area selection
 sel_style = RubberbandSelect(davtk_state,parent=interactor)
