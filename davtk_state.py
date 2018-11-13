@@ -507,3 +507,13 @@ class DaVTKState(object):
                 at.bonds.pair_mic(criterion, name)
 
         self.update(frames)
+
+    def snapshot(self, filename, mag=1):
+        renderLarge = vtk.vtkRenderLargeImage()
+        renderLarge.SetInput(self.renderer)
+        renderLarge.SetMagnification(mag)
+
+        writer = vtk.vtkPNGWriter()
+        writer.SetInputConnection(renderLarge.GetOutputPort())
+        writer.SetFileName(filename)
+        writer.Write()

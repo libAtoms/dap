@@ -145,6 +145,14 @@ def parse_bond(davtk_state, renderer, args):
     return None
 parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_help())
 
+parser_snapshot = ThrowingArgumentParser(prog="snapshot",description="write snapshot")
+parser_snapshot.add_argument("-mag",type=int,help="magnification", default=1)
+parser_snapshot.add_argument("file",type=str,help="filename")
+def parse_snapshot(davtk_state, renderer, args):
+    args = parser_snapshot.parse_args(args)
+    davtk_state.snapshot(args.file, args.mag)
+parsers["snapshot"] = (parse_snapshot, parser_snapshot.format_usage(), parser_snapshot.format_help())
+
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):
