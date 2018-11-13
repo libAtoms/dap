@@ -1,4 +1,4 @@
-import sys, ase.io
+import sys, ase.io, math
 import numpy as np
 import vtk
 import ase.neighborlist
@@ -401,25 +401,37 @@ class DaVTKState(object):
         # create actors for atoms
         pos = at.get_positions()
         cell = at.get_cell()
+        cell_inv = at.get_reciprocal_cell().T
         for (i_at, actor) in enumerate(at.at_actors):
             # real image
             self.renderer.AddActor(actor)
             # periodic images if needed
             if "images" in at.info:
-                for i0 in range(-at.info["images"][0], at.info["images"][0]+1):
-                    for i1 in range(-at.info["images"][1], at.info["images"][1]+1):
-                        for i2 in range(-at.info["images"][2], at.info["images"][2]+1):
+                n0 = int(math.ceil(at.info["images"][0]))
+                n1 = int(math.ceil(at.info["images"][1]))
+                n2 = int(math.ceil(at.info["images"][2]))
+                for i0 in range(-n0, n0+1):
+                    for i1 in range(-n1, n1+1):
+                        for i2 in range(-n2, n2+1):
                             if (i0,i1,i2) == (0,0,0):
                                 continue
-                            img_actor = vtk.vtkActor()
-                            img_actor.SetProperty(actor.GetProperty())
-                            img_actor.SetMapper(actor.GetMapper())
-                            transform = vtk.vtkTransform()
-                            transform.Translate(pos[i_at] + np.dot([i0, i1, i2], cell))
-                            transform.Scale(actor.r, actor.r, actor.r)
-                            img_actor.SetUserMatrix(transform.GetMatrix())
-                            img_actor.i_at = i_at
-                            self.renderer.AddActor(img_actor)
+                            img_pos = pos[i_at] + np.dot([i0, i1, i2], cell)
+                            img_pos_scaled = np.dot(img_pos, cell_inv)
+                            if (img_pos_scaled[0] >= -at.info["images"][0] and
+                                img_pos_scaled[0] <= 1+at.info["images"][0] and
+                                img_pos_scaled[1] >= -at.info["images"][1] and
+                                img_pos_scaled[1] <= 1+at.info["images"][1] and
+                                img_pos_scaled[2] >= -at.info["images"][2] and
+                                img_pos_scaled[2] <= 1+at.info["images"][2]):
+                               img_actor = vtk.vtkActor()
+                               img_actor.SetProperty(actor.GetProperty())
+                               img_actor.SetMapper(actor.GetMapper())
+                               transform = vtk.vtkTransform()
+                               transform.Translate(img_pos)
+                               transform.Scale(actor.r, actor.r, actor.r)
+                               img_actor.SetUserMatrix(transform.GetMatrix())
+                               img_actor.i_at = i_at
+                               self.renderer.AddActor(img_actor)
 
         # need to do other actors, e.g. labels and bonds
         if hasattr(at, "bond_actors"):

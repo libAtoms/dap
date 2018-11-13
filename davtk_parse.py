@@ -99,7 +99,7 @@ parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help()
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
 parser_images.add_argument("-all",action="store_true",help="apply to all frames")
-parser_images.add_argument("n",type=int,nargs='+', help="number of images to set (scalar or 3-vector)")
+parser_images.add_argument("n",type=float,nargs='+', help="number of images to set (scalar or 3-vector)")
 def parse_images(davtk_state, renderer, args):
     args = parser_images.parse_args(args)
 
