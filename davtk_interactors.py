@@ -10,12 +10,12 @@ def pick_actors(at, actors):
             at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
         elif hasattr(actor, "i_at_bond"):
             (i_at, i_bond) = actor.i_at_bond
-            new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond][5] 
+            new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond][3] 
         else:
             raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
 
     for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
-        at.bonds[i_at][i_bond][5] = stat
+        at.bonds[i_at][i_bond][3] = stat
 
 class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
     def __init__(self,davtk_state,parent=None):
@@ -88,7 +88,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.GetInteractor().SetInteractorStyle(self.select_style)
             self.select_style.set_prev_style(self)
         elif k == 'd':
-            self.davtk_state.delete(atoms="picked", frames="cur")
+            self.davtk_state.delete(atoms="picked", bonds="picked", frames="cur")
         elif k == 'm':
             self.davtk_state.measure_picked()
         elif k == 'plus':

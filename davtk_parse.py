@@ -60,19 +60,19 @@ def parse_pick(davtk_state, renderer, args):
     return "all"
 parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_help())
 
-parser_delete = ThrowingArgumentParser(prog="delete",description="delete atoms, picked unless indices are listed")
+parser_delete = ThrowingArgumentParser(prog="delete",description="delete picked unless indices are listed")
 parser_delete.add_argument("-all",action="store_true",help="apply to all frames")
-parser_delete.add_argument("n",type=int,nargs='*',help="delete by these indices ")
+parser_delete.add_argument("-atoms",type=int,nargs='+',help="delete by these indices ")
 def parse_delete(davtk_state, renderer, args):
     args = parser_delete.parse_args(args)
     if args.all:
         frame_list=None
     else:
         frame_list="cur"
-    if len(args.n) == 0:
-        davtk_state.delete(atoms="picked", frames=frame_list)
+    if args.atoms is None:
+        davtk_state.delete(atoms="picked", bonds="picked", frames=frame_list)
     else:
-        davtk_state.delete(atoms=args.n, frames=frame_list)
+        davtk_state.delete(atoms=args.atoms, frames=frame_list)
     return None
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 

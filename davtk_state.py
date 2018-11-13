@@ -25,7 +25,6 @@ def find_min_max(at_list):
 
     return (min_pos, max_pos)
 
-
 def get_atom_type_a(at):
     if "atom_type" in at.arrays:
         atom_type = at.arrays["atom_type"]
@@ -91,18 +90,54 @@ class DaVTKState(object):
         else:
             return frames
 
-    def delete(self, atoms=None, frames="cur"):
+    def delete(self, atoms=None, bonds=None, frames="cur"):
         for frame_i in self.frame_list(frames):
+            # delete atoms and their bonds
+            at = self.at_list[frame_i]
+            orig_n = len(at)
+            at.arrays["_vtk_orig_indices"] = np.array(range(len(at)))
             if atoms is not None:
-                at = self.at_list[frame_i]
                 if atoms == "picked":
                     at_inds = np.where(at.arrays["_vtk_picked"])[0]
                 elif isinstance(atoms,int):
                     at_inds = np.array([atoms])
                 else:
                     at_inds = np.array(atoms)
-                print "del",at_inds
                 del at[at_inds]
+            new_indices = np.array( [-1] * orig_n )
+            new_indices[at.arrays["_vtk_orig_indices"]] = range(len(at))
+            if hasattr(at, "bonds"):
+                for i_at in sorted(at_inds, reverse=True):
+                    del at.bonds[i_at]
+                for i_at in range(len(at)):
+                    del_i_bonds = []
+                    for (i_bond, b) in enumerate(at.bonds[i_at]):
+                        if new_indices[b[0]] < 0:
+                            del_i_bonds.append(i_bond)
+                        else:
+                            b[0] = new_indices[b[0]]
+                    for j in sorted(del_i_bonds, reverse=True):
+                        del at.bonds[i_at][j]
+
+            if bonds is not None and hasattr(at, "bonds"):
+                if bonds == "picked":
+                    for i_at in range(len(at)):
+                        j_picked = [j_at for j_at in range(len(at.bonds[i_at])) if at.bonds[i_at][j_at][3]]
+                        deleted_list = []
+                        for j in sorted(j_picked, reverse=True):
+                            deleted_list.append(at.bonds[i_at][j])
+                            del at.bonds[i_at][j]
+                        for b in deleted_list:
+                            j_at = b[0]
+                            i_picked = []
+                            for (bb_i, bb) in enumerate(at.bonds[j_at]):
+                                if bb[0] == i_at and np.max(np.abs(bb[1] + b[1])) < 1.0e-6:
+                                    i_picked.append(bb_i)
+                            for i in sorted(i_picked, reverse=True):
+                                del at.bonds[j_at][i]
+                else:
+                    for (i_at, j_at) in bonds:
+                        print "del bond", i_at, j_at
 
         self.update(frames)
         self.show_frame(dframe=0)
@@ -126,11 +161,10 @@ class DaVTKState(object):
                     j = b[0]
                     if j < i:
                         continue
-
-                    dr = np.array(b[1:4])
-                    dr_norm = b[4]
-                    picked = b[5]
-                    name = b[6]
+                    dr = np.array(b[1])
+                    dr_norm = b[2]
+                    picked = b[3]
+                    name = b[4]
 
                     rad = self.settings["bond_types"][name]["radius"]
 
@@ -400,5 +434,5 @@ class DaVTKState(object):
             at.bonds = [ [] for i in range(len(at)) ]
             for (i, j, v, d) in izip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
                 if d > 0.0:
-                    at.bonds[i].append([j, v[0], v[1], v[2], d, False, name])
+                    at.bonds[i].append([j, v, d, False, name])
         self.update(frames)
