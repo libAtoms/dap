@@ -26,8 +26,8 @@ def find_min_max(at_list):
     return (min_pos, max_pos)
 
 def get_atom_type_a(at):
-    if "atom_type" in at.arrays:
-        atom_type = at.arrays["atom_type"]
+    if "_vtk_atom_type" in at.arrays:
+        atom_type = at.arrays["_vtk_atom_type"]
     else:
         atom_type = [str(Z) for Z in at.get_atomic_numbers()]
     return atom_type
@@ -277,15 +277,25 @@ class DaVTKState(object):
             at.label_actors = []
             for i_at in range(len(at)):
                 label_actor = vtk.vtkBillboardTextActor3D()
-                label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
-                if label_field is None or label_field == "ID":
-                    label_str = str(i_at)
-                else:
-                    label_str = str(at.arrays[label_field][i_at])
+                label_str = None
+                if "_vtk_atom_label" in at.arrays:
+                    if at.arrays["_vtk_atom_label"][i_at] == "_NONE_":
+                        label_str = ""
+                    elif len(at.arrays["_vtk_atom_label"][i_at]) == 0 or at.arrays["_vtk_atom_label"][i_at] == "'''" or at.arrays["_vtk_atom_label"][i_at] == '""':
+                        label_str = None
+                    else:
+                        label_str = at.arrays["_vtk_atom_label"][i_at]
+                if label_str is None:
+                    label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
+                    if label_field is None or label_field == "ID":
+                        label_str = str(i_at)
+                    else:
+                        label_str = str(at.arrays[label_field][i_at])
                 label_actor.SetInput(label_str)
                 label_actor.SetPosition(pos[i_at])
                 r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
                 if i_at == 0:
+                    self.renderer.GetActiveCamera()
                     pt_disp = [0.0, 0.0, 0.0]
                     self.iRen.GetInteractorStyle().ComputeWorldToDisplay(self.renderer, pos[i_at][0], pos[i_at][1], pos[i_at][2], pt_disp)
                     pt_disp[0] += 1.0
@@ -293,7 +303,7 @@ class DaVTKState(object):
                     self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
                     dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))
                     if dp_world > 0:
-                        dp_disp = r/dp_world
+                        dp_disp = 0.8*r/dp_world
                     else:
                         dp_disp = 0
                 label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))

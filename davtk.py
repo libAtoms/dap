@@ -59,8 +59,8 @@ camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
 # start viewing first frame
 print "setting up first frame"
+davtk_state.update()
 davtk_state.show_frame(frame_i=0)
-
 
 print "starting"
 # Start

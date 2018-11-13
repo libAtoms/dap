@@ -84,7 +84,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 
     def keyPressEvent(self,obj,event):
         k = self.parent.GetKeySym()
-        if k == 's':
+        if k == 'p':
             self.GetInteractor().SetInteractorStyle(self.select_style)
             self.select_style.set_prev_style(self)
         elif k == 'd':
@@ -100,6 +100,22 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.davtk_state.show_frame(dframe=1)
         elif k == 'minus':
             self.davtk_state.show_frame(dframe=-1)
+        elif k == 'h':
+            print """GUI usage
+h: help (this message)
++: next frame
+-: prev frame
+p: pick area mode (click and drag)
+d: delete picked
+m: measure picked
+b: bond picked (only 2 atoms)
+l: update labels
+Mouse right click: select point
+Mouse left drag: trackball rotate
+control-Mouse left drag: rotate in plane
+shift-Mouse left drag: translate
+Mouse scroll: zoom
+"""
 
         if self.GetInteractor() is not None:
             self.GetInteractor().Render()

@@ -34,7 +34,7 @@ def parse_prev(davtk_state, renderer, args):
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
 parser_unpick = ThrowingArgumentParser(prog="unpick")
-parser_unpick.add_argument("-all",action="store_true")
+parser_unpick.add_argument("-all_frames",action="store_true")
 def parse_unpick(davtk_state, renderer, args):
     args = parser_unpick.parse_args(args)
     if args.all:
@@ -47,7 +47,7 @@ def parse_unpick(davtk_state, renderer, args):
 parsers["unpick"] = (parse_unpick, parser_unpick.format_usage(), parser_unpick.format_help())
 
 parser_pick = ThrowingArgumentParser(prog="pick")
-parser_pick.add_argument("-all",action="store_true")
+parser_pick.add_argument("-all_frames",action="store_true")
 parser_pick.add_argument("n",type=int,nargs='+')
 def parse_pick(davtk_state, renderer, args):
     args = parser_pick.parse_args(args)
@@ -61,7 +61,7 @@ def parse_pick(davtk_state, renderer, args):
 parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_help())
 
 parser_delete = ThrowingArgumentParser(prog="delete",description="delete picked unless indices are listed")
-parser_delete.add_argument("-all",action="store_true",help="apply to all frames")
+parser_delete.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_delete.add_argument("-atoms",type=int,nargs='+',help="delete by these indices ")
 parser_delete.add_argument("-bonds",action="store_true",help="delete all bonds")
 def parse_delete(davtk_state, renderer, args):
@@ -81,7 +81,7 @@ def parse_delete(davtk_state, renderer, args):
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 
 parser_dup = ThrowingArgumentParser(prog="dup",description="duplicate cell")
-parser_dup.add_argument("-all",action="store_true",help="apply to all frames")
+parser_dup.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_dup.add_argument("n",type=int,nargs='+', help="number of images to set (scalar or 3-vector)")
 def parse_dup(davtk_state, renderer, args):
     args = parser_dup.parse_args(args)
@@ -98,7 +98,7 @@ def parse_dup(davtk_state, renderer, args):
 parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help())
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
-parser_images.add_argument("-all",action="store_true",help="apply to all frames")
+parser_images.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_images.add_argument("n",type=float,nargs='+', help="number of images to set (scalar or 3-vector)")
 def parse_images(davtk_state, renderer, args):
     args = parser_images.parse_args(args)
@@ -121,7 +121,7 @@ parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.f
 
 
 parser_bond = ThrowingArgumentParser(prog="bond",description="create bonds")
-parser_bond.add_argument("-all",action="store_true",help="apply to all frames")
+parser_bond.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_bond.add_argument("-name",type=str,help="name of bond type", default=None)
 parser_bond.add_argument("a",type=float,nargs='*', help="scalar float (overriding atom type) or pair of atom index ints")
 def parse_bond(davtk_state, renderer, args):
