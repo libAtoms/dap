@@ -18,7 +18,7 @@ class DavTKSettings(object):
     def __init__(self):
         self.settings = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {},
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
-            "picked_color" : [1.0, 1.0, 0.0] }
+            "picked_color" : [1.0, 1.0, 0.0], "config_n_color" : [1.0, 1.0, 1.0], "config_n_fontsize" : 36 }
 
         self.parsers = {}
 
@@ -49,6 +49,11 @@ class DavTKSettings(object):
         self.parser_cell_box_color.add_argument("-color",nargs=3,type=float,default=None)
         self.parsers["cell_box_color"] = self.parse_cell_box_color
 
+        self.parser_config_n = ThrowingArgumentParser(prog="config_n")
+        self.parser_config_n.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_config_n.add_argument("-fontsize",type=int,default=None)
+        self.parsers["config_n"] = self.parse_config_n
+
         self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
         self.parser_picked_color.add_argument("-color",nargs=3,type=float,default=None)
         self.parsers["picked_color"] = self.parse_picked_color
@@ -58,11 +63,18 @@ class DavTKSettings(object):
         self.parsers["background_color"] = self.parse_background_color
 
         # properties
+        # 3D Actor properties
         for f in ["cell_box","picked"]:
             prop = vtk.vtkProperty()
             prop.SetOpacity(1.0)
             prop.SetColor(self.settings[f+"_color"])
             self.settings[f+"_prop"] = prop
+        # text properties
+        prop = vtk.vtkTextProperty()
+        self.settings["config_n_prop" ] = prop
+        prop.SetOpacity(1.0)
+        prop.SetColor(self.settings["config_n_color"])
+        prop.SetFontSize(self.settings["config_n_fontsize"])
 
     def __getitem__(self,key):
         return self.settings[key]
@@ -153,13 +165,23 @@ class DavTKSettings(object):
         args = self.parser_cell_box_color.parse_args(args)
         self.settings["cell_box_color"] = args.color
         self.settings["cell_box_prop"].SetColor(self.settings["cell_box_color"])
-        return "none"
+        return None
+
+    def parse_config_n(self, args):
+        args = self.parser_config_n.parse_args(args)
+        if args.color is not None:
+            self.settings["config_n_color"] = args.color
+        if args.fontsize is not None:
+            self.settings["config_n_fontsize"] = args.fontsize
+        self.settings["config_n_prop"].SetColor(self.settings["config_n_color"])
+        self.settings["config_n_prop"].SetFontSize(self.settings["config_n_fontsize"])
+        return None
 
     def parse_picked_color(self, args):
         args = self.parser_picked_color.parse_args(args)
         self.settings["picked_color"] = args.color
         self.settings["picked_prop"].SetColor(self.settings["picked_color"])
-        return "none"
+        return None
 
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)

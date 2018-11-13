@@ -426,6 +426,13 @@ class DaVTKState(object):
             for actor in at.bond_actors:
                 self.renderer.AddActor(actor)
 
+        # config_n
+        txt = vtk.vtkTextActor()
+        txt.SetInput(str(self.cur_frame))
+        txt.SetTextProperty(self.settings["config_n_prop"])
+        txt.SetDisplayPosition(20,20)
+        self.renderer.AddActor(txt)
+
         # refresh display
         self.renderer.GetRenderWindow().Render()
 
