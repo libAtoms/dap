@@ -2,6 +2,21 @@ import select, sys
 import vtk
 from davtk_parse import parse_line
 
+def pick_actors(at, actors):
+    new_bond_pick_statuses = {}
+
+    for actor in actors:
+        if hasattr(actor, "i_at"):
+            at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
+        elif hasattr(actor, "i_at_bond"):
+            (i_at, i_bond) = actor.i_at_bond
+            new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond][5] 
+        else:
+            raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
+
+    for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
+        at.bonds[i_at][i_bond][5] = stat
+
 class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
     def __init__(self,davtk_state,parent=None):
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
@@ -18,13 +33,7 @@ class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
         picker = vtk.vtkAreaPicker()
         picker.AreaPick(p0[0], p0[1], p1[0], p1[1], self.GetDefaultRenderer())
         at = self.davtk_state.cur_at()
-        picked_ats = []
-        for p in picker.GetProp3Ds():
-            if hasattr(p,"i_at"):
-                at.arrays["_vtk_picked"][p.i_at] = not at.arrays["_vtk_picked"][p.i_at] 
-                picked_ats.append(p.i_at)
-            else:
-                raise ValueError("picked something that's not an atom "+str(p))
+        pick_actors(self.davtk_state.cur_at(), picker.GetProp3Ds())
         self.davtk_state.update(frames="cur")
 
         self.OnLeftButtonUp()
@@ -109,13 +118,9 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 
         # If something was selected
         at = self.davtk_state.cur_at()
-        picked_ats = []
         if self.NewPickedActor:
-            if hasattr(self.NewPickedActor,"i_at"):
-                at.arrays["_vtk_picked"][self.NewPickedActor.i_at] = not at.arrays["_vtk_picked"][self.NewPickedActor.i_at] 
-                picked_ats.append(self.NewPickedActor.i_at)
-            else:
-                raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
+            pick_actors(self.davtk_state.cur_at(), [self.NewPickedActor])
+
         self.davtk_state.update(frames="cur")
 
         self.GetInteractor().Render()

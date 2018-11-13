@@ -118,16 +118,19 @@ class DaVTKState(object):
             at = self.at_list[frame_i]
             pos = at.get_positions()
             at.bond_actors = []
-            if 'bonds' not in at.arrays:
+            if not hasattr(at, "bonds"):
                 continue
             for i_at in range(len(at)):
-                v = at.arrays["bonds"][i_at].split()
-                for i_bond in range(0,len(v),6):
+                for (i_bond, b) in enumerate(at.bonds[i_at]):
                     i = i_at
-                    j = int(v[i_bond])
-                    dr = np.array([float(x) for x in v[i_bond+1:i_bond+4]])
-                    dr_norm = float(v[i_bond+4])
-                    name = v[i_bond+5]
+                    j = b[0]
+                    if j < i:
+                        continue
+
+                    dr = np.array(b[1:4])
+                    dr_norm = b[4]
+                    picked = b[5]
+                    name = b[6]
 
                     rad = self.settings["bond_types"][name]["radius"]
 
@@ -146,7 +149,10 @@ class DaVTKState(object):
                         transform.RotateWXYZ(angle, axis)
                     transform.Scale(rad, dr_norm/2.0, rad)
                     actor_1.SetUserMatrix(transform.GetMatrix())
-                    actor_1.SetProperty(self.settings["bond_types"][name]["prop"])
+                    if picked:
+                        actor_1.SetProperty(self.settings["picked_prop"])
+                    else:
+                        actor_1.SetProperty(self.settings["bond_types"][name]["prop"])
 
                     # second half bond
                     actor_2 = vtk.vtkActor()
@@ -164,12 +170,17 @@ class DaVTKState(object):
                         transform.RotateWXYZ(angle, axis)
                     transform.Scale(rad, dr_norm/2.0, rad)
                     actor_2.SetUserMatrix(transform.GetMatrix())
-                    actor_2.SetProperty(self.settings["bond_types"][name]["prop"])
+                    if picked:
+                        actor_2.SetProperty(self.settings["picked_prop"])
+                    else:
+                        actor_2.SetProperty(self.settings["bond_types"][name]["prop"])
 
                     actor_1.other_half = actor_2
                     actor_2.other_half = actor_1
 
+                    actor_1.i_at_bond = (i_at, i_bond)
                     at.bond_actors.append(actor_1)
+                    actor_2.i_at_bond = (i_at, i_bond)
                     at.bond_actors.append(actor_2)
 
     def update_atoms(self, frames=None):
@@ -179,7 +190,7 @@ class DaVTKState(object):
             pos = at.get_positions()
 
             for i_at in range(len(at)):
-                actor = at.arrays["_vtk_at_actor"][i_at]
+                actor = at.arrays["_NOPRINT_vtk_at_actor"][i_at]
                 actor.SetMapper(self.mappers["sphere"])
                 if at.arrays["_vtk_picked"][i_at]: 
                     prop = self.settings["picked_prop"]
@@ -269,7 +280,7 @@ class DaVTKState(object):
             mapper = vtk.vtkPolyDataMapper()
             mapper.SetInputData(linesPolyData)
 
-            actor = self.at_list[frame_i].info["_vtk_cell_box_actor"]
+            actor = self.at_list[frame_i].info["_NOPRINT_vtk_cell_box_actor"]
             actor.SetMapper(mapper)
             actor.GetProperty().SetColor(self.settings["cell_box_color"])
             actor.PickableOff()
@@ -278,11 +289,11 @@ class DaVTKState(object):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
 
-            at.arrays["_vtk_at_actor"] = np.array([vtk.vtkActor() for i in range(len(at)) ])
-            for (i_at, actor) in enumerate(at.arrays["_vtk_at_actor"]):
+            at.arrays["_NOPRINT_vtk_at_actor"] = np.array([vtk.vtkActor() for i in range(len(at)) ])
+            for (i_at, actor) in enumerate(at.arrays["_NOPRINT_vtk_at_actor"]):
                 actor.i_at = i_at
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
-            at.info["_vtk_cell_box_actor"] = vtk.vtkActor()
+            at.info["_NOPRINT_vtk_cell_box_actor"] = vtk.vtkActor()
 
     def show_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
@@ -303,12 +314,12 @@ class DaVTKState(object):
         self.renderer.RemoveAllViewProps()
 
         # actor for cell box
-        self.renderer.AddActor(at.info["_vtk_cell_box_actor"])
+        self.renderer.AddActor(at.info["_NOPRINT_vtk_cell_box_actor"])
 
         # create actors for atoms
         pos = at.get_positions()
         cell = at.get_cell()
-        for (i_at, actor) in enumerate(at.arrays["_vtk_at_actor"]):
+        for (i_at, actor) in enumerate(at.arrays["_NOPRINT_vtk_at_actor"]):
             # real image
             self.renderer.AddActor(actor)
             # periodic images if needed
@@ -385,11 +396,9 @@ class DaVTKState(object):
                 cutoff = max([self.settings["atom_types"][atom_type_array[i]]["bonding_radius"] for i in range(len(at))])
             if cutoff == 0.0:
                 return
-            print "making neighborlist", cutoff
             nn_list = ase.neighborlist.neighbor_list('ijDd', at, cutoff, self_interaction=True)
-            bonds = [""] * len(at)
+            at.bonds = [ [] for i in range(len(at)) ]
             for (i, j, v, d) in izip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
-                if d > 0.0 and j <= i:
-                    bonds[i] += "{} {} {} {} {} {} ".format(j, v[0], v[1], v[2], d, name)
-            at.arrays["bonds"] = np.array(bonds)
+                if d > 0.0:
+                    at.bonds[i].append([j, v[0], v[1], v[2], d, False, name])
         self.update(frames)
