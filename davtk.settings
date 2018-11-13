@@ -3,7 +3,8 @@ colormap -name cmap 0.0   1.0 0.0 0.0   1.0    1.0 1.0 1.0
 # atom_type -name 14 -colormap cmap -colormap_field val -opacity 1.0 -radius 0.4
 # atom_type -name 14 -color 1.0 1.0 1.0 -opacity 1.0 -radius_field val
 # atom_type -name 14 -colormap cmap val -opacity 1.0 -radius_field val -label val -bonding_radius 3.5
-atom_type -name 14 -colormap cmap val -opacity 1.0 -radius 0.3 -label val -bonding_radius 3.5
+# atom_type -name 14 -colormap cmap val -opacity 1.0 -radius 0.3 -label val -bonding_radius 3.5
+atom_type -name 14 -color 0 1 0 -opacity 1.0 -radius 0.3 -label val -bonding_radius 3.5
 bond_type -name default -color 1.0 1.0 1.0 -radius 0.1
 bond_type -name alt -color 0.0 0.0 1.0 -radius 0.1
-cell_box_color -color 0.0 1.0 1.0
+cell_box_color 0.0 1.0 1.0

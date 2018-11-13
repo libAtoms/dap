@@ -46,7 +46,7 @@ class DavTKSettings(object):
         self.parsers["bond_type"] = self.parse_bond_type
 
         self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
-        self.parser_cell_box_color.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_cell_box_color.add_argument("color",nargs=3,type=float,default=None)
         self.parsers["cell_box_color"] = self.parse_cell_box_color
 
         self.parser_config_n = ThrowingArgumentParser(prog="config_n")
@@ -55,11 +55,11 @@ class DavTKSettings(object):
         self.parsers["config_n"] = self.parse_config_n
 
         self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
-        self.parser_picked_color.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_picked_color.add_argument("color",nargs=3,type=float,default=None)
         self.parsers["picked_color"] = self.parse_picked_color
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
-        self.parser_background_color.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_background_color.add_argument("color",nargs=3,type=float,default=None)
         self.parsers["background_color"] = self.parse_background_color
 
         # properties
@@ -69,6 +69,11 @@ class DavTKSettings(object):
             prop.SetOpacity(1.0)
             prop.SetColor(self.settings[f+"_color"])
             self.settings[f+"_prop"] = prop
+
+        # make picked very flat
+        self.settings["picked_prop"].SetAmbient(0.6)
+        self.settings["picked_prop"].SetDiffuse(0.4)
+
         # text properties
         prop = vtk.vtkTextProperty()
         self.settings["config_n_prop" ] = prop
