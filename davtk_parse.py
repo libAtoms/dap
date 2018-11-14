@@ -33,7 +33,7 @@ def parse_prev(davtk_state, renderer, args):
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
-parser_unpick = ThrowingArgumentParser(prog="unpick")
+parser_unpick = ThrowingArgumentParser(prog="unpick", description="unpick all picked atoms")
 parser_unpick.add_argument("-all_frames",action="store_true")
 def parse_unpick(davtk_state, renderer, args):
     args = parser_unpick.parse_args(args)
@@ -43,10 +43,14 @@ def parse_unpick(davtk_state, renderer, args):
         ats = [davtk_state.cur_at()]
     for at in ats:
         at.arrays["_vtk_picked"][:] = False
+        if hasattr(at, "bonds"):
+            for i_at in range(len(at)):
+                for b in at.bonds[i_at]:
+                    b["picked"] = False
     return "all"
 parsers["unpick"] = (parse_unpick, parser_unpick.format_usage(), parser_unpick.format_help())
 
-parser_pick = ThrowingArgumentParser(prog="pick")
+parser_pick = ThrowingArgumentParser(prog="pick", description="pick atom(s) by ID")
 parser_pick.add_argument("-all_frames",action="store_true")
 parser_pick.add_argument("n",type=int,nargs='+')
 def parse_pick(davtk_state, renderer, args):
@@ -60,7 +64,7 @@ def parse_pick(davtk_state, renderer, args):
     return "all"
 parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_help())
 
-parser_delete = ThrowingArgumentParser(prog="delete",description="delete picked unless indices are listed")
+parser_delete = ThrowingArgumentParser(prog="delete",description="delete objects (picked by default)")
 parser_delete.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_delete.add_argument("-atoms",type=int,nargs='+',help="delete by these indices ")
 parser_delete.add_argument("-bonds",action="store_true",help="delete all bonds")
@@ -110,20 +114,19 @@ def parse_images(davtk_state, renderer, args):
 
     if args.all_frames:
         for at in davtk_state.at_list:
-            at.info["images"] = args.n
+            at.info["_vtk_images"] = args.n
     else:
-        davtk_state.cur_at().info["images"] = args.n
+        davtk_state.cur_at().info["_vtk_images"] = args.n
 
     davtk_state.show_frame(dframe=0)
 
     return None
 parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.format_help())
 
-
 parser_bond = ThrowingArgumentParser(prog="bond",description="create bonds")
 parser_bond.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_bond.add_argument("-name",type=str,help="name of bond type", default=None)
-parser_bond.add_argument("a",type=float,nargs='*', help="scalar float (overriding atom type) or pair of atom index ints")
+parser_bond.add_argument("a",type=float,nargs='*', help="scalar float cutoff (overriding atom type) or pair of atom index ints")
 def parse_bond(davtk_state, renderer, args):
     args = parser_bond.parse_args(args)
 
@@ -153,9 +156,9 @@ def parse_snapshot(davtk_state, renderer, args):
     davtk_state.snapshot(args.file, args.mag)
 parsers["snapshot"] = (parse_snapshot, parser_snapshot.format_usage(), parser_snapshot.format_help())
 
-parser_ASE = ThrowingArgumentParser(prog="ASE",description="evaluate with ASE")
+parser_ASE = ThrowingArgumentParser(prog="ASE",description="evaluate with ASE (Atoms object available as 'atoms')")
 parser_ASE.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_ASE.add_argument("-in_global",action="store_true",help="run in global scope")
+parser_ASE.add_argument("-in_global",action="store_true",help="run in global scope (for 'import', e.g.)")
 parser_ASE.add_argument("args",type=str,nargs='+',help="ASE command line words")
 def parse_ASE(davtk_state, renderer, args):
     args = parser_ASE.parse_args(args)
@@ -164,7 +167,7 @@ def parse_ASE(davtk_state, renderer, args):
         ats = davtk_state.at_list
     else:
         ats = [davtk_state.cur_at()]
-    for at in ats:
+    for atoms in ats:
         if args.in_global:
             exec(ase_command) in globals(), globals()
         else:
@@ -182,7 +185,7 @@ def parse_read(davtk_state, renderer, args):
                 parse_line(l, davtk_state.settings, davtk_state, davtk_state.renderer)
 parsers["read"] = (parse_read, parser_read.format_usage(), parser_read.format_help())
 
-parser_label = ThrowingArgumentParser(prog="label",description="toggle labels")
+parser_label = ThrowingArgumentParser(prog="label",description="enable/disable labels (toggle by default)")
 parser_label.add_argument("-all_frames",action="store_true",help="apply to all frames")
 group = parser_label.add_mutually_exclusive_group()
 group.add_argument("-on",action='store_true',help="turn on")

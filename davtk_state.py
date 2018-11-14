@@ -456,10 +456,10 @@ class DaVTKState(object):
             # real image
             self.renderer.AddActor(actor)
             # periodic images if needed
-            if "images" in at.info:
-                n0 = int(math.ceil(at.info["images"][0]))
-                n1 = int(math.ceil(at.info["images"][1]))
-                n2 = int(math.ceil(at.info["images"][2]))
+            if "_vtk_images" in at.info:
+                n0 = int(math.ceil(at.info["_vtk_images"][0]))
+                n1 = int(math.ceil(at.info["_vtk_images"][1]))
+                n2 = int(math.ceil(at.info["_vtk_images"][2]))
                 for i0 in range(-n0, n0+1):
                     for i1 in range(-n1, n1+1):
                         for i2 in range(-n2, n2+1):
@@ -467,12 +467,12 @@ class DaVTKState(object):
                                 continue
                             img_pos = pos[i_at] + np.dot([i0, i1, i2], cell)
                             img_pos_scaled = np.dot(img_pos, cell_inv)
-                            if (img_pos_scaled[0] >= -at.info["images"][0] and
-                                img_pos_scaled[0] <= 1+at.info["images"][0] and
-                                img_pos_scaled[1] >= -at.info["images"][1] and
-                                img_pos_scaled[1] <= 1+at.info["images"][1] and
-                                img_pos_scaled[2] >= -at.info["images"][2] and
-                                img_pos_scaled[2] <= 1+at.info["images"][2]):
+                            if (img_pos_scaled[0] >= -at.info["_vtk_images"][0] and
+                                img_pos_scaled[0] <= 1+at.info["_vtk_images"][0] and
+                                img_pos_scaled[1] >= -at.info["_vtk_images"][1] and
+                                img_pos_scaled[1] <= 1+at.info["_vtk_images"][1] and
+                                img_pos_scaled[2] >= -at.info["_vtk_images"][2] and
+                                img_pos_scaled[2] <= 1+at.info["_vtk_images"][2]):
                                img_actor = vtk.vtkActor()
                                img_actor.SetProperty(actor.GetProperty())
                                img_actor.SetMapper(actor.GetMapper())

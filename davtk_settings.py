@@ -24,15 +24,15 @@ class DavTKSettings(object):
 
         self.parsers = {}
 
-        self.parser_colormap = ThrowingArgumentParser(prog="colormap")
-        self.parser_colormap.add_argument("-name",type=str)
-        self.parser_colormap.add_argument("colormap",nargs='+',type=float)
+        self.parser_colormap = ThrowingArgumentParser(prog="colormap", description="args: V R G B ...")
+        self.parser_colormap.add_argument("-name",type=str, required=True)
+        self.parser_colormap.add_argument("colormap",nargs='*',type=float, metavar=("X"))
         self.parsers["colormap"] = self.parse_colormap
 
         self.parser_atom_type = ThrowingArgumentParser(prog="atom_type")
-        self.parser_atom_type.add_argument("-name",type=str)
-        self.parser_atom_type.add_argument("-color",nargs=3,type=float,default=None)
-        self.parser_atom_type.add_argument("-colormap",nargs=2,type=str,default=None)
+        self.parser_atom_type.add_argument("-name",type=str, required=True)
+        self.parser_atom_type.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
+        self.parser_atom_type.add_argument("-colormap",nargs=2,type=str,default=None, metavar=("COLORMAP","FIELD"))
         self.parser_atom_type.add_argument("-radius",type=float,default=None)
         self.parser_atom_type.add_argument("-radius_field",type=str,default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
@@ -41,32 +41,32 @@ class DavTKSettings(object):
         self.parsers["atom_type"] = self.parse_atom_type
 
         self.parser_bond_type = ThrowingArgumentParser(prog="bond_type")
-        self.parser_bond_type.add_argument("-name",type=str)
-        self.parser_bond_type.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_bond_type.add_argument("-name",type=str, required=True)
+        self.parser_bond_type.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_bond_type.add_argument("-radius",type=float,default=None)
         self.parser_bond_type.add_argument("-opacity",type=float,default=None)
         self.parsers["bond_type"] = self.parse_bond_type
 
         self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
-        self.parser_cell_box_color.add_argument("color",nargs=3,type=float,default=None)
+        self.parser_cell_box_color.add_argument("color",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parsers["cell_box_color"] = self.parse_cell_box_color
 
         self.parser_config_n_text = ThrowingArgumentParser(prog="config_n_text")
-        self.parser_config_n_text.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_config_n_text.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_config_n_text.add_argument("-fontsize",type=int,default=None)
         self.parsers["config_n_text"] = self.parse_config_n_text
 
         self.parser_label_text = ThrowingArgumentParser(prog="label_text")
-        self.parser_label_text.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_label_text.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_label_text.add_argument("-fontsize",type=int,default=None)
         self.parsers["label_text"] = self.parse_label_text
 
         self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
-        self.parser_picked_color.add_argument("color",nargs=3,type=float,default=None)
+        self.parser_picked_color.add_argument("color",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parsers["picked_color"] = self.parse_picked_color
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
-        self.parser_background_color.add_argument("color",nargs=3,type=float,default=None)
+        self.parser_background_color.add_argument("color",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parsers["background_color"] = self.parse_background_color
 
         # properties
