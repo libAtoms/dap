@@ -306,10 +306,10 @@ class DaVTKState(object):
                     pt_world = [0.0, 0.0, 0.0, 0.0]
                     self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
                     dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))/10
-                    if dp_world > 0:
-                        dp_disp = 0.8*r/dp_world
-                    else:
-                        dp_disp = 0
+                if dp_world > 0:
+                    dp_disp = 0.7*r/dp_world
+                else:
+                    dp_disp = 0
                 label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
                 label_actor.SetTextProperty(self.settings["label_text_prop"])
                 label_actor.PickableOff()
