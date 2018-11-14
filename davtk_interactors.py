@@ -50,6 +50,8 @@ class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
 class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 
     def __init__(self,settings,davtk_state,select_style,parent=None):
+        self.AddObserver("LeftButtonPressEvent",self.leftButtonPressEvent)
+        self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.AddObserver("RightButtonPressEvent",self.rightButtonPressEvent)
         self.AddObserver("KeyPressEvent",self.keyPressEvent)
         self.AddObserver("TimerEvent",self.timerEvent)
@@ -94,6 +96,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'b':
             self.davtk_state.bond("picked", name=None, frames="cur")
         elif k == 'l':
+            self.davtk_state.cur_at().info["_vtk_show_labels"] = not self.davtk_state.cur_at().info["_vtk_show_labels"]
             self.davtk_state.update_labels(frames="cur")
             self.davtk_state.show_frame(dframe=0)
         elif k == 'plus':
@@ -122,6 +125,21 @@ Mouse scroll: zoom
         self.GetDefaultRenderer().GetRenderWindow().Render()
 
         # self.OnKeyPress()
+        return
+
+    def leftButtonPressEvent(self,obj,event):
+        self.davtk_state.cur_at().info["_vtk_show_labels_prev"] = self.davtk_state.cur_at().info["_vtk_show_labels"]
+        self.davtk_state.cur_at().info["_vtk_show_labels"] = False
+        # self.davtk_state.update_labels(frames="cur")
+        self.davtk_state.show_frame(dframe=0)
+        self.OnLeftButtonDown()
+        return
+
+    def leftButtonReleaseEvent(self,obj,event):
+        self.davtk_state.cur_at().info["_vtk_show_labels"] = self.davtk_state.cur_at().info["_vtk_show_labels_prev"]
+        # self.davtk_state.update_labels(frames="cur")
+        self.davtk_state.show_frame(dframe=0)
+        self.OnLeftButtonUp()
         return
 
     def rightButtonPressEvent(self,obj,event):

@@ -18,7 +18,9 @@ class DavTKSettings(object):
     def __init__(self):
         self.settings = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {},
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
-            "picked_color" : [1.0, 1.0, 0.0], "config_n_color" : [1.0, 1.0, 1.0], "config_n_fontsize" : 36 }
+            "picked_color" : [1.0, 1.0, 0.0], 
+            "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
+            "label_text_color" : [1.0, 1.0, 1.0], "label_text_fontsize" : 24 }
 
         self.parsers = {}
 
@@ -49,10 +51,15 @@ class DavTKSettings(object):
         self.parser_cell_box_color.add_argument("color",nargs=3,type=float,default=None)
         self.parsers["cell_box_color"] = self.parse_cell_box_color
 
-        self.parser_config_n = ThrowingArgumentParser(prog="config_n")
-        self.parser_config_n.add_argument("-color",nargs=3,type=float,default=None)
-        self.parser_config_n.add_argument("-fontsize",type=int,default=None)
-        self.parsers["config_n"] = self.parse_config_n
+        self.parser_config_n_text = ThrowingArgumentParser(prog="config_n_text")
+        self.parser_config_n_text.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_config_n_text.add_argument("-fontsize",type=int,default=None)
+        self.parsers["config_n_text"] = self.parse_config_n_text
+
+        self.parser_label_text = ThrowingArgumentParser(prog="label_text")
+        self.parser_label_text.add_argument("-color",nargs=3,type=float,default=None)
+        self.parser_label_text.add_argument("-fontsize",type=int,default=None)
+        self.parsers["label_text"] = self.parse_label_text
 
         self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
         self.parser_picked_color.add_argument("color",nargs=3,type=float,default=None)
@@ -75,11 +82,12 @@ class DavTKSettings(object):
         self.settings["picked_prop"].SetDiffuse(0.4)
 
         # text properties
-        prop = vtk.vtkTextProperty()
-        self.settings["config_n_prop" ] = prop
-        prop.SetOpacity(1.0)
-        prop.SetColor(self.settings["config_n_color"])
-        prop.SetFontSize(self.settings["config_n_fontsize"])
+        for f in ["config_n", "label"]:
+            prop = vtk.vtkTextProperty()
+            self.settings[f+"_text_prop" ] = prop
+            prop.SetOpacity(1.0)
+            prop.SetColor(self.settings[f+"_text_color"])
+            prop.SetFontSize(self.settings[f+"_text_fontsize"])
 
     def __getitem__(self,key):
         return self.settings[key]
@@ -172,14 +180,24 @@ class DavTKSettings(object):
         self.settings["cell_box_prop"].SetColor(self.settings["cell_box_color"])
         return None
 
-    def parse_config_n(self, args):
-        args = self.parser_config_n.parse_args(args)
+    def parse_config_n_text(self, args):
+        args = self.parser_config_n_text.parse_args(args)
         if args.color is not None:
-            self.settings["config_n_color"] = args.color
+            self.settings["config_n_text_color"] = args.color
         if args.fontsize is not None:
-            self.settings["config_n_fontsize"] = args.fontsize
-        self.settings["config_n_prop"].SetColor(self.settings["config_n_color"])
-        self.settings["config_n_prop"].SetFontSize(self.settings["config_n_fontsize"])
+            self.settings["config_n_text_fontsize"] = args.fontsize
+        self.settings["config_n_text_prop"].SetColor(self.settings["config_n_text_color"])
+        self.settings["config_n_text_prop"].SetFontSize(self.settings["config_n_text_fontsize"])
+        return None
+
+    def parse_label_text(self, args):
+        args = self.parser_label_text.parse_args(args)
+        if args.color is not None:
+            self.settings["label_text_color"] = args.color
+        if args.fontsize is not None:
+            self.settings["label_text_fontsize"] = args.fontsize
+        self.settings["label_text_prop"].SetColor(self.settings["label_text_color"])
+        self.settings["label_text_prop"].SetFontSize(self.settings["label_text_fontsize"])
         return None
 
     def parse_picked_color(self, args):

@@ -276,6 +276,9 @@ class DaVTKState(object):
             pos = at.get_positions()
 
             at.label_actors = []
+            if "_vtk_show_labels" not in at.info or not at.info["_vtk_show_labels"]:
+                return
+
             for i_at in range(len(at)):
                 label_actor = vtk.vtkBillboardTextActor3D()
                 label_str = None
@@ -308,7 +311,7 @@ class DaVTKState(object):
                     else:
                         dp_disp = 0
                 label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
-                label_actor.GetTextProperty().SetFontSize(36)
+                label_actor.SetTextProperty(self.settings["label_text_prop"])
                 label_actor.PickableOff()
                 at.label_actors.append(label_actor)
 
@@ -422,6 +425,7 @@ class DaVTKState(object):
 
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
             at.info["_NOPRINT_vtk_cell_box_actor"] = vtk.vtkActor()
+            at.info["_vtk_show_labels"] = False
 
     def show_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
@@ -484,14 +488,14 @@ class DaVTKState(object):
             for actor in at.bond_actors:
                 self.renderer.AddActor(actor)
 
-        if hasattr(at, "label_actors"):
+        if "_vtk_show_labels" in at.info and at.info["_vtk_show_labels"] and hasattr(at, "label_actors"):
             for actor in at.label_actors:
                 self.renderer.AddActor(actor)
 
         # config_n
         txt = vtk.vtkTextActor()
         txt.SetInput(str(self.cur_frame))
-        txt.SetTextProperty(self.settings["config_n_prop"])
+        txt.SetTextProperty(self.settings["config_n_text_prop"])
         txt.SetDisplayPosition(20,20)
         self.renderer.AddActor(txt)
 
