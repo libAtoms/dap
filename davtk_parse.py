@@ -155,6 +155,7 @@ parsers["snapshot"] = (parse_snapshot, parser_snapshot.format_usage(), parser_sn
 
 parser_ASE = ThrowingArgumentParser(prog="ASE",description="evaluate with ASE")
 parser_ASE.add_argument("-all_frames",action="store_true",help="apply to all frames")
+parser_ASE.add_argument("-in_global",action="store_true",help="run in global scope")
 parser_ASE.add_argument("args",type=str,nargs='+',help="ASE command line words")
 def parse_ASE(davtk_state, renderer, args):
     args = parser_ASE.parse_args(args)
@@ -164,9 +165,22 @@ def parse_ASE(davtk_state, renderer, args):
     else:
         ats = [davtk_state.cur_at()]
     for at in ats:
-        exec(ase_command)
+        if args.in_global:
+            exec(ase_command) in globals(), globals()
+        else:
+            exec(ase_command)
     return "all"
 parsers["ASE"] = (parse_ASE, parser_ASE.format_usage(), parser_ASE.format_help())
+
+parser_read = ThrowingArgumentParser(prog="read",description="ready commands from file(s)")
+parser_read.add_argument("filename",type=str,nargs='+',help="filenames")
+def parse_read(davtk_state, renderer, args):
+    args = parser_read.parse_args(args)
+    for f in args.filename:
+        with open(f) as fin:
+            for l in fin.readlines():
+                parse_line(l, davtk_state.settings, davtk_state, davtk_state.renderer)
+parsers["read"] = (parse_read, parser_read.format_usage(), parser_read.format_help())
 
 ################################################################################
 
