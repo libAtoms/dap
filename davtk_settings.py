@@ -14,9 +14,81 @@ def piecewise_linear(x, t):
 class UnknownSettingsKeywordError(Exception):
     pass
 
+class DavTKAtomTypes(object):
+    def __init__(self):
+        self.types = {}
+        self.autogen_used = 0
+        self.colors = []
+
+        colorScheme = vtk.vtkColorSeries()
+        for i in [1, 2, 3]:
+            colorScheme.SetColorSchemeByName("Brewer Qualitative Set{}".format(i))
+            for i in range(colorScheme.GetNumberOfColors()):
+                c = colorScheme.GetColor(i)
+                if np.any(np.array(c) != 0):
+                    self.colors.append(np.array(c)/255.0)
+
+    def __getitem__(self, key):
+        if key in self.types:
+            return self.types[key]
+        else:
+            return self.add_autogen(key)
+
+    def add_autogen(self, name):
+        print "autogenerating with color ",self.colors[self.autogen_used]
+        self.set_type(name=name, color=self.colors[self.autogen_used], radius = 0.3, opacity=1.0)
+        self.autogen_used += 1
+        return self.types[name]
+
+    def set_type(self, name, color=None, colormap=None, radius=None, radius_field=None, opacity=None, label=None, bonding_radius=None, colormaps=None):
+        if name not in self.types:
+            self.types[name] = {}
+            self.types[name]["color"] = None
+            self.types[name]["colormap_func"] = None
+            self.types[name]["colormap_field"] = None
+            self.types[name]["radius"] = None
+            self.types[name]["radius_field"] = None
+            self.types[name]["opacity"] = None
+            self.types[name]["label"] = None
+            self.types[name]["bonding_radius"] = None
+            self.types[name]["prop"] = vtk.vtkProperty()
+            self.types[name]["prop"].SetOpacity(1.0)
+            self.types[name]["prop"].SetSpecularColor(1.0,1.0,1.0)
+            self.types[name]["prop"].SetSpecularPower(10.0)
+        if color is not None:
+            if colormap is not None:
+                raise ValueError("got color and colormap")
+            self.types[name]["color"] = color
+            self.types[name]["prop"].SetColor(color)
+        if colormap is not None:
+            if color is not None:
+                raise ValueError("got color and colormap")
+            self.types[name]["colormap_func"] = colormaps[colormap[0]]
+            self.types[name]["colormap_field"] = colormap[1]
+        if radius is not None:
+            if radius_field is not None:
+                raise ValueError("got radius and radius_field")
+            self.types[name]["radius"] = radius
+            self.types[name]["radius_field"] = None
+        if radius_field is not None:
+            if radius is not None:
+                raise ValueError("got radius and radius_field")
+            self.types[name]["radius"] = radius
+            self.types[name]["radius_field"] = radius_field
+        if opacity is not None:
+            self.types[name]["opacity"] = opacity
+            self.types[name]["prop"].SetOpacity(opacity)
+        if label is not None:
+            if label == "NONE" or label == "_":
+                self.types[name]["label"] = None
+            else:
+                self.types[name]["label"] = label
+        if bonding_radius is not None:
+            self.types[name]["bonding_radius"] = bonding_radius
+
 class DavTKSettings(object):
     def __init__(self):
-        self.settings = { "atom_types" : {}, "bond_types" : {}, "colormaps" : {},
+        self.settings = { "atom_types" : DavTKAtomTypes(), "bond_types" : {}, "colormaps" : {},
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
             "picked_color" : [1.0, 1.0, 0.0], 
             "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
@@ -99,56 +171,9 @@ class DavTKSettings(object):
         self.settings["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
 
     def parse_atom_type(self, args):
-        refresh = None
         args = self.parser_atom_type.parse_args(args)
-        if args.name not in self.settings["atom_types"]:
-            self.settings["atom_types"][args.name] = {}
-            self.settings["atom_types"][args.name]["radius"] = 0.3
-            self.settings["atom_types"][args.name]["colormap_func"] = None
-            self.settings["atom_types"][args.name]["colormap_field"] = None
-            self.settings["atom_types"][args.name]["radius_field"] = None
-            self.settings["atom_types"][args.name]["label"] = None
-            self.settings["atom_types"][args.name]["bonding_radius"] = None
-            prop = vtk.vtkProperty()
-            prop.SetOpacity(1.0)
-            prop.SetSpecularColor(1.0,1.0,1.0)
-            prop.SetSpecularPower(10.0)
-            self.settings["atom_types"][args.name]["prop"] = prop
-            refresh = "all"
-        if args.color is not None:
-            refresh = None
-            if self.settings["atom_types"][args.name]["colormap_func"] is not None:
-                refresh = "all"
-            self.settings["atom_types"][args.name]["prop"].SetColor(args.color)
-            self.settings["atom_types"][args.name]["colormap_func"] = None
-            self.settings["atom_types"][args.name]["colormap_field"] = None
-        if args.colormap is not None:
-            refresh = "all"
-            self.settings["atom_types"][args.name]["colormap_func"] = self.settings["colormaps"][args.colormap[0]]
-            self.settings["atom_types"][args.name]["colormap_field"] = args.colormap[1]
-            self.settings["atom_types"][args.name]["color"] = None
-        if args.opacity is not None:
-            self.settings["atom_types"][args.name]["prop"].SetOpacity(args.opacity)
-        if args.radius is not None:
-            refresh = None
-            if self.settings["atom_types"][args.name]["radius_field"] is not None:
-                refresh = "all"
-            self.settings["atom_types"][args.name]["radius"] = args.radius
-            self.settings["atom_types"][args.name]["radius_field"] = None
-        if args.radius_field is not None:
-            refresh = "all"
-            self.settings["atom_types"][args.name]["radius_field"] = args.radius_field
-            self.settings["atom_types"][args.name]["radius"] = None
-        if args.label is not None:
-            refresh = "all"
-            if args.label == 'NONE':
-                print "unsetting label field"
-                self.settings["atom_types"][args.name]["label"] = None
-            else:
-                self.settings["atom_types"][args.name]["label"] = args.label
-        if args.bonding_radius is not None:
-            self.settings["atom_types"][args.name]["bonding_radius"] = args.bonding_radius
-        return refresh
+        self.settings["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.label, args.bonding_radius, self.settings["colormaps"])
+        return None
 
     def parse_bond_type(self, args):
         refresh = None
