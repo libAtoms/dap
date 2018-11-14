@@ -298,14 +298,16 @@ class DaVTKState(object):
                 label_actor.SetInput(label_str)
                 label_actor.SetPosition(pos[i_at])
                 r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
-                if i_at == 0:
+                if i_at == 0: # figure out mapping from screen to world distances
                     self.renderer.GetActiveCamera()
+                    # screen pos of arbitrary world point
                     pt_disp = [0.0, 0.0, 0.0]
                     self.iRen.GetInteractorStyle().ComputeWorldToDisplay(self.renderer, pos[i_at][0], pos[i_at][1], pos[i_at][2], pt_disp)
-                    pt_disp[0] += 1.0
+                    # world pos of point 10 pixel away
+                    pt_disp[0] += 10.0
                     pt_world = [0.0, 0.0, 0.0, 0.0]
                     self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
-                    dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))
+                    dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))/10
                     if dp_world > 0:
                         dp_disp = 0.8*r/dp_world
                     else:
