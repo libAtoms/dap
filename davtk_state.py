@@ -276,8 +276,6 @@ class DaVTKState(object):
             pos = at.get_positions()
 
             at.label_actors = []
-            if "_vtk_show_labels" not in at.info or not at.info["_vtk_show_labels"]:
-                return
 
             for i_at in range(len(at)):
                 label_actor = vtk.vtkBillboardTextActor3D()

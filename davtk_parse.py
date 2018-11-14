@@ -172,7 +172,7 @@ def parse_ASE(davtk_state, renderer, args):
     return "all"
 parsers["ASE"] = (parse_ASE, parser_ASE.format_usage(), parser_ASE.format_help())
 
-parser_read = ThrowingArgumentParser(prog="read",description="ready commands from file(s)")
+parser_read = ThrowingArgumentParser(prog="read",description="read commands from file(s)")
 parser_read.add_argument("filename",type=str,nargs='+',help="filenames")
 def parse_read(davtk_state, renderer, args):
     args = parser_read.parse_args(args)
@@ -181,6 +181,31 @@ def parse_read(davtk_state, renderer, args):
             for l in fin.readlines():
                 parse_line(l, davtk_state.settings, davtk_state, davtk_state.renderer)
 parsers["read"] = (parse_read, parser_read.format_usage(), parser_read.format_help())
+
+parser_label = ThrowingArgumentParser(prog="label",description="toggle labels")
+parser_label.add_argument("-all_frames",action="store_true",help="apply to all frames")
+group = parser_label.add_mutually_exclusive_group()
+group.add_argument("-on",action='store_true',help="turn on")
+group.add_argument("-off",action='store_true',help="turn off")
+def parse_label(davtk_state, renderer, args):
+    args = parser_label.parse_args(args)
+    if args.all_frames:
+        ats = davtk_state.at_list
+        refresh = "all"
+    else:
+        ats = [davtk_state.cur_at()]
+        refresh = "cur"
+
+    for at in ats:
+        if args.on:
+            at.info["_vtk_show_labels"] = True
+        elif args.off:
+            at.info["_vtk_show_labels"] = False
+        else:
+            at.info["_vtk_show_labels"] = not at.info["_vtk_show_labels"] 
+    return "cur"
+
+parsers["label"] = (parse_label, parser_label.format_usage(), parser_label.format_help())
 
 ################################################################################
 
