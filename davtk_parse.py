@@ -1,6 +1,16 @@
-import numpy as np
+import numpy as np, sys
 from davtk_parse_utils import ThrowingArgumentParser
 from davtk_settings import UnknownSettingsKeywordError
+try:
+    from davtk_util_global import *
+except ImportError:
+    pass
+try:
+    sys.path.append('.')
+    from dap_util import *
+    del sys.path[-1]
+except ImportError:
+    pass
 
 parsers = {}
 
@@ -156,24 +166,26 @@ def parse_snapshot(davtk_state, renderer, args):
     davtk_state.snapshot(args.file, args.mag)
 parsers["snapshot"] = (parse_snapshot, parser_snapshot.format_usage(), parser_snapshot.format_help())
 
-parser_ASE = ThrowingArgumentParser(prog="ASE",description="evaluate with ASE (Atoms object available as 'atoms')")
-parser_ASE.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_ASE.add_argument("-in_global",action="store_true",help="run in global scope (for 'import', e.g.)")
-parser_ASE.add_argument("args",type=str,nargs='+',help="ASE command line words")
-def parse_ASE(davtk_state, renderer, args):
-    args = parser_ASE.parse_args(args)
+parser_X = ThrowingArgumentParser(prog="X",description="execute python code (Atoms object available as 'atoms', DavTKSettings as 'settings')")
+parser_X.add_argument("-all_frames",action="store_true",help="apply to all frames")
+parser_X.add_argument("-global_context","-g",action="store_true",help="run in global scope (for 'import', e.g.)")
+parser_X.add_argument("args",type=str,nargs='+',help="X command line words")
+def parse_X(davtk_state, renderer, args):
+    args = parser_X.parse_args(args)
     ase_command = " ".join(args.args)
     if args.all_frames:
         ats = davtk_state.at_list
     else:
         ats = [davtk_state.cur_at()]
+    settings = davtk_state.settings
     for atoms in ats:
-        if args.in_global:
+        globals()["atoms"] = atoms
+        if args.global_context:
             exec(ase_command) in globals(), globals()
         else:
             exec(ase_command)
     return "all"
-parsers["ASE"] = (parse_ASE, parser_ASE.format_usage(), parser_ASE.format_help())
+parsers["X"] = (parse_X, parser_X.format_usage(), parser_X.format_help())
 
 parser_read = ThrowingArgumentParser(prog="read",description="read commands from file(s)")
 parser_read.add_argument("filename",type=str,nargs='+',help="filenames")
