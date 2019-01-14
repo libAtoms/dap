@@ -9,7 +9,7 @@ def center_around(atoms, ctr):
     p = atoms.get_positions()
     if isinstance(ctr, int):
         ctr = p[ctr]
-    offset = - ctr + np.sum(atoms.get_cell(),axis=0)/2.0
+    offset = - np.array(ctr) + np.sum(atoms.get_cell(),axis=0)/2.0
     atoms.set_positions(p + offset)
     if "_vtk_offset" not in atoms.info:
         atoms.info["_vtk_offset"] = np.array([0.0]*3)
