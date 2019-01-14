@@ -539,19 +539,19 @@ class DaVTKState(object):
                 at.info["orig_n"] = len(at)
             if "orig_cell" not in at.info:
                 at.info["orig_cell"] = at.get_cell()
-            if at.info["orig_n"] < len(at):
-                del at[range(at.info["orig_n"],len(at))]
-            p0 = at.get_positions()
-            p = list(p0)
+            at.info["prev_n"] = len(at)
+            at.info["prev_cell"] = at.get_cell()
+            prev_pos = at.get_positions()
+            p = list(prev_pos)
             for i0 in range(n_dup[0]):
                 for i1 in range(n_dup[1]):
                     for i2 in range(n_dup[2]):
                         if (i0, i1, i2) == (0, 0, 0):
                             continue
-                        at.extend(at[0:at.info["orig_n"]])
-                        p.extend(p0 + np.dot([i0,i1,i2], at.info["orig_cell"]))
+                        at.extend(at[0:at.info["prev_n"]])
+                        p.extend(prev_pos + np.dot([i0,i1,i2], at.info["prev_cell"]))
             at.set_positions(p)
-            at.set_cell(np.dot([n_dup[0], n_dup[1], n_dup[2]], at.info["orig_cell"]))
+            at.set_cell(np.dot(np.diagflat([n_dup[0], n_dup[1], n_dup[2]]), at.info["prev_cell"]), False)
 
         self.create_vtk_structures(frames)
         self.update(frames)
