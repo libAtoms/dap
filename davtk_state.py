@@ -535,12 +535,16 @@ class DaVTKState(object):
     def duplicate(self, n_dup, frames=None):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
-            if "orig_n" not in at.info:
-                at.info["orig_n"] = len(at)
-            if "orig_cell" not in at.info:
-                at.info["orig_cell"] = at.get_cell()
-            at.info["prev_n"] = len(at)
-            at.info["prev_cell"] = at.get_cell()
+            # store original info if this is first duplicate
+            if "dup_orig_n" not in at.info:
+                at.info["dup_orig_n"] = len(at)
+            if "dup_orig_cell" not in at.info:
+                at.info["dup_orig_cell"] = at.get_cell()
+            if "dup_orig_index" not in at.arrays:
+                at.new_array("dup_orig_index",np.array(range(len(at))))
+            # store current info and duplicate atoms
+            prev_n = len(at)
+            prev_cell = at.get_cell()
             prev_pos = at.get_positions()
             p = list(prev_pos)
             for i0 in range(n_dup[0]):
@@ -548,10 +552,13 @@ class DaVTKState(object):
                     for i2 in range(n_dup[2]):
                         if (i0, i1, i2) == (0, 0, 0):
                             continue
-                        at.extend(at[0:at.info["prev_n"]])
-                        p.extend(prev_pos + np.dot([i0,i1,i2], at.info["prev_cell"]))
+                        at.extend(at[0:prev_n])
+                        p.extend(prev_pos + np.dot([i0,i1,i2], prev_cell))
             at.set_positions(p)
-            at.set_cell(np.dot(np.diagflat([n_dup[0], n_dup[1], n_dup[2]]), at.info["prev_cell"]), False)
+            at.set_cell(np.dot(np.diagflat([n_dup[0], n_dup[1], n_dup[2]]), prev_cell), False)
+            # need to duplicate bonds
+            if hasattr(at, "bonds"):
+                at.bonds.reinit()
 
         self.create_vtk_structures(frames)
         self.update(frames)
