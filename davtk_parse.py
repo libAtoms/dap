@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np, sys
 from davtk_parse_utils import ThrowingArgumentParser
 from davtk_settings import UnknownSettingsKeywordError
@@ -15,14 +16,19 @@ except ImportError:
 parsers = {}
 
 def parse_usage(davtk_state, renderer, args):
+    for keyword in sorted(davtk_state.settings.parsers.keys()):
+        print(keyword, davtk_state.settings.parsers[keyword][1], end='')
     for keyword in sorted(parsers.keys()):
-        print keyword, parsers[keyword][1],
+        print(keyword, parsers[keyword][1], end='')
 parsers["usage"] = (parse_usage, "usage: usage\n", "usage: usage\n")
 
 def parse_help(davtk_state, renderer, args):
+    for keyword in sorted(davtk_state.settings.parsers.keys()):
+        print("--------------------------------------------------------------------------------")
+        print(keyword, davtk_state.settings.parsers[keyword][2], end='')
     for keyword in sorted(parsers.keys()):
-        print "--------------------------------------------------------------------------------"
-        print keyword, parsers[keyword][2],
+        print("--------------------------------------------------------------------------------")
+        print(keyword, parsers[keyword][2], end='')
 parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
 
 ################################################################################

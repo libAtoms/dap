@@ -1,3 +1,4 @@
+from __future__ import print_function
 import select, sys
 import vtk
 from davtk_parse import parse_line
@@ -70,7 +71,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             line = sys.stdin.readline()
             try:
                 refresh = parse_line(line.rstrip(), self.settings, self.davtk_state, self.GetDefaultRenderer())
-                print "> ",; sys.stdout.flush()
+                print("> ", end=''); sys.stdout.flush()
                 if refresh == "all":
                     self.davtk_state.update()
                 elif refresh == "cur":
@@ -78,7 +79,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
                 elif refresh is not None:
                     raise ValueError("unknown refresh type "+str(refresh))
             except Exception, e:
-                print "error parsing line",str(e)
+                print("error parsing line",str(e))
 
             if self.GetInteractor() is not None:
                 self.GetInteractor().Render()
@@ -104,7 +105,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'minus':
             self.davtk_state.show_frame(dframe=-1)
         elif k == 'h':
-            print """GUI usage
+            print("""GUI usage
 h: help (this message)
 +: next frame
 -: prev frame
@@ -118,7 +119,7 @@ Mouse left drag: trackball rotate
 control-Mouse left drag: rotate in plane
 shift-Mouse left drag: translate
 Mouse scroll: zoom
-"""
+""")
 
         if self.GetInteractor() is not None:
             self.GetInteractor().Render()

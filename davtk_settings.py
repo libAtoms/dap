@@ -1,3 +1,4 @@
+from __future__ import print_function
 import argparse, numpy as np, vtk
 from davtk_parse_utils import ThrowingArgumentParser
 
@@ -35,7 +36,7 @@ class DavTKAtomTypes(object):
             return self.add_autogen(key)
 
     def add_autogen(self, name):
-        print "autogenerating with color ",self.colors[self.autogen_used]
+        print("autogenerating with color ",self.colors[self.autogen_used])
         self.set_type(name=name, color=self.colors[self.autogen_used], radius = 0.5, opacity=1.0)
         self.autogen_used += 1
         return self.types[name]
@@ -96,50 +97,50 @@ class DavTKSettings(object):
 
         self.parsers = {}
 
-        self.parser_colormap = ThrowingArgumentParser(prog="colormap", description="args: V R G B ...")
+        self.parser_colormap = ThrowingArgumentParser(prog="colormap", description="repeated sequence of groups of 4 numbers: V R G B ...")
         self.parser_colormap.add_argument("-name",type=str, required=True)
-        self.parser_colormap.add_argument("colormap",nargs='*',type=float, metavar=("X"))
-        self.parsers["colormap"] = self.parse_colormap
+        self.parser_colormap.add_argument("-P",dest="colormap", nargs=4,action='append',type=float, metavar=('V','R','G','B'))
+        self.parsers["colormap"] = (self.parse_colormap, self.parser_colormap.format_usage(), self.parser_colormap.format_help())
 
         self.parser_atom_type = ThrowingArgumentParser(prog="atom_type")
         self.parser_atom_type.add_argument("-name",type=str, required=True)
-        self.parser_atom_type.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
+        self.parser_atom_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_atom_type.add_argument("-colormap",nargs=2,type=str,default=None, metavar=("COLORMAP","FIELD"))
         self.parser_atom_type.add_argument("-radius",type=float,default=None)
         self.parser_atom_type.add_argument("-radius_field",type=str,default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
         self.parser_atom_type.add_argument("-label",type=str,default=None)
         self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
-        self.parsers["atom_type"] = self.parse_atom_type
+        self.parsers["atom_type"] = (self.parse_atom_type, self.parser_atom_type.format_usage(), self.parser_atom_type.format_help())
 
         self.parser_bond_type = ThrowingArgumentParser(prog="bond_type")
         self.parser_bond_type.add_argument("-name",type=str, required=True)
-        self.parser_bond_type.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
+        self.parser_bond_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_bond_type.add_argument("-radius",type=float,default=None)
         self.parser_bond_type.add_argument("-opacity",type=float,default=None)
-        self.parsers["bond_type"] = self.parse_bond_type
+        self.parsers["bond_type"] = (self.parse_bond_type, self.parser_bond_type.format_usage(), self.parser_bond_type.format_help())
 
         self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
-        self.parser_cell_box_color.add_argument("color",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.parsers["cell_box_color"] = self.parse_cell_box_color
+        self.parser_cell_box_color.add_argument("-color","-c",nargs=3,type=float, metavar=("R","G","B"), required=True)
+        self.parsers["cell_box_color"] = (self.parse_cell_box_color, self.parser_cell_box_color.format_usage(), self.parser_cell_box_color.format_help())
 
         self.parser_config_n_text = ThrowingArgumentParser(prog="config_n_text")
-        self.parser_config_n_text.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
+        self.parser_config_n_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_config_n_text.add_argument("-fontsize",type=int,default=None)
-        self.parsers["config_n_text"] = self.parse_config_n_text
+        self.parsers["config_n_text"] = (self.parse_config_n_text, self.parser_config_n_text.format_usage(), self.parser_config_n_text.format_help())
 
         self.parser_label_text = ThrowingArgumentParser(prog="label_text")
-        self.parser_label_text.add_argument("-color",nargs=3,type=float,default=None, metavar=("R","G","B"))
+        self.parser_label_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_label_text.add_argument("-fontsize",type=int,default=None)
-        self.parsers["label_text"] = self.parse_label_text
+        self.parsers["label_text"] = (self.parse_label_text, self.parser_label_text.format_usage(), self.parser_label_text.format_help())
 
         self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
-        self.parser_picked_color.add_argument("color",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.parsers["picked_color"] = self.parse_picked_color
+        self.parser_picked_color.add_argument("-color","-c",nargs=3,type=float, metavar=("R","G","B"), required=True)
+        self.parsers["picked_color"] = (self.parse_picked_color, self.parser_picked_color.format_usage(), self.parser_picked_color.format_help())
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
-        self.parser_background_color.add_argument("color",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.parsers["background_color"] = self.parse_background_color
+        self.parser_background_color.add_argument("-color","-c",nargs=3,type=float, metavar=("R","G","B"), required=True)
+        self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help())
 
         # properties
         # 3D Actor properties
@@ -166,6 +167,8 @@ class DavTKSettings(object):
 
     def parse_colormap(self, args):
         args = self.parser_colormap.parse_args(args)
+        args.colormap = [item for sublist in args.colormap for item in sublist]
+        print("args.colormap", args.colormap)
         if len(args.colormap) % 4 != 0:
             raise ValueError("colormap arguments must be multiple of 4: v r g b")
         self.settings["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
@@ -239,6 +242,6 @@ class DavTKSettings(object):
     def parse_line(self, line):
         args = line.split()
         if args[0] in self.parsers:
-            return self.parsers[args[0]](args[1:])
+            return self.parsers[args[0]][0](args[1:])
         else:
             raise UnknownSettingsKeywordError(args[0])
