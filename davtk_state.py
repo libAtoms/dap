@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys, ase.io, math
 import numpy as np
 import vtk
@@ -508,20 +509,20 @@ class DaVTKState(object):
         at_indices = np.where(at.arrays["_vtk_picked"])[0]
         p = at.get_positions()
 
-        print "measure:"
+        print("measure:")
         for i_at in at_indices:
-            print "atom {} pos {} {} {}".format(i_at,p[i_at][0],p[i_at][1],p[i_at][2])
+            print("atom {} pos {} {} {}".format(i_at,p[i_at][0],p[i_at][1],p[i_at][2]))
         for i in range(len(at_indices)):
             i_at = at_indices[i]
             for j_at in at_indices[i+1:]:
                 dv = -at.get_distance(i_at,j_at,mic=True,vector=True)
-                print "atom-distance {} {} vec {} {} {} ({})".format(i_at,j_at,dv[0],dv[1],dv[2],np.linalg.norm(dv))
+                print("atom-distance {} {} vec {} {} {} ({})".format(i_at,j_at,dv[0],dv[1],dv[2],np.linalg.norm(dv)))
 
         if hasattr(at, "bonds"):
             for i_at in range(len(at)):
                 for b in at.bonds[i_at]:
                     if b["picked"] and b["j"] >= i_at:
-                        print "bond {} {} vec {} {} {} ({})".format(i_at, b["j"], b["v"][0], b["v"][1], b["v"][2], b["d"])
+                        print("bond {} {} vec {} {} {} ({})".format(i_at, b["j"], b["v"][0], b["v"][1], b["v"][2], b["d"]))
             for i_at in range(len(at)):
                 for b in at.bonds[i_at]:
                     j_at = b["j"]
@@ -530,7 +531,7 @@ class DaVTKState(object):
                             k_at = bb["j"]
                             if bb["picked"] and k_at <= i_at and (k_at != i_at or np.any(b["S"] != -bb["S"])):
                                 ang = 180.0/np.pi * np.arccos(np.dot(b["v"],-bb["v"])/(np.linalg.norm(b["v"])*np.linalg.norm(bb["v"])))
-                                print "bond-angle {} {} {} angle {}".format(i_at, j_at, k_at, ang)
+                                print("bond-angle {} {} {} angle {}".format(i_at, j_at, k_at, ang))
 
     def duplicate(self, n_dup, frames=None):
         for frame_i in self.frame_list(frames):
