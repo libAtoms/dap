@@ -203,7 +203,7 @@ class DaVTKState(object):
     def update(self, frames=None):
         # self.update_atoms(frames)
         # self.update_labels(frames)
-        # self.update_bonds(frames)
+        self.update_bonds(frames)
         self.update_cell_boxes(frames)
         self.show_frame(dframe=0)
 
