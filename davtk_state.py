@@ -1,4 +1,3 @@
-from __future__ import print_function
 import sys, ase.io, math
 import numpy as np
 import vtk
@@ -129,6 +128,13 @@ class DaVTKState(object):
         self.renderer = renderer
         self.iRen = iRen
 
+        self.atom_actor_pool = []
+        self.cur_n_atom_actors = 0
+        self.label_actor_pool = []
+        self.cur_n_label_actors = 0
+        self.bond_actor_pool = []
+        self.cur_n_bond_actors = 0
+
         self.update()
 
     def cur_at(self):
@@ -195,9 +201,9 @@ class DaVTKState(object):
         self.show_frame(dframe=0)
 
     def update(self, frames=None):
-        self.update_atoms(frames)
-        self.update_labels(frames)
-        self.update_bonds(frames)
+        # self.update_atoms(frames)
+        # self.update_labels(frames)
+        # self.update_bonds(frames)
         self.update_cell_boxes(frames)
         self.show_frame(dframe=0)
 
@@ -270,76 +276,86 @@ class DaVTKState(object):
                     actor_2.i_at_bond = (i_at, i_bond)
                     at.bond_actors.append(actor_2)
 
-    def update_labels(self, frames=None):
-        for frame_i in self.frame_list(frames):
-            at = self.at_list[frame_i]
-            atom_type_array = get_atom_type_a(at)
-            pos = at.get_positions()
+    def update_labels(self, at):
+        if len(at) > len(self.label_actor_pool):
+            prev_pool_size = len(self.label_actor_pool)
+            self.label_actor_pool.extend([vtk.vtkBillboardTextActor3D() for i in range(len(at)-prev_pool_size)])
 
-            at.label_actors = []
+        atom_type_array = get_atom_type_a(at)
+        pos = at.get_positions()
 
-            for i_at in range(len(at)):
-                label_actor = vtk.vtkBillboardTextActor3D()
-                label_str = None
-                if "_vtk_label" in at.arrays:
-                    if at.arrays["_vtk_label"][i_at] == "_NONE_":
-                        label_str = ""
-                    elif len(at.arrays["_vtk_label"][i_at]) == 0 or at.arrays["_vtk_label"][i_at] == "'''" or at.arrays["_vtk_label"][i_at] == '""':
-                        label_str = None
-                    else:
-                        label_str = at.arrays["_vtk_label"][i_at]
-                if label_str is None:
-                    label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
-                    if label_field is None or label_field == "ID":
-                        label_str = str(i_at)
-                    else:
-                        label_str = str(at.arrays[label_field][i_at])
-                label_actor.SetInput(label_str)
-                label_actor.SetPosition(pos[i_at])
-                r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
-                if i_at == 0: # figure out mapping from screen to world distances
-                    self.renderer.GetActiveCamera()
-                    # screen pos of arbitrary world point
-                    pt_disp = [0.0, 0.0, 0.0]
-                    self.iRen.GetInteractorStyle().ComputeWorldToDisplay(self.renderer, pos[i_at][0], pos[i_at][1], pos[i_at][2], pt_disp)
-                    # world pos of point 10 pixel away
-                    pt_disp[0] += 10.0
-                    pt_world = [0.0, 0.0, 0.0, 0.0]
-                    self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
-                    dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))/10
-                if dp_world > 0:
-                    dp_disp = 0.7*r/dp_world
+        for i_at in range(len(at)):
+            label_actor = self.label_actor_pool[i_at]
+            label_str = None
+            if "_vtk_label" in at.arrays:
+                if at.arrays["_vtk_label"][i_at] == "_NONE_":
+                    label_str = ""
+                elif len(at.arrays["_vtk_label"][i_at]) == 0 or at.arrays["_vtk_label"][i_at] == "'''" or at.arrays["_vtk_label"][i_at] == '""':
+                    label_str = None
                 else:
-                    dp_disp = 0
-                label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
-                label_actor.SetTextProperty(self.settings["label_text_prop"])
-                label_actor.PickableOff()
-                at.label_actors.append(label_actor)
+                    label_str = at.arrays["_vtk_label"][i_at]
+            if label_str is None:
+                label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
+                if label_field is None or label_field == "ID":
+                    label_str = str(i_at)
+                else:
+                    label_str = str(at.arrays[label_field][i_at])
+            label_actor.SetInput(label_str)
+            label_actor.SetPosition(pos[i_at])
+            r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
+            if i_at == 0: # figure out mapping from screen to world distances
+                self.renderer.GetActiveCamera()
+                # screen pos of arbitrary world point
+                pt_disp = [0.0, 0.0, 0.0]
+                self.iRen.GetInteractorStyle().ComputeWorldToDisplay(self.renderer, pos[i_at][0], pos[i_at][1], pos[i_at][2], pt_disp)
+                # world pos of point 10 pixel away
+                pt_disp[0] += 10.0
+                pt_world = [0.0, 0.0, 0.0, 0.0]
+                self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
+                dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))/10
+            if dp_world > 0:
+                dp_disp = 0.7*r/dp_world
+            else:
+                dp_disp = 0
+            label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
+            label_actor.SetTextProperty(self.settings["label_text_prop"])
+            label_actor.PickableOff()
+            label_actor.SetVisibility(True)
 
-    def update_atoms(self, frames=None):
-        for frame_i in self.frame_list(frames):
-            at = self.at_list[frame_i]
-            atom_type_array = get_atom_type_a(at)
-            pos = at.get_positions()
+        for i in range(len(at), self.cur_n_label_actors):
+            self.label_actor_pool[i].SetVisibility(False)
+        self.cur_n_label_actors = len(at)
 
-            at.at_actors = []
-            for i_at in range(len(at)):
-                actor = vtk.vtkActor()
+    def update_atoms(self, at):
+        if len(at) > len(self.atom_actor_pool):
+            prev_pool_size = len(self.atom_actor_pool)
+            self.atom_actor_pool.extend([vtk.vtkActor() for i in range(len(at)-prev_pool_size)])
+            for actor in self.atom_actor_pool[prev_pool_size:]:
                 actor.SetMapper(self.mappers["sphere"])
-                if at.arrays["_vtk_picked"][i_at]: 
-                    prop = self.settings["picked_prop"]
-                else:
-                    prop = get_atom_prop(self.settings, atom_type_array[i_at], i_at, at.arrays)
-                actor.SetProperty(prop)
-                transform = vtk.vtkTransform()
-                transform.Translate(pos[i_at])
-                r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
-                actor.r = r
-                transform.Scale(r, r, r)
-                actor.SetUserMatrix(transform.GetMatrix())
-                # update in case numbers changed
-                actor.i_at = i_at
-                at.at_actors.append(actor)
+
+        atom_type_array = get_atom_type_a(at)
+        pos = at.get_positions()
+
+        for i_at in range(len(at)):
+            actor = self.atom_actor_pool[i_at]
+            if at.arrays["_vtk_picked"][i_at]: 
+                prop = self.settings["picked_prop"]
+            else:
+                prop = get_atom_prop(self.settings, atom_type_array[i_at], i_at, at.arrays)
+            actor.SetProperty(prop)
+            transform = vtk.vtkTransform()
+            transform.Translate(pos[i_at])
+            r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
+            actor.r = r
+            transform.Scale(r, r, r)
+            actor.SetUserMatrix(transform.GetMatrix())
+            # update in case numbers changed
+            actor.i_at = i_at
+            actor.SetVisibility(True)
+
+        for i in range(len(at), self.cur_n_atom_actors):
+            self.atom_actor_pool[i].SetVisibility(False)
+        self.cur_n_atom_actors = len(at)
 
     def update_cell_boxes(self, frames=None):
         for frame_i in self.frame_list(frames):
@@ -443,6 +459,9 @@ class DaVTKState(object):
 
         at = self.at_list[self.cur_frame]
 
+        self.update_atoms(at)
+        self.update_labels(at)
+
         # remove all existing actors
         self.renderer.RemoveAllViewProps()
 
@@ -453,7 +472,7 @@ class DaVTKState(object):
         pos = at.get_positions()
         cell = at.get_cell()
         cell_inv = at.get_reciprocal_cell().T
-        for (i_at, actor) in enumerate(at.at_actors):
+        for (i_at, actor) in enumerate(self.atom_actor_pool[0:self.cur_n_atom_actors]):
             # real image
             self.renderer.AddActor(actor)
             # periodic images if needed
@@ -489,8 +508,8 @@ class DaVTKState(object):
             for actor in at.bond_actors:
                 self.renderer.AddActor(actor)
 
-        if "_vtk_show_labels" in at.info and at.info["_vtk_show_labels"] and hasattr(at, "label_actors"):
-            for actor in at.label_actors:
+        if "_vtk_show_labels" in at.info and at.info["_vtk_show_labels"]:
+            for actor in self.label_actor_pool[0:self.cur_n_label_actors]:
                 self.renderer.AddActor(actor)
 
         # config_n

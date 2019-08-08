@@ -8,12 +8,14 @@ def pick_actors(at, actors):
 
     for actor in actors:
         if hasattr(actor, "i_at"):
+            print("pick atom",actor.i_at)
             at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
         elif hasattr(actor, "i_at_bond"):
+            print("pick bond",actor.i_at_bond)
             (i_at, i_bond) = actor.i_at_bond
             new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond]["picked"] 
         else:
-            raise ValueError("picked something that's not an atom "+str(self.NewPickedActor))
+            raise ValueError("picked something that's not an atom or a bond"+str(self.NewPickedActor))
 
     for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
         at.bonds.set_picked(i_at, i_bond, stat)
@@ -98,7 +100,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.davtk_state.bond("picked", name=None, frames="cur")
         elif k == 'l':
             self.davtk_state.cur_at().info["_vtk_show_labels"] = not self.davtk_state.cur_at().info["_vtk_show_labels"]
-            self.davtk_state.update_labels(frames="cur")
+            # self.davtk_state.update_labels(frames="cur")
             self.davtk_state.show_frame(dframe=0)
         elif k == 'plus':
             self.davtk_state.show_frame(dframe=1)
