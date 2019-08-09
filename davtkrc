@@ -1,10 +1,17 @@
-colormap -name cmap 0.0   1.0 0.0 0.0   1.0    1.0 1.0 1.0
-# atom_type -name 14 -color 1.0 1.0 1.0 -opacity 1.0 -radius 0.4
-# atom_type -name 14 -colormap cmap -colormap_field val -opacity 1.0 -radius 0.4
+colormap -name cmap -P 0.0   1.0 0.0 0.0   -P 1.0    1.0 1.0 1.0
+atom_type -name 14 -color 1.0 1.0 1.0 -opacity 1.0 -radius 0.4
+# atom_type -name 14 -colormap cmap val -opacity 1.0 -radius 0.4
 # atom_type -name 14 -color 1.0 1.0 1.0 -opacity 1.0 -radius_field val
 # atom_type -name 14 -colormap cmap val -opacity 1.0 -radius_field val -label val -bonding_radius 3.5
 # atom_type -name 14 -colormap cmap val -opacity 1.0 -radius 0.3 -label val -bonding_radius 3.5
-atom_type -name 14 -color 0 1 0 -opacity 1.0 -radius 0.3 -label val -bonding_radius 3.5
+## atom_type -name 14 -color 0 1 0 -opacity 1.0 -radius 0.3 -label val -bonding_radius 3.5
 bond_type -name default -color 1.0 1.0 1.0 -radius 0.1
 bond_type -name alt -color 0.0 0.0 1.0 -radius 0.1
-cell_box_color 0.0 1.0 1.0
+cell_box_color -color 0.0 1.0 1.0
+
+## atom_type -name 7 -color 0 0 1 -radius 0.3
+## atom_type -name 32 -color 1 0 0   -radius 0.5
+## atom_type -name 52 -color 0 1 0  -radius 0.5
+
+config_n_text -fontsize 48
+label_text -fontsize 48
