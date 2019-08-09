@@ -23,11 +23,11 @@ for f in args.atom_files:
 
 settings = DavTKSettings()
 try:
-    parse_file(os.path.join(os.environ["HOME"],".davtkrc"), settings=settings)
+    parse_file(os.path.join(os.environ["HOME"],".daprc"), settings=settings)
 except IOError:
     pass
 try:
-    parse_file(".davtkrc", settings=settings)
+    parse_file(".daprc", settings=settings)
 except IOError:
     pass
 
