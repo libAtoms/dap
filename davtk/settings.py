@@ -1,6 +1,6 @@
 from __future__ import print_function
 import argparse, numpy as np, vtk
-from davtk_parse_utils import ThrowingArgumentParser
+from davtk.parse_utils import ThrowingArgumentParser
 
 def piecewise_linear(x, t):
     i = np.searchsorted(t[::4], x)

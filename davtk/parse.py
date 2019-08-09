@@ -2,10 +2,10 @@ from __future__ import print_function
 
 import numpy as np, sys, re, tempfile, os
 
-from davtk_parse_utils import ThrowingArgumentParser
-from davtk_settings import UnknownSettingsKeywordError
+from davtk.parse_utils import ThrowingArgumentParser
+from davtk.settings import UnknownSettingsKeywordError
 try:
-    from davtk_util_global import *
+    from davtk.util_global import *
 except ImportError:
     pass
 try:

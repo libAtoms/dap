@@ -1,7 +1,7 @@
 from __future__ import print_function
 import select, sys
 import vtk
-from davtk_parse import parse_line
+from davtk.parse import parse_line
 
 def pick_actors(at, actors):
     new_bond_pick_statuses = {}

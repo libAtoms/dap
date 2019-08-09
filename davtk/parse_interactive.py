@@ -1,5 +1,5 @@
 from __future__ import print_function
-from davtk_parse_utils import ThrowingArgumentParser
+from davtk.parse_utils import ThrowingArgumentParser
 
 interactive_parsers = {}
 
