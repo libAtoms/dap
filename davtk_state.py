@@ -486,6 +486,8 @@ class DaVTKState(object):
         else: # dframe is None
             if frame_i is None:
                 raise ValueError("set_show_frame got neither dframe and frame_i")
+            if frame_i < 0 or frame_i >= len(self.at_list):
+                raise ValueError("set_show_frame got frame_i {} out of range {} --- {}".format(frame_i, 0, len(self.at_list)))
             self.cur_frame = frame_i
 
         # wrap around

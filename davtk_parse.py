@@ -1,5 +1,7 @@
 from __future__ import print_function
-import numpy as np, sys
+
+import numpy as np, sys, re, tempfile, os
+
 from davtk_parse_utils import ThrowingArgumentParser
 from davtk_settings import UnknownSettingsKeywordError
 try:
@@ -33,11 +35,50 @@ parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
 
 ################################################################################
 
+parser_movie = ThrowingArgumentParser(prog="movie",description="make a movie")
+parser_movie.add_argument("-r",type=str,nargs='?',help="range of configs, in slice format start:[end+1]:[step]",default="::")
+parser_movie.add_argument("-fps",type=float,help="frames per second display rate", default=10.0)
+parser_movie.add_argument("-tmpdir",type=str,help="temporary directory for snapshots",default=".")
+parser_movie.add_argument("-ffmpeg_args",type=str,help="other ffmpeg args",default="-b:v 10M -pix_fmt yuv420p")
+parser_movie.add_argument("output_file",type=str,help="output file name")
+def parse_movie(davtk_state, renderer, args):
+    args = parser_movie.parse_args(args)
+    m = re.search("^(\d*)(?::(\d*)(?::(\d*))?)?$", args.r)
+    range_start = 0 if m.group(1) is None or len(m.group(1)) == 0 else int(m.group(1))
+    range_end = len(davtk_state.at_list) if m.group(2) is None or len(m.group(2)) == 0 else int(m.group(2))
+    range_interval = 1 if m.group(3) is None or len(m.group(3)) == 0 else int(m.group(3))
+    frames = range(range_start, range_end, range_interval)
+    frames.append(frames[-1])
+    print(len(frames), "log",np.log10(len(frames)-1)+1)
+    fmt_core = "0{}d".format(int(np.log10(len(frames)-1)+1))
+    py_fmt = ".{{:{}}}.png".format(fmt_core)
+    tmpfiles = []
+    with tempfile.NamedTemporaryFile(dir=args.tmpdir) as fout:
+        img_file_base = fout.name
+        for (img_i, frame_i) in enumerate(frames):
+            davtk_state.show_frame(frame_i = frame_i)
+            tmpfiles.append(img_file_base+py_fmt.format(img_i))
+            davtk_state.snapshot(tmpfiles[-1], 1)
+    print("ffmpeg -i {}.%{}.png -r {} -b:v 10M -pix_fmt yuv420p {}".format(img_file_base, fmt_core, args.fps, args.output_file))
+    os.system("ffmpeg -i {}.%{}.png -r {} {} {}".format(img_file_base, fmt_core, args.fps, args.ffmpeg_args, args.output_file))
+    for f in tmpfiles:
+        os.remove(f)
+    return None
+parsers["movie"] = (parse_movie, parser_movie.format_usage(), parser_movie.format_help())
+
+parser_go = ThrowingArgumentParser(prog="go",description="go to a particular frame")
+parser_go.add_argument("n",type=int,help="number of frames to change")
+def parse_go(davtk_state, renderer, args):
+    args = parser_go.parse_args(args)
+    davtk_state.show_frame(frame_i = args.n)
+    return None
+parsers["go"] = (parse_go, parser_go.format_usage(), parser_go.format_help())
+
 parser_next = ThrowingArgumentParser(prog="next",description="go forward a number of frames")
 parser_next.add_argument("-n",type=int,default=1,help="number of frames to change")
 def parse_next(davtk_state, renderer, args):
     args = parser_next.parse_args(args)
-    davtk_state.show_frame(dframe = args.n, renderer=renderer)
+    davtk_state.show_frame(dframe = args.n)
     return None
 parsers["next"] = (parse_next, parser_next.format_usage(), parser_next.format_help())
 
@@ -45,7 +86,7 @@ parser_prev = ThrowingArgumentParser(prog="prev", description="go back a number 
 parser_prev.add_argument("-n",type=int,default=1, help="number of frames to change")
 def parse_prev(davtk_state, renderer, args):
     args = parser_prev.parse_args(args)
-    davtk_state.show_frame(dframe = -args.n, renderer=renderer)
+    davtk_state.show_frame(dframe = -args.n)
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
@@ -167,7 +208,6 @@ def parse_bond(davtk_state, renderer, args):
         davtk_state.bond(args.name, args.T, args.T2, ("cutoff", args.cutoff), frames)
     else:
         davtk_state.bond(args.name, args.T, args.T2, ("cutoff", None), frames)
-    # davtk_state.show_frame(dframe=0)
     return None
 parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_help())
 
