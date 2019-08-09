@@ -94,7 +94,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'd':
             self.davtk_state.delete(atoms="picked", bonds="picked", frames="cur")
         elif k == 'm':
-            self.davtk_state.measure_picked()
+            self.davtk_state.measure()
         elif k == 'b':
             self.davtk_state.bond("picked", name=None, frames="cur")
         elif k == 'l':

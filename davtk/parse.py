@@ -259,10 +259,8 @@ def parse_label(davtk_state, renderer, args):
     args = parser_label.parse_args(args)
     if args.all_frames:
         ats = davtk_state.at_list
-        refresh = "all"
     else:
         ats = [davtk_state.cur_at()]
-        refresh = "cur"
 
     for at in ats:
         if args.on:
@@ -271,9 +269,24 @@ def parse_label(davtk_state, renderer, args):
             at.info["_vtk_show_labels"] = False
         else:
             at.info["_vtk_show_labels"] = not at.info["_vtk_show_labels"] 
-    return "cur"
-
+    return refresh
 parsers["label"] = (parse_label, parser_label.format_usage(), parser_label.format_help())
+
+parser_measure = ThrowingArgumentParser(prog="measure",description="measure some quantities for picked objects (default) or listed atoms")
+parser_measure.add_argument("-all_frames",action="store_true",help="apply to all frames")
+parser_measure.add_argument("-n",action="store",type=int,nargs='+',help="ID numbers of atoms to measure", default = None)
+def parse_measure(davtk_state, renderer, args):
+    args = parser_measure.parse_args(args)
+    if args.all_frames:
+        frames = range(len(davtk_state.at_list))
+    else:
+        frames = [davtk_state.cur_frame]
+
+    for frame_i in frames:
+        print("frame ",frame_i)
+        davtk_state.measure(args.n, frame_i)
+    return None
+parsers["measure"] = (parse_measure, parser_measure.format_usage(), parser_measure.format_help())
 
 ################################################################################
 

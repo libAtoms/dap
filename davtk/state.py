@@ -559,10 +559,17 @@ class DaVTKState(object):
         # refresh display
         self.renderer.GetRenderWindow().Render()
 
-    def measure_picked(self):
-        at = self.at_list[self.cur_frame]
+    def measure(self, n=None, frame_i=None):
+        if frame_i is None:
+            at = self.at_list[self.cur_frame]
+        else:
+            at = self.at_list[frame_i]
 
-        at_indices = np.where(at.arrays["_vtk_picked"])[0]
+        if n is None:
+            at_indices = np.where(at.arrays["_vtk_picked"])[0]
+        else:
+            at_indices = n
+
         p = at.get_positions()
 
         print("measure:")
@@ -574,7 +581,7 @@ class DaVTKState(object):
                 dv = -at.get_distance(i_at,j_at,mic=True,vector=True)
                 print("atom-distance {} {} vec {} {} {} ({})".format(i_at,j_at,dv[0],dv[1],dv[2],np.linalg.norm(dv)))
 
-        if hasattr(at, "bonds"):
+        if n is None and hasattr(at, "bonds"):
             for i_at in range(len(at)):
                 for b in at.bonds[i_at]:
                     if b["picked"] and b["j"] >= i_at:
