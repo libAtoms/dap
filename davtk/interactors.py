@@ -79,7 +79,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
                     self.davtk_state.update(frames="cur")
                 elif refresh is not None:
                     raise ValueError("unknown refresh type "+str(refresh))
-            except Exception, e:
+            except Exception as e:
                 print("error parsing line",str(e))
 
             if self.GetInteractor() is not None:

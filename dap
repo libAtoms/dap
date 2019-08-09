@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import ase.io, vtk, sys, os
 from davtk.settings import DavTKSettings
 from davtk.parse import parse_file
@@ -65,12 +67,12 @@ camera.SetFocalPoint((max_pos+min_pos)/2.0)
 camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
 # start viewing first frame
-print "setting up first frame"
+print("setting up first frame")
 davtk_state.update()
 davtk_state.show_frame(frame_i=0)
 
-print "starting"
+print("starting")
 # Start
-print "> ",; sys.stdout.flush()
+print("> "); sys.stdout.flush()
 interactor.Initialize()
 interactor.Start()

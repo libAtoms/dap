@@ -2,7 +2,6 @@ import sys, ase.io, math
 import numpy as np
 import vtk
 import ase.neighborlist
-from itertools import izip
 
 def find_min_max(at_list):
     min_pos = sys.float_info.max
@@ -88,7 +87,7 @@ class DavTKBonds(object):
             return
 
         nn_list = ase.neighborlist.neighbor_list('ijDdS', self.at, max_cutoff, self_interaction=True)
-        for (i, j, v, d, S) in izip(nn_list[0], nn_list[1], nn_list[2], nn_list[3], nn_list[4]):
+        for (i, j, v, d, S) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3], nn_list[4]):
             if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_match(atom_type_array, i, j, at_type, at_type2):
                 self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
 
