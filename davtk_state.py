@@ -85,7 +85,7 @@ class DavTKBonds(object):
                 if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
                     self.bonds[b["j"]][bb_i]["picked"] = stat
                     return
-        raise ValueError("delete_one failed to find opposite for {} {}".format(i_at, j_at))
+        raise ValueError("set_picked failed to find opposite for {} {}".format(i_at, j_at))
 
     def delete_one(self, i_at, j_ind):
         b = self.bonds[i_at][j_ind]
@@ -201,80 +201,93 @@ class DaVTKState(object):
         self.show_frame(dframe=0)
 
     def update(self, frames=None):
-        # self.update_atoms(frames)
-        # self.update_labels(frames)
-        self.update_bonds(frames)
         self.update_cell_boxes(frames)
         self.show_frame(dframe=0)
 
-    def update_bonds(self, frames=None):
-        for frame_i in self.frame_list(frames):
-            at = self.at_list[frame_i]
-            pos = at.get_positions()
-            at.bond_actors = []
-            if not hasattr(at, "bonds"):
-                continue
-            for i_at in range(len(at)):
-                for (i_bond, b) in enumerate(at.bonds[i_at]):
-                    i = i_at
-                    j = b["j"]
-                    if j < i:
-                        continue
-                    dr = np.array(b["v"])
-                    dr_norm = b["d"]
-                    picked = b["picked"]
-                    name = b["name"]
+    def update_bonds(self, at):
+        if not hasattr(at, "bonds"):
+            for i in range(self.cur_n_bond_actors):
+                self.bond_actor_pool[i].SetVisibility(False)
+            self.cur_n_bond_actors = 0
+            return
 
-                    rad = self.settings["bond_types"][name]["radius"]
+        n_bonds = 0
+        for i_at in range(len(at)):
+            for (i_bond, b) in enumerate(at.bonds[i_at]):
+                if i_at < b["j"]:
+                    continue
+                n_bonds += 1
 
-                    actor_1 = vtk.vtkActor()
-                    actor_1.SetMapper(self.mappers["cylinder"])
-                    transform = vtk.vtkTransform()
-                    axis = np.cross(dr, [0.0, 1.0, 0.0])
-                    if np.linalg.norm(axis) == 0.0:
-                        axis = None
-                    else:
-                        axis /= np.linalg.norm(axis)
-                    dr_hat = dr / dr_norm
-                    angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
-                    transform.Translate(pos[i]+dr/4.0)
-                    if axis is not None:
-                        transform.RotateWXYZ(angle, axis)
-                    transform.Scale(rad, dr_norm/2.0, rad)
-                    actor_1.SetUserMatrix(transform.GetMatrix())
-                    if picked:
-                        actor_1.SetProperty(self.settings["picked_prop"])
-                    else:
-                        actor_1.SetProperty(self.settings["bond_types"][name]["prop"])
+        if 2*n_bonds > len(self.bond_actor_pool):
+            prev_pool_size = len(self.bond_actor_pool)
+            self.bond_actor_pool.extend([vtk.vtkActor() for i in range(2*n_bonds-prev_pool_size)])
+            for actor in self.bond_actor_pool[prev_pool_size:]:
+                actor.SetMapper(self.mappers["cylinder"])
 
-                    # second half bond
-                    actor_2 = vtk.vtkActor()
-                    actor_2.SetMapper(self.mappers["cylinder"])
-                    transform = vtk.vtkTransform()
-                    axis = np.cross(dr, [0.0, 1.0, 0.0])
-                    if np.linalg.norm(axis) == 0.0:
-                        axis = None
-                    else:
-                        axis /= np.linalg.norm(axis)
-                    dr_hat = dr / dr_norm
-                    angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
-                    transform.Translate(pos[j]-dr/4.0)
-                    if axis is not None:
-                        transform.RotateWXYZ(angle, axis)
-                    transform.Scale(rad, dr_norm/2.0, rad)
-                    actor_2.SetUserMatrix(transform.GetMatrix())
-                    if picked:
-                        actor_2.SetProperty(self.settings["picked_prop"])
-                    else:
-                        actor_2.SetProperty(self.settings["bond_types"][name]["prop"])
+        pos = at.get_positions()
 
-                    actor_1.other_half = actor_2
-                    actor_2.other_half = actor_1
+        global_i_bond = 0
+        for i_at in range(len(at)):
+            for (i_bond, b) in enumerate(at.bonds[i_at]):
+                i = i_at
+                j = b["j"]
+                if i < j:
+                    continue
+                dr = np.array(b["v"])
+                dr_norm = b["d"]
+                picked = b["picked"]
+                name = b["name"]
 
-                    actor_1.i_at_bond = (i_at, i_bond)
-                    at.bond_actors.append(actor_1)
-                    actor_2.i_at_bond = (i_at, i_bond)
-                    at.bond_actors.append(actor_2)
+                rad = self.settings["bond_types"][name]["radius"]
+
+                axis = np.cross(dr, [0.0, 1.0, 0.0])
+                if np.linalg.norm(axis) == 0.0:
+                    axis = None
+                else:
+                    axis /= np.linalg.norm(axis)
+                dr_hat = dr / dr_norm
+                angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
+
+                # first half
+                actor_1 = self.bond_actor_pool[global_i_bond]
+
+                transform = vtk.vtkTransform()
+                transform.Translate(pos[i]+dr/4.0)
+                if axis is not None:
+                    transform.RotateWXYZ(angle, axis)
+                transform.Scale(rad, dr_norm/2.0, rad)
+                actor_1.SetUserMatrix(transform.GetMatrix())
+
+                # second half bond
+                actor_2 = self.bond_actor_pool[global_i_bond+1]
+
+                transform = vtk.vtkTransform()
+                transform.Translate(pos[j]-dr/4.0)
+                if axis is not None:
+                    transform.RotateWXYZ(angle, axis)
+                transform.Scale(rad, dr_norm/2.0, rad)
+                actor_2.SetUserMatrix(transform.GetMatrix())
+
+
+                if picked:
+                    actor_1.SetProperty(self.settings["picked_prop"])
+                    actor_2.SetProperty(self.settings["picked_prop"])
+                else:
+                    actor_1.SetProperty(self.settings["bond_types"][name]["prop"])
+                    actor_2.SetProperty(self.settings["bond_types"][name]["prop"])
+
+                actor_1.i_at_bond = (i_at, i_bond)
+                actor_2.i_at_bond = (i_at, i_bond)
+
+                actor_1.SetVisibility(True)
+                actor_2.SetVisibility(True)
+
+                global_i_bond += 2
+
+        for i in range(n_bonds*2, self.cur_n_bond_actors):
+            self.bond_actor_pool[i].SetVisibility(False)
+
+        self.cur_n_bond_actors = 2*n_bonds
 
     def update_labels(self, at):
         if len(at) > len(self.label_actor_pool):
@@ -461,6 +474,7 @@ class DaVTKState(object):
 
         self.update_atoms(at)
         self.update_labels(at)
+        self.update_bonds(at)
 
         # remove all existing actors
         self.renderer.RemoveAllViewProps()
@@ -504,9 +518,8 @@ class DaVTKState(object):
                                self.renderer.AddActor(img_actor)
 
         # need to do other actors, e.g. labels and bonds
-        if hasattr(at, "bond_actors"):
-            for actor in at.bond_actors:
-                self.renderer.AddActor(actor)
+        for actor in self.bond_actor_pool[0:self.cur_n_bond_actors]:
+            self.renderer.AddActor(actor)
 
         if "_vtk_show_labels" in at.info and at.info["_vtk_show_labels"]:
             for actor in self.label_actor_pool[0:self.cur_n_label_actors]:
