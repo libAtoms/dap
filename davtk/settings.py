@@ -12,9 +12,6 @@ def piecewise_linear(x, t):
         f = t[i*4]-x
         return f*t[(i-1)*4+1:(i-1)*4+4] + (1.0-f)*t[i*4+1:i*4+4]
 
-class UnknownSettingsKeywordError(Exception):
-    pass
-
 class DavTKAtomTypes(object):
     def __init__(self):
         self.types = {}
@@ -98,12 +95,12 @@ class DavTKSettings(object):
         self.parsers = {}
 
         self.parser_colormap = ThrowingArgumentParser(prog="colormap", description="repeated sequence of groups of 4 numbers: V R G B ...")
-        self.parser_colormap.add_argument("-name",type=str, required=True)
+        self.parser_colormap.add_argument("name",type=str)
         self.parser_colormap.add_argument("-P",dest="colormap", nargs=4,action='append',type=float, metavar=('V','R','G','B'))
         self.parsers["colormap"] = (self.parse_colormap, self.parser_colormap.format_usage(), self.parser_colormap.format_help())
 
         self.parser_atom_type = ThrowingArgumentParser(prog="atom_type")
-        self.parser_atom_type.add_argument("-name",type=str, required=True)
+        self.parser_atom_type.add_argument("name",type=str)
         self.parser_atom_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_atom_type.add_argument("-colormap",nargs=2,type=str,default=None, metavar=("COLORMAP","FIELD"))
         self.parser_atom_type.add_argument("-radius",type=float,default=None)
@@ -114,15 +111,29 @@ class DavTKSettings(object):
         self.parsers["atom_type"] = (self.parse_atom_type, self.parser_atom_type.format_usage(), self.parser_atom_type.format_help())
 
         self.parser_bond_type = ThrowingArgumentParser(prog="bond_type")
-        self.parser_bond_type.add_argument("-name",type=str, required=True)
+        self.parser_bond_type.add_argument("name",type=str)
         self.parser_bond_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_bond_type.add_argument("-radius",type=float,default=None)
         self.parser_bond_type.add_argument("-opacity",type=float,default=None)
         self.parsers["bond_type"] = (self.parse_bond_type, self.parser_bond_type.format_usage(), self.parser_bond_type.format_help())
 
         self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
-        self.parser_cell_box_color.add_argument("-color","-c",nargs=3,type=float, metavar=("R","G","B"), required=True)
+        self.parser_cell_box_color.add_argument("R",type=float)
+        self.parser_cell_box_color.add_argument("G",type=float)
+        self.parser_cell_box_color.add_argument("B",type=float)
         self.parsers["cell_box_color"] = (self.parse_cell_box_color, self.parser_cell_box_color.format_usage(), self.parser_cell_box_color.format_help())
+
+        self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
+        self.parser_picked_color.add_argument("R",type=float)
+        self.parser_picked_color.add_argument("G",type=float)
+        self.parser_picked_color.add_argument("B",type=float)
+        self.parsers["picked_color"] = (self.parse_picked_color, self.parser_picked_color.format_usage(), self.parser_picked_color.format_help())
+
+        self.parser_background_color = ThrowingArgumentParser(prog="background_color")
+        self.parser_background_color.add_argument("R",type=float)
+        self.parser_background_color.add_argument("G",type=float)
+        self.parser_background_color.add_argument("B",type=float)
+        self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help())
 
         self.parser_config_n_text = ThrowingArgumentParser(prog="config_n_text")
         self.parser_config_n_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
@@ -133,14 +144,6 @@ class DavTKSettings(object):
         self.parser_label_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_label_text.add_argument("-fontsize",type=int,default=None)
         self.parsers["label_text"] = (self.parse_label_text, self.parser_label_text.format_usage(), self.parser_label_text.format_help())
-
-        self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
-        self.parser_picked_color.add_argument("-color","-c",nargs=3,type=float, metavar=("R","G","B"), required=True)
-        self.parsers["picked_color"] = (self.parse_picked_color, self.parser_picked_color.format_usage(), self.parser_picked_color.format_help())
-
-        self.parser_background_color = ThrowingArgumentParser(prog="background_color")
-        self.parser_background_color.add_argument("-color","-c",nargs=3,type=float, metavar=("R","G","B"), required=True)
-        self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help())
 
         # properties
         # 3D Actor properties
@@ -168,7 +171,6 @@ class DavTKSettings(object):
     def parse_colormap(self, args):
         args = self.parser_colormap.parse_args(args)
         args.colormap = [item for sublist in args.colormap for item in sublist]
-        print("args.colormap", args.colormap)
         if len(args.colormap) % 4 != 0:
             raise ValueError("colormap arguments must be multiple of 4: v r g b")
         self.settings["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
@@ -204,7 +206,7 @@ class DavTKSettings(object):
 
     def parse_cell_box_color(self, args):
         args = self.parser_cell_box_color.parse_args(args)
-        self.settings["cell_box_color"] = args.color
+        self.settings["cell_box_color"] = (args.R, args.G, args.B)
         self.settings["cell_box_prop"].SetColor(self.settings["cell_box_color"])
         return None
 
@@ -230,18 +232,11 @@ class DavTKSettings(object):
 
     def parse_picked_color(self, args):
         args = self.parser_picked_color.parse_args(args)
-        self.settings["picked_color"] = args.color
+        self.settings["picked_color"] = (args.R, args.G, args.B)
         self.settings["picked_prop"].SetColor(self.settings["picked_color"])
         return None
 
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)
-        self.settings["background_color"] = args.color
+        self.settings["background_color"] = (args.R, args.G, args.B)
         return "cur"
-
-    def parse_line(self, line):
-        args = line.split()
-        if args[0] in self.parsers:
-            return self.parsers[args[0]][0](args[1:])
-        else:
-            raise UnknownSettingsKeywordError(args[0])

@@ -3,7 +3,6 @@ from __future__ import print_function
 import numpy as np, sys, re, tempfile, os
 
 from davtk.parse_utils import ThrowingArgumentParser
-from davtk.settings import UnknownSettingsKeywordError
 try:
     from davtk.util_global import *
 except ImportError:
@@ -18,8 +17,10 @@ except ImportError:
 parsers = {}
 
 def parse_usage(davtk_state, renderer, args):
+    print("\nSETTINGS:")
     for keyword in sorted(davtk_state.settings.parsers.keys()):
         print(keyword, davtk_state.settings.parsers[keyword][1], end='')
+    print("\nCOMMANDS:")
     for keyword in sorted(parsers.keys()):
         print(keyword, parsers[keyword][1], end='')
 parsers["usage"] = (parse_usage, "usage: usage\n", "usage: usage\n")
@@ -74,19 +75,27 @@ def parse_go(davtk_state, renderer, args):
     return None
 parsers["go"] = (parse_go, parser_go.format_usage(), parser_go.format_help())
 
+parser_step = ThrowingArgumentParser(prog="step",description="number of frames to skip in prev/next")
+parser_step.add_argument("n",type=int,help="number of frames to step")
+def parse_step(davtk_state, renderer, args):
+    args = parser_step.parse_args(args)
+    davtk_state.frame_step = args.n
+    return None
+parsers["step"] = (parse_step, parser_step.format_usage(), parser_step.format_help())
+
 parser_next = ThrowingArgumentParser(prog="next",description="go forward a number of frames")
-parser_next.add_argument("-n",type=int,default=1,help="number of frames to change")
+parser_next.add_argument("n",type=int,nargs='?',default=0,help="number of frames to change (default set by 'step' command)")
 def parse_next(davtk_state, renderer, args):
     args = parser_next.parse_args(args)
-    davtk_state.show_frame(dframe = args.n)
+    davtk_state.show_frame(dframe = args.n if args.n > 0 else davtk_state.frame_step)
     return None
 parsers["next"] = (parse_next, parser_next.format_usage(), parser_next.format_help())
 
 parser_prev = ThrowingArgumentParser(prog="prev", description="go back a number of frames")
-parser_prev.add_argument("-n",type=int,default=1, help="number of frames to change")
+parser_prev.add_argument("n",type=int,nargs='?',default=0, help="number of frames to change (default set by 'step' command)")
 def parse_prev(davtk_state, renderer, args):
     args = parser_prev.parse_args(args)
-    davtk_state.show_frame(dframe = -args.n)
+    davtk_state.show_frame(dframe = -args.n if args.n > 0 else -davtk_state.frame_step)
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
@@ -283,7 +292,7 @@ def parse_measure(davtk_state, renderer, args):
         frames = [davtk_state.cur_frame]
 
     for frame_i in frames:
-        print("frame ",frame_i)
+        print("Frame:",frame_i)
         davtk_state.measure(args.n, frame_i)
     return None
 parsers["measure"] = (parse_measure, parser_measure.format_usage(), parser_measure.format_help())
@@ -292,13 +301,26 @@ parsers["measure"] = (parse_measure, parser_measure.format_usage(), parser_measu
 
 def parse_line(line, settings, state, renderer=None):
     if len(line.strip()) > 0:
-        try:
-            return settings.parse_line(line)
-        except UnknownSettingsKeywordError:
-            pass
-
         args = line.split()
-        return parsers[args[0]][0](state, renderer, args[1:])
+
+        matches_settings = [ k for k in settings.parsers.keys() if k.startswith(args[0]) ]
+        matches_cmds = [ k for k in parsers.keys() if k.startswith(args[0]) ]
+
+        if len(matches_settings+matches_cmds) == 0: # no match
+            raise ValueError("Unknown command '{}'\n".format(args[0]))
+
+        if len(matches_settings+matches_cmds) == 1: # unique match
+            if len(matches_settings) == 1:
+                return settings.parsers[matches_settings[0]][0](args[1:])
+            else: # must be matches_cmds
+                return parsers[matches_cmds[0]][0](state, renderer, args[1:])
+
+        if args[0] in matches_settings:
+            return settings.parsers[args[0]][0](args[1:])
+        if args[0] in matches_cmds:
+            return parsers[args[0]][0](state, renderer, args[1:])
+
+        raise ValueError("Ambiguous command '{}', matches {}".format(args[0], matches_settings+matches_cmds))
     else:
         return None
 
