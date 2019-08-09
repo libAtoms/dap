@@ -74,7 +74,7 @@ class DavTKAtomTypes(object):
         if radius_field is not None:
             if radius is not None:
                 raise ValueError("got radius and radius_field")
-            self.types[name]["radius"] = radius
+            self.types[name]["radius"] = None
             self.types[name]["radius_field"] = radius_field
         if opacity is not None:
             self.types[name]["opacity"] = opacity

@@ -43,9 +43,12 @@ def get_atom_prop(settings, atom_type, i=None, arrays=None):
 
 def get_atom_radius(settings, atom_type, i=None, arrays=None):
     if settings["atom_types"][atom_type]["radius_field"] is not None:
-        return arrays[settings["atom_types"][atom_type]["radius_field"]][i]
+        r = arrays[settings["atom_types"][atom_type]["radius_field"]][i]
     else:
-        return settings["atom_types"][atom_type]["radius"]
+        r = settings["atom_types"][atom_type]["radius"]
+    if r is None:
+        raise ValueError("Failed to find radius for atom type {}".format(atom_type))
+    return r
 
 class DavTKBonds(object):
     def __init__(self, at, settings):
@@ -59,22 +62,40 @@ class DavTKBonds(object):
     def reinit(self):
         self.bonds = [ [] for i in range(len(self.at)) ]
 
-    def cutoff(self, cutoff, name):
-        if cutoff is None:
-            atom_type_array = get_atom_type_a(self.at)
-            cutoff = max([self.settings["atom_types"][atom_type_array[i]]["bonding_radius"] for i in range(len(self.at))])
-        if cutoff == 0.0:
+    def cutoff(self, name, in_cutoff, at_type, at_type2):
+
+        def pair_match(at_type_a, i, j, at_type, at_type2):
+            return ( ((at_type == '*' or str(at_type_a[i]) == at_type) and (at_type2 == '*' or str(at_type_a[j]) == at_type2)) or
+                     ((at_type == '*' or str(at_type_a[j]) == at_type) and (at_type2 == '*' or str(at_type_a[i]) == at_type2)) )
+
+        atom_type_array = get_atom_type_a(self.at)
+
+        if in_cutoff is None or len(in_cutoff) == 0: # fully auto
+            max_cutoff = max([self.settings["atom_types"][atom_type_array[i]]["bonding_radius"] for i in range(len(self.at))])
+            u_cutoff_min = lambda i1, i2 : 0.0
+            u_cutoff_max = lambda i1, i2 : 0.5 * ( self.settings["atom_types"][atom_type_array[i1]]["bonding_radius"] +
+                                                   self.settings["atom_types"][atom_type_array[i2]]["bonding_radius"] )
+        elif len(in_cutoff) == 2: # min max
+            max_cutoff = in_cutoff[1]
+            u_cutoff_min = lambda i1, i2 : in_cutoff[0]
+            u_cutoff_max = lambda i1, i2 : in_cutoff[1]
+        elif len(in_cutoff) == 1: # max
+            max_cutoff = in_cutoff[0]
+            u_cutoff_min = lambda i1, i2 : 0.0
+            u_cutoff_max = lambda i1, i2 : in_cutoff[0]
+
+        if max_cutoff <= 0.0:
             return
 
-        nn_list = ase.neighborlist.neighbor_list('ijDdS', self.at, cutoff, self_interaction=True)
+        nn_list = ase.neighborlist.neighbor_list('ijDdS', self.at, max_cutoff, self_interaction=True)
         for (i, j, v, d, S) in izip(nn_list[0], nn_list[1], nn_list[2], nn_list[3], nn_list[4]):
-            if d > 0.0:
+            if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_match(atom_type_array, i, j, at_type, at_type2):
                 self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
 
-    def pair_mic(self, pair, name):
-        v = self.at.get_distance(pair[0], pair[1], mic=True, vector=True)
-        self.bonds[pair[0]].append( {"j" : pair[1], "v" : v, "d" : np.linalg.norm(v), "S" : [0], "name" : name, "picked" : False } )
-        self.bonds[pair[1]].append( {"j" : pair[0], "v" : -v, "d" : np.linalg.norm(v), "S" : [0], "name" : name, "picked" : False } )
+    def pair_mic(self, name, ind1, ind2):
+        v = self.at.get_distance(ind1, ind2, mic=True, vector=True)
+        self.bonds[ind1].append( {"j" : ind2, "v" : v, "d" : np.linalg.norm(v), "S" : [0,0,0], "name" : name, "picked" : False } )
+        self.bonds[ind2].append( {"j" : ind1, "v" : -v, "d" : np.linalg.norm(v), "S" : [0,0,0], "name" : name, "picked" : False } )
 
     def set_picked(self, i_at, j_ind, stat):
         b = self.bonds[i_at][j_ind]
@@ -360,7 +381,7 @@ class DaVTKState(object):
             transform.Translate(pos[i_at])
             r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
             actor.r = r
-            transform.Scale(r, r, r)
+            transform.Scale(r,r,r)
             actor.SetUserMatrix(transform.GetMatrix())
             # update in case numbers changed
             actor.i_at = i_at
@@ -596,7 +617,7 @@ class DaVTKState(object):
         self.create_vtk_structures(frames)
         self.update(frames)
 
-    def bond(self, criterion, name, frames=None):
+    def bond(self, name, at_type1, at_type2, criterion, frames=None):
         if name is None:
             name = self.settings["default_bond_type"]
 
@@ -606,18 +627,21 @@ class DaVTKState(object):
             if not hasattr(at, "bonds"):
                 at.bonds = DavTKBonds(at, self.settings)
 
-            if criterion == "auto_cutoff":
-                at.bonds.cutoff(None, name)
-            elif criterion == "picked":
+            if criterion == "picked":
                 indices = np.where(self.cur_at().arrays["_vtk_picked"])[0]
                 if len(indices) != 2:
-                    raise ValueError("tried to bond picked without 2 atoms picked")
-                at.bonds.pair_mic(indices, name)
+                    raise ValueError("tried to bond picked, but number of atoms picked {} != 2".format(len(indices)))
+                at.bonds.pair_mic(name, indices[0], indices[1])
                 at.arrays["_vtk_picked"][indices] = False
-            elif isinstance(criterion, float):
-                at.bonds.cutoff(criterion, name)
+            elif criterion[0] == "n":
+                indices = criterion[1]
+                if len(indices) != 2:
+                    raise ValueError("tried to bond pair, but number of indices passed {} != 2".format(len(indices)))
+                at.bonds.pair_mic(name, indices[0], indices[1])
+            elif criterion[0] == "cutoff":
+                at.bonds.cutoff(name, criterion[1], at_type1, at_type2)
             else:
-                at.bonds.pair_mic(criterion, name)
+                raise ValueError("Unknown bonding criterion type '{}'".format(criterion[0]))
 
         self.update(frames)
 
