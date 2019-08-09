@@ -109,7 +109,7 @@ class DavTKSettings(object):
         self.parser_atom_type.add_argument("-radius",type=float,default=None)
         self.parser_atom_type.add_argument("-radius_field",type=str,default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
-        self.parser_atom_type.add_argument("-label",type=str,default=None)
+        self.parser_atom_type.add_argument("-label_field",type=str,default=None)
         self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
         self.parsers["atom_type"] = (self.parse_atom_type, self.parser_atom_type.format_usage(), self.parser_atom_type.format_help())
 
@@ -175,7 +175,7 @@ class DavTKSettings(object):
 
     def parse_atom_type(self, args):
         args = self.parser_atom_type.parse_args(args)
-        self.settings["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.label, args.bonding_radius, self.settings["colormaps"])
+        self.settings["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.label_field, args.bonding_radius, self.settings["colormaps"])
         return None
 
     def parse_bond_type(self, args):
@@ -237,7 +237,7 @@ class DavTKSettings(object):
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)
         self.settings["background_color"] = args.color
-        return "renderer"
+        return "cur"
 
     def parse_line(self, line):
         args = line.split()

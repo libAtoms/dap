@@ -489,6 +489,8 @@ class DaVTKState(object):
                 raise ValueError("set_show_frame got frame_i {} out of range {} --- {}".format(frame_i, 0, len(self.at_list)))
             self.cur_frame = frame_i
 
+        self.renderer.SetBackground(self.settings["background_color"])
+
         # wrap around
         self.cur_frame = self.cur_frame % len(self.at_list)
 
