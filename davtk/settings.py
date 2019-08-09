@@ -94,6 +94,10 @@ class DavTKSettings(object):
 
         self.parsers = {}
 
+        self.parser_step = ThrowingArgumentParser(prog="step",description="number of frames to skip in +/- and prev/next")
+        self.parser_step.add_argument("n",type=int,help="number of frames to step")
+        self.parsers["step"] = (self.parse_step, self.parser_step.format_usage(), self.parser_step.format_help())
+
         self.parser_colormap = ThrowingArgumentParser(prog="colormap", description="repeated sequence of groups of 4 numbers: V R G B ...")
         self.parser_colormap.add_argument("name",type=str)
         self.parser_colormap.add_argument("-P",dest="colormap", nargs=4,action='append',type=float, metavar=('V','R','G','B'))
@@ -165,8 +169,15 @@ class DavTKSettings(object):
             prop.SetColor(self.settings[f+"_text_color"])
             prop.SetFontSize(self.settings[f+"_text_fontsize"])
 
+        self.frame_step = 1
+
     def __getitem__(self,key):
         return self.settings[key]
+
+    def parse_step(self, args):
+        args = self.parser_step.parse_args(args)
+        self.frame_step = args.n
+        return None
 
     def parse_colormap(self, args):
         args = self.parser_colormap.parse_args(args)
@@ -174,6 +185,7 @@ class DavTKSettings(object):
         if len(args.colormap) % 4 != 0:
             raise ValueError("colormap arguments must be multiple of 4: v r g b")
         self.settings["colormaps"][args.name] = lambda x : piecewise_linear(x, np.array(args.colormap))
+        return "cur"
 
     def parse_atom_type(self, args):
         args = self.parser_atom_type.parse_args(args)

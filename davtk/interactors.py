@@ -102,9 +102,9 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             # self.davtk_state.update_labels(frames="cur")
             self.davtk_state.show_frame(dframe=0)
         elif k == 'plus':
-            self.davtk_state.show_frame(dframe=self.davtk_state.frame_step)
+            self.davtk_state.show_frame(dframe=self.davtk_state.settings.frame_step)
         elif k == 'minus':
-            self.davtk_state.show_frame(dframe=-self.davtk_state.frame_step)
+            self.davtk_state.show_frame(dframe=-self.davtk_state.settings.frame_step)
         elif k == 'h':
             print("""GUI usage
 h: help (this message)

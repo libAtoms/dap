@@ -155,8 +155,6 @@ class DaVTKState(object):
         self.bond_actor_pool = []
         self.cur_n_bond_actors = 0
 
-        self.frame_step = 1
-
         self.update()
 
     def cur_at(self):

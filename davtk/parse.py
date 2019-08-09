@@ -75,19 +75,11 @@ def parse_go(davtk_state, renderer, args):
     return None
 parsers["go"] = (parse_go, parser_go.format_usage(), parser_go.format_help())
 
-parser_step = ThrowingArgumentParser(prog="step",description="number of frames to skip in prev/next")
-parser_step.add_argument("n",type=int,help="number of frames to step")
-def parse_step(davtk_state, renderer, args):
-    args = parser_step.parse_args(args)
-    davtk_state.frame_step = args.n
-    return None
-parsers["step"] = (parse_step, parser_step.format_usage(), parser_step.format_help())
-
 parser_next = ThrowingArgumentParser(prog="next",description="go forward a number of frames")
 parser_next.add_argument("n",type=int,nargs='?',default=0,help="number of frames to change (default set by 'step' command)")
 def parse_next(davtk_state, renderer, args):
     args = parser_next.parse_args(args)
-    davtk_state.show_frame(dframe = args.n if args.n > 0 else davtk_state.frame_step)
+    davtk_state.show_frame(dframe = args.n if args.n > 0 else davtk_state.settings.frame_step)
     return None
 parsers["next"] = (parse_next, parser_next.format_usage(), parser_next.format_help())
 
@@ -95,7 +87,7 @@ parser_prev = ThrowingArgumentParser(prog="prev", description="go back a number 
 parser_prev.add_argument("n",type=int,nargs='?',default=0, help="number of frames to change (default set by 'step' command)")
 def parse_prev(davtk_state, renderer, args):
     args = parser_prev.parse_args(args)
-    davtk_state.show_frame(dframe = -args.n if args.n > 0 else -davtk_state.frame_step)
+    davtk_state.show_frame(dframe = -args.n if args.n > 0 else -davtk_state.settings.frame_step)
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
