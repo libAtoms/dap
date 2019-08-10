@@ -67,11 +67,14 @@ camera.SetFocalPoint((max_pos+min_pos)/2.0)
 camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
 # start viewing first frame
-print("setting up first frame")
 davtk_state.update()
 davtk_state.show_frame(frame_i=0)
 
-print("starting")
+print("""DAP
+
+Use 'usage' for general usage info, and 'command -h' for detailed help on each command.
+Type 'h' in GUI window for GUI help message
+""")
 # Start
 print("> "); sys.stdout.flush()
 interactor.Initialize()

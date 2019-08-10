@@ -48,7 +48,7 @@ def parse_movie(davtk_state, renderer, args):
     range_start = 0 if m.group(1) is None or len(m.group(1)) == 0 else int(m.group(1))
     range_end = len(davtk_state.at_list) if m.group(2) is None or len(m.group(2)) == 0 else int(m.group(2))
     range_interval = 1 if m.group(3) is None or len(m.group(3)) == 0 else int(m.group(3))
-    frames = range(range_start, range_end, range_interval)
+    frames = list(range(range_start, range_end, range_interval))
     frames.append(frames[-1])
     print(len(frames), "log",np.log10(len(frames)-1)+1)
     fmt_core = "0{}d".format(int(np.log10(len(frames)-1)+1))

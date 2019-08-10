@@ -126,11 +126,11 @@ d: delete picked
 m: measure picked
 b: bond picked (only 2 atoms)
 l: update labels
-Mouse right click: select point
+Mouse right click (two finger click on OS X): select point
 Mouse left drag: trackball rotate
 control-Mouse left drag: rotate in plane
 shift-Mouse left drag: translate
-Mouse scroll: zoom
+Mouse scroll (two finger up/down drag on OS X): zoom
 """)
 
         if self.GetInteractor() is not None:
