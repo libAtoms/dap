@@ -347,6 +347,10 @@ class DaVTKState(object):
                 label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
                 if label_field is None or label_field == "ID":
                     label_str = str(i_at)
+                elif label_field == "Z" or label_field == "atomic_number":
+                    label_str = str(at.get_atomic_numbers()[i_at])
+                elif label_field == "species":
+                    label_str = at.get_chemical_symbols()[i_at]
                 else:
                     label_str = str(at.arrays[label_field][i_at])
             label_actor.SetInput(label_str)
