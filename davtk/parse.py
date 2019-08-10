@@ -36,6 +36,21 @@ parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
 
 ################################################################################
 
+parser_atom_type_field = ThrowingArgumentParser(prog="atom_type_field",description="ASE at.arrays field to use for atom type")
+parser_atom_type_field.add_argument("-all_frames",action="store_true")
+parser_atom_type_field.add_argument("field",type=str,help="name of field ('Z' for atomic numbers, 'species' for chemical symbols", default='Z')
+def parse_atom_type_field(davtk_state, renderer, args):
+    args = parser_atom_type_field.parse_args(args)
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    for at in ats:
+        at.info["_vtk_type_field"] = args.field
+    return "cur"
+parsers["atom_type_field"] = (parse_atom_type_field, parser_atom_type_field.format_usage(), parser_atom_type_field.format_help())
+
 parser_movie = ThrowingArgumentParser(prog="movie",description="make a movie")
 parser_movie.add_argument("-r",type=str,nargs='?',help="range of configs, in slice format start:[end+1]:[step]",default="::")
 parser_movie.add_argument("-fps",type=float,help="frames per second display rate", default=10.0)

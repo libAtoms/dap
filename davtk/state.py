@@ -25,10 +25,18 @@ def find_min_max(at_list):
     return (min_pos, max_pos)
 
 def get_atom_type_a(at):
-    if "_vtk_type" in at.arrays:
-        atom_type = at.arrays["_vtk_type"]
+    if "_vtk_type_field" in at.info:
+        atom_type_str = at.info["_vtk_type_field"]
     else:
+        atom_type_str = "Z"
+
+    if atom_type_str == "Z":
         atom_type = [str(Z) for Z in at.get_atomic_numbers()]
+    elif atom_type_str == "species":
+        atom_type = [sp for sp in at.get_chemical_symbols()]
+    else:
+        atom_type = [str(val) for val in at.arrays[atom_type_str]]
+
     return atom_type
 
 def get_atom_prop(settings, atom_type, i=None, arrays=None):

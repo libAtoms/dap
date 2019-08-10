@@ -96,7 +96,6 @@ class DavTKSettings(object):
         self.frame_step = 1
         self.legend = { 'show' : False, 'offset' : np.array([-100,-100]), 'spacing' : 200 }
 
-
         self.parser_legend = ThrowingArgumentParser(prog="legend",description="control legend, toggle by default")
         group = self.parser_legend.add_mutually_exclusive_group()
         group.add_argument("-position",type=int,nargs=2,help="position relative to bottom left corner of display"+
