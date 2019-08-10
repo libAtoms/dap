@@ -52,7 +52,7 @@ def parse_atom_type_field(davtk_state, renderer, args):
 parsers["atom_type_field"] = (parse_atom_type_field, parser_atom_type_field.format_usage(), parser_atom_type_field.format_help())
 
 parser_movie = ThrowingArgumentParser(prog="movie",description="make a movie")
-parser_movie.add_argument("-r",type=str,nargs='?',help="range of configs, in slice format start:[end+1]:[step]",default="::")
+parser_movie.add_argument("-range",type=str,help="range of configs, in slice format start:[end+1]:[step]",default="::")
 parser_movie.add_argument("-fps",type=float,help="frames per second display rate", default=10.0)
 parser_movie.add_argument("-tmpdir",type=str,help="temporary directory for snapshots",default=".")
 parser_movie.add_argument("-ffmpeg_args",type=str,help="other ffmpeg args",default="-b:v 10M -pix_fmt yuv420p")
@@ -94,7 +94,7 @@ parser_next = ThrowingArgumentParser(prog="next",description="go forward a numbe
 parser_next.add_argument("n",type=int,nargs='?',default=0,help="number of frames to change (default set by 'step' command)")
 def parse_next(davtk_state, renderer, args):
     args = parser_next.parse_args(args)
-    davtk_state.show_frame(dframe = args.n if args.n > 0 else davtk_state.settings.frame_step)
+    davtk_state.show_frame(dframe = args.n if args.n > 0 else davtk_state.settings["frame_step"])
     return None
 parsers["next"] = (parse_next, parser_next.format_usage(), parser_next.format_help())
 
@@ -102,12 +102,13 @@ parser_prev = ThrowingArgumentParser(prog="prev", description="go back a number 
 parser_prev.add_argument("n",type=int,nargs='?',default=0, help="number of frames to change (default set by 'step' command)")
 def parse_prev(davtk_state, renderer, args):
     args = parser_prev.parse_args(args)
-    davtk_state.show_frame(dframe = -args.n if args.n > 0 else -davtk_state.settings.frame_step)
+    davtk_state.show_frame(dframe = -args.n if args.n > 0 else -davtk_state.settings["frame_step"])
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
 parser_unpick = ThrowingArgumentParser(prog="unpick", description="unpick all picked atoms")
 parser_unpick.add_argument("-all_frames",action="store_true")
+parser_unpick.add_argument("-only",nargs='+',choices=["atoms","bonds"],action="store", default=None)
 def parse_unpick(davtk_state, renderer, args):
     args = parser_unpick.parse_args(args)
     if args.all_frames:
@@ -115,12 +116,14 @@ def parse_unpick(davtk_state, renderer, args):
     else:
         ats = [davtk_state.cur_at()]
     for at in ats:
-        at.arrays["_vtk_picked"][:] = False
-        if hasattr(at, "bonds"):
-            for i_at in range(len(at)):
-                for b in at.bonds[i_at]:
-                    b["picked"] = False
-    return "all"
+        if args.only is None or "atoms" in args.only:
+            at.arrays["_vtk_picked"][:] = False
+        if args.only is None or "bonds" in args.only:
+            if hasattr(at, "bonds"):
+                for i_at in range(len(at)):
+                    for b in at.bonds[i_at]:
+                        b["picked"] = False
+    return "cur"
 parsers["unpick"] = (parse_unpick, parser_unpick.format_usage(), parser_unpick.format_help())
 
 parser_pick = ThrowingArgumentParser(prog="pick", description="pick atom(s) by ID")

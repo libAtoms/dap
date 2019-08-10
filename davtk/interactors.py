@@ -113,9 +113,9 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             # self.davtk_state.update_labels(frames="cur")
             self.davtk_state.show_frame(dframe=0)
         elif k == 'plus':
-            self.davtk_state.show_frame(dframe=self.davtk_state.settings.frame_step)
+            self.davtk_state.show_frame(dframe=self.davtk_state.settings["frame_step"])
         elif k == 'minus':
-            self.davtk_state.show_frame(dframe=-self.davtk_state.settings.frame_step)
+            self.davtk_state.show_frame(dframe=-self.davtk_state.settings["frame_step"])
         elif k == 'h':
             print("""GUI usage
 h: help (this message)
@@ -144,8 +144,8 @@ Mouse scroll (two finger up/down drag on OS X): zoom
         self.show_labels_prev = self.davtk_state.cur_at().info["_vtk_show_labels"]
         self.davtk_state.cur_at().info["_vtk_show_labels"] = False
 
-        self.show_legend_prev = self.davtk_state.settings.legend['show']
-        self.davtk_state.settings.legend['show'] = False
+        self.show_legend_prev = self.davtk_state.settings["legend"]['show']
+        self.davtk_state.settings["legend"]['show'] = False
 
         self.davtk_state.show_frame(dframe=0)
         self.OnLeftButtonDown()
@@ -154,7 +154,7 @@ Mouse scroll (two finger up/down drag on OS X): zoom
     def leftButtonReleaseEvent(self,obj,event):
         self.davtk_state.cur_at().info["_vtk_show_labels"] = self.show_labels_prev
 
-        self.davtk_state.settings.legend['show'] = self.show_legend_prev
+        self.davtk_state.settings["legend"]['show'] = self.show_legend_prev
 
         self.davtk_state.show_frame(dframe=0)
         self.OnLeftButtonUp()

@@ -546,11 +546,11 @@ class DaVTKState(object):
             legend_sphere_actor.SetScale(self.atom_actor_pool[atom_i_of_type].r,
                                          self.atom_actor_pool[atom_i_of_type].r,
                                          self.atom_actor_pool[atom_i_of_type].r)
-            legend_pos = self.settings.legend['offset'] % display_size
+            legend_pos = self.settings["legend"]['position'] % display_size
 
             coord = vtk.vtkCoordinate()
             coord.SetCoordinateSystemToDisplay()
-            coord.SetValue(legend_pos[0], legend_pos[1]-self.settings.legend['spacing']*l_i, 0.01)
+            coord.SetValue(legend_pos[0], legend_pos[1]-self.settings["legend"]['spacing']*l_i, 0.01)
             sphere_pos_world = coord.GetComputedWorldValue(self.renderer)
 
             legend_sphere_actor.SetPosition(sphere_pos_world[0:3])
@@ -608,7 +608,7 @@ class DaVTKState(object):
         for actor in self.bond_actor_pool[0:self.cur_n_bond_actors]:
             self.renderer.AddActor(actor)
 
-        if self.settings.legend['show']:
+        if self.settings["legend"]['show']:
             self.show_legend(at, pos)
 
         if at.info.get("_vtk_show_labels", False):
