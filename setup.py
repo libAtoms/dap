@@ -15,5 +15,5 @@ setup(name='dap',
      )
 
 print("")
-print("Don't forget to")
-print("     cp daprc ~/.daprc")
+print("Don't forget to check out daprc (in this directory) for example settings, and/or copy it:")
+print("     cp "+os.path.join(os.environ["PWD"],"daprc")+" ~/.daprc")
