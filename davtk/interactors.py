@@ -130,16 +130,21 @@ Mouse scroll: zoom
         return
 
     def leftButtonPressEvent(self,obj,event):
-        self.davtk_state.cur_at().info["_vtk_show_labels_prev"] = self.davtk_state.cur_at().info["_vtk_show_labels"]
+        self.show_labels_prev = self.davtk_state.cur_at().info["_vtk_show_labels"]
         self.davtk_state.cur_at().info["_vtk_show_labels"] = False
-        # self.davtk_state.update_labels(frames="cur")
+
+        self.show_legend_prev = self.davtk_state.settings.legend['show']
+        self.davtk_state.settings.legend['show'] = False
+
         self.davtk_state.show_frame(dframe=0)
         self.OnLeftButtonDown()
         return
 
     def leftButtonReleaseEvent(self,obj,event):
-        self.davtk_state.cur_at().info["_vtk_show_labels"] = self.davtk_state.cur_at().info["_vtk_show_labels_prev"]
-        # self.davtk_state.update_labels(frames="cur")
+        self.davtk_state.cur_at().info["_vtk_show_labels"] = self.show_labels_prev
+
+        self.davtk_state.settings.legend['show'] = self.show_legend_prev
+
         self.davtk_state.show_frame(dframe=0)
         self.OnLeftButtonUp()
         return

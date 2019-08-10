@@ -93,6 +93,20 @@ class DavTKSettings(object):
             "label_text_color" : [1.0, 1.0, 1.0], "label_text_fontsize" : 24 }
 
         self.parsers = {}
+        self.frame_step = 1
+        self.legend = { 'show' : False, 'offset' : np.array([-100,-100]), 'spacing' : 200 }
+
+
+        self.parser_legend = ThrowingArgumentParser(prog="legend",description="control legend, toggle by default")
+        group = self.parser_legend.add_mutually_exclusive_group()
+        group.add_argument("-position",type=int,nargs=2,help="position relative to bottom left corner of display"+
+                                                             " (negative values relative to top right)", default=None)
+        group.add_argument("-offset",type=int,nargs=2,help="offset relative to current position", default=None)
+        self.parser_legend.add_argument("-spacing",type=int,help="spacing between rows", default=None)
+        group = self.parser_legend.add_mutually_exclusive_group()
+        group.add_argument("-on",action='store_true',help="enable legend")
+        group.add_argument("-off",action='store_true',help="disable legend")
+        self.parsers["legend"] = (self.parse_legend, self.parser_legend.format_usage(), self.parser_legend.format_help())
 
         self.parser_step = ThrowingArgumentParser(prog="step",description="number of frames to skip in +/- and prev/next")
         self.parser_step.add_argument("n",type=int,help="number of frames to step")
@@ -169,10 +183,27 @@ class DavTKSettings(object):
             prop.SetColor(self.settings[f+"_text_color"])
             prop.SetFontSize(self.settings[f+"_text_fontsize"])
 
-        self.frame_step = 1
-
     def __getitem__(self,key):
         return self.settings[key]
+
+    def parse_legend(self, args):
+        args = self.parser_legend.parse_args(args)
+
+        if args.position is not None:
+            self.legend['offset'] = np.array(args.position)
+        if args.offset is not None:
+            self.legend['offset'] += args.offset
+        if args.spacing is not None:
+            self.legend['spacing'] = args.spacing
+        if args.on:
+            self.legend['show'] = True
+        elif args.off:
+            self.legend['show']= False
+
+        if args.position is None and args.offset is None and args.spacing is None and not args.on and not args.off:
+            self.legend['show'] = not self.legend['show']
+
+        return "cur"
 
     def parse_step(self, args):
         args = self.parser_step.parse_args(args)

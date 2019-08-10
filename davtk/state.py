@@ -309,6 +309,20 @@ class DaVTKState(object):
 
         self.cur_n_bond_actors = 2*n_bonds
 
+    def label_offset_world(self, pos):
+        self.renderer.GetActiveCamera()
+
+        # screen pos of arbitrary world point
+        pt_disp = [0.0, 0.0, 0.0]
+        self.iRen.GetInteractorStyle().ComputeWorldToDisplay(self.renderer, pos[0], pos[1], pos[2], pt_disp)
+        # world pos of point 10 pixel away
+        pt_disp[0] += 10.0
+        pt_world = [0.0, 0.0, 0.0, 0.0]
+        self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
+        dp_world = np.linalg.norm(np.array(pos)-np.array(pt_world[0:3]))/10
+
+        return dp_world
+
     def update_labels(self, at):
         if len(at) > len(self.label_actor_pool):
             prev_pool_size = len(self.label_actor_pool)
@@ -316,6 +330,8 @@ class DaVTKState(object):
 
         atom_type_array = get_atom_type_a(at)
         pos = at.get_positions()
+
+        dp_world = self.label_offset_world(pos[0])
 
         for i_at in range(len(at)):
             label_actor = self.label_actor_pool[i_at]
@@ -336,16 +352,6 @@ class DaVTKState(object):
             label_actor.SetInput(label_str)
             label_actor.SetPosition(pos[i_at])
             r = get_atom_radius(self.settings, atom_type_array[i_at], i_at, at.arrays)
-            if i_at == 0: # figure out mapping from screen to world distances
-                self.renderer.GetActiveCamera()
-                # screen pos of arbitrary world point
-                pt_disp = [0.0, 0.0, 0.0]
-                self.iRen.GetInteractorStyle().ComputeWorldToDisplay(self.renderer, pos[i_at][0], pos[i_at][1], pos[i_at][2], pt_disp)
-                # world pos of point 10 pixel away
-                pt_disp[0] += 10.0
-                pt_world = [0.0, 0.0, 0.0, 0.0]
-                self.iRen.GetInteractorStyle().ComputeDisplayToWorld(self.renderer, pt_disp[0], pt_disp[1], pt_disp[2], pt_world)
-                dp_world = np.linalg.norm(np.array(pos[i_at])-np.array(pt_world[0:3]))/10
             if dp_world > 0:
                 dp_disp = 0.7*r/dp_world
             else:
@@ -477,37 +483,7 @@ class DaVTKState(object):
             at.info["_NOPRINT_vtk_cell_box_actor"] = vtk.vtkActor()
             at.info["_vtk_show_labels"] = False
 
-    def show_frame(self, dframe=None, frame_i=None):
-        if dframe is not None:
-            if frame_i is not None:
-                raise ValueError("set_show_frame got both dframe and frame_i")
-            self.cur_frame += dframe
-        else: # dframe is None
-            if frame_i is None:
-                raise ValueError("set_show_frame got neither dframe and frame_i")
-            if frame_i < 0 or frame_i >= len(self.at_list):
-                raise ValueError("set_show_frame got frame_i {} out of range {} --- {}".format(frame_i, 0, len(self.at_list)))
-            self.cur_frame = frame_i
-
-        self.renderer.SetBackground(self.settings["background_color"])
-
-        # wrap around
-        self.cur_frame = self.cur_frame % len(self.at_list)
-
-        at = self.at_list[self.cur_frame]
-
-        self.update_atoms(at)
-        self.update_labels(at)
-        self.update_bonds(at)
-
-        # remove all existing actors
-        self.renderer.RemoveAllViewProps()
-
-        # actor for cell box
-        self.renderer.AddActor(at.info["_NOPRINT_vtk_cell_box_actor"])
-
-        # create actors for atoms
-        pos = at.get_positions()
+    def show_image_atoms(self, at, pos):
         cell = at.get_cell()
         cell_inv = at.get_reciprocal_cell().T
         for (i_at, actor) in enumerate(self.atom_actor_pool[0:self.cur_n_atom_actors]):
@@ -541,20 +517,98 @@ class DaVTKState(object):
                                img_actor.i_at = i_at
                                self.renderer.AddActor(img_actor)
 
+
+    def show_legend(self, at, pos):
+        display_size = self.renderer.GetRenderWindow().GetSize()
+        dp_world = self.label_offset_world(pos[0])
+        unique_atom_types = sorted(list(set(get_atom_type_a(at))))
+        legend_sphere_actors = [ vtk.vtkActor() for i in range(len(unique_atom_types)) ]
+        legend_label_actors = [ vtk.vtkActor() for i in range(len(unique_atom_types)) ]
+
+        for (l_i, (legend_sphere_actor, legend_label_actor, atom_type)) in enumerate(zip(legend_sphere_actors, legend_label_actors, unique_atom_types)):
+            atom_i_of_type = unique_atom_types.index(atom_type)
+
+            legend_sphere_actor.SetMapper(self.mappers["sphere"])
+            prop = get_atom_prop(self.settings, atom_type, atom_i_of_type, at.arrays)
+            legend_sphere_actor.SetProperty(prop)
+            legend_sphere_actor.SetScale(self.atom_actor_pool[atom_i_of_type].r,
+                                         self.atom_actor_pool[atom_i_of_type].r,
+                                         self.atom_actor_pool[atom_i_of_type].r)
+            legend_pos = self.settings.legend['offset'] % display_size
+
+            coord = vtk.vtkCoordinate()
+            coord.SetCoordinateSystemToDisplay()
+            coord.SetValue(legend_pos[0], legend_pos[1]-self.settings.legend['spacing']*l_i, 0)
+            sphere_pos_world = coord.GetComputedWorldValue(self.renderer)
+
+            legend_sphere_actor.SetPosition(sphere_pos_world[0:3])
+            legend_sphere_actor.PickableOff()
+            legend_sphere_actor.VisibilityOn()
+            self.renderer.AddActor(legend_sphere_actor)
+
+            legend_label_actor = vtk.vtkBillboardTextActor3D()
+            legend_label_actor.SetInput(atom_type)
+            legend_label_actor.SetPosition(sphere_pos_world[0:3])
+            if dp_world > 0:
+                dp_disp = self.atom_actor_pool[atom_i_of_type].r/dp_world
+            else:
+                dp_disp = 0
+            legend_label_actor.SetDisplayOffset(int(1.3*dp_disp), -int(dp_disp/2.0))
+            legend_label_actor.SetTextProperty(self.settings["label_text_prop"])
+            legend_label_actor.PickableOff()
+            legend_label_actor.VisibilityOn()
+            self.renderer.AddActor(legend_label_actor)
+
+    def show_frame(self, dframe=None, frame_i=None):
+        if dframe is not None:
+            if frame_i is not None:
+                raise ValueError("set_show_frame got both dframe and frame_i")
+            self.cur_frame += dframe
+        else: # dframe is None
+            if frame_i is None:
+                raise ValueError("set_show_frame got neither dframe and frame_i")
+            if frame_i < 0 or frame_i >= len(self.at_list):
+                raise ValueError("set_show_frame got frame_i {} out of range {} --- {}".format(frame_i, 0, len(self.at_list)))
+            self.cur_frame = frame_i
+
+        self.renderer.SetBackground(self.settings["background_color"])
+
+        # wrap around
+        self.cur_frame = self.cur_frame % len(self.at_list)
+
+        at = self.at_list[self.cur_frame]
+
+        self.update_atoms(at)
+        self.update_labels(at)
+        self.update_bonds(at)
+
+        # remove all existing actors
+        self.renderer.RemoveAllViewProps()
+
+        # actor for cell box
+        self.renderer.AddActor(at.info["_NOPRINT_vtk_cell_box_actor"])
+
+        # create actors for atom images
+        pos = at.get_positions()
+        self.show_image_atoms(at, pos)
+
         # need to do other actors, e.g. labels and bonds
         for actor in self.bond_actor_pool[0:self.cur_n_bond_actors]:
             self.renderer.AddActor(actor)
 
-        if "_vtk_show_labels" in at.info and at.info["_vtk_show_labels"]:
+        if self.settings.legend['show']:
+            self.show_legend(at, pos)
+
+        if at.info.get("_vtk_show_labels", False):
             for actor in self.label_actor_pool[0:self.cur_n_label_actors]:
                 self.renderer.AddActor(actor)
 
         # config_n
-        txt = vtk.vtkTextActor()
-        txt.SetInput(str(self.cur_frame))
-        txt.SetTextProperty(self.settings["config_n_text_prop"])
-        txt.SetDisplayPosition(20,20)
-        self.renderer.AddActor(txt)
+        config_n_actor = vtk.vtkTextActor()
+        config_n_actor.SetInput(str(self.cur_frame))
+        config_n_actor.SetTextProperty(self.settings["config_n_text_prop"])
+        config_n_actor.SetDisplayPosition(20,20)
+        self.renderer.AddActor(config_n_actor)
 
         # refresh display
         self.renderer.GetRenderWindow().Render()
