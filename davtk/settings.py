@@ -133,6 +133,7 @@ class DavTKSettings(object):
         self.parser_bond_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_bond_type.add_argument("-radius",type=float,default=None)
         self.parser_bond_type.add_argument("-opacity",type=float,default=None)
+        self.parser_bond_type.add_argument("-default",action='store_true')
         self.parsers["bond_type"] = (self.parse_bond_type, self.parser_bond_type.format_usage(), self.parser_bond_type.format_help())
 
         self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
@@ -226,8 +227,10 @@ class DavTKSettings(object):
     def parse_bond_type(self, args):
         refresh = None
         args = self.parser_bond_type.parse_args(args)
-        if len(self.settings["bond_types"].keys()) == 0:
+
+        if len(self.settings["bond_types"].keys()) == 0: # first bond type is initial default
             self.settings["default_bond_type"] = args.name
+
         if args.name not in self.settings["bond_types"]:
             self.settings["bond_types"][args.name] = {}
             self.settings["bond_types"][args.name]["opacity"] = 1.0
@@ -245,6 +248,10 @@ class DavTKSettings(object):
         if args.radius is not None:
             refresh = "all"
             self.settings["bond_types"][args.name]["radius"] = args.radius
+
+        if args.default:
+            self.settings["default_bond_type"] = args.name
+
         return refresh
 
     def parse_cell_box_color(self, args):
