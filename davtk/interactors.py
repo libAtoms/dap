@@ -19,7 +19,7 @@ def pick_actors(at, actors):
     for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
         at.bonds.set_picked(i_at, i_bond, stat)
 
-class RubberbandSelect(vtk.vtkInteractorStyleRubberBand2D):
+class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
     def __init__(self,davtk_state,parent=None):
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.prev_style = None
