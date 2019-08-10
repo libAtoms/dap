@@ -538,7 +538,7 @@ class DaVTKState(object):
 
             coord = vtk.vtkCoordinate()
             coord.SetCoordinateSystemToDisplay()
-            coord.SetValue(legend_pos[0], legend_pos[1]-self.settings.legend['spacing']*l_i, 0)
+            coord.SetValue(legend_pos[0], legend_pos[1]-self.settings.legend['spacing']*l_i, 0.01)
             sphere_pos_world = coord.GetComputedWorldValue(self.renderer)
 
             legend_sphere_actor.SetPosition(sphere_pos_world[0:3])

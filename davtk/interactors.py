@@ -58,14 +58,19 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.AddObserver("KeyPressEvent",self.keyPressEvent)
         self.AddObserver("TimerEvent",self.timerEvent)
 
-        if(parent is not None):
+        if parent is not None:
             self.parent = parent
         else:
             self.parent = vtk.vtkRenderWindowInteractor()
 
+        # may slow things down?
+        self.parent.AddObserver("ModifiedEvent",self.modifiedEvent)
+
         self.davtk_state = davtk_state
         self.settings = settings
         self.select_style = select_style
+
+        self.prev_size = (0,0)
 
     def timerEvent(self,obj,event):
         if select.select([sys.stdin], [], [], 0)[0]:
@@ -85,6 +90,12 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             if self.GetInteractor() is not None:
                 self.GetInteractor().Render()
             self.GetDefaultRenderer().GetRenderWindow().Render()
+
+    def modifiedEvent(self,obj,event):
+        new_size = obj.GetSize()
+        if new_size != self.prev_size:
+            self.prev_size = new_size
+        self.davtk_state.update(frames="cur")
 
     def keyPressEvent(self,obj,event):
         k = self.parent.GetKeySym()
