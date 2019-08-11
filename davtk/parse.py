@@ -373,6 +373,34 @@ def parse_measure(davtk_state, renderer, args):
     return None
 parsers["measure"] = (parse_measure, parser_measure.format_usage(), parser_measure.format_help())
 
+parser_volume = ThrowingArgumentParser(prog="volume",description="read and display volumetric data")
+parser_volume.add_argument("filename",help="file to read from")
+group = parser_volume.add_mutually_exclusive_group()
+group.add_argument("-isosurface",type=float,nargs=5,action='append',metavar=["THRESH","R","G","B","OPACITY"], help="isosurface threshold  r g b opacity")
+group.add_argument("-volumetric",type=float,nargs=4,action='append',metavar=["SCALE","R","G","B"], help="volumetric val_to_opacity_factor r g b")
+def parse_volume(davtk_state, renderer, args):
+    args = parser_volume.parse_args(args)
+    with open(args.filename) as fin:
+        extents = [int(i) for i in fin.readline().rstrip().split()]
+        if len(extents) != 3:
+            raise ValueError("Got bad number of extents {} != 3 on first line of '{}'".format(len(full_extents), filename))
+
+        # order of indices in data needs is being reversed
+        data = np.zeros(extents[::-1])
+        for l in fin:
+            (i0, i1, i2, v) = l.rstrip().split()
+            data[int(i2),int(i1),int(i0)] = float(v)
+
+    if args.isosurface:
+        for params in args.isosurface:
+            davtk_state.add_isosurface(data, extents, params)
+    if args.volumetric:
+        for params in args.volumetric:
+            raise ValueError("volume -volumetric not supported")
+
+    return "cur"
+parsers["volume"] = (parse_volume, parser_volume.format_usage(), parser_volume.format_help())
+
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):

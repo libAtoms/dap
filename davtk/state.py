@@ -2,6 +2,7 @@ import sys, ase.io, math
 import numpy as np
 import vtk
 import ase.neighborlist
+from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 
 def find_min_max(at_list):
     min_pos = sys.float_info.max
@@ -164,6 +165,8 @@ class DaVTKState(object):
         self.cur_n_bond_actors = 0
 
         self.saved_views = {}
+
+        self.isosurfaces = []
 
         self.update()
 
@@ -617,6 +620,9 @@ class DaVTKState(object):
             for actor in self.label_actor_pool[0:self.cur_n_label_actors]:
                 self.renderer.AddActor(actor)
 
+        for actor in self.isosurfaces:
+            self.renderer.AddActor(actor)
+
         # config_n
         config_n_actor = vtk.vtkTextActor()
         config_n_actor.SetInput(str(self.cur_frame))
@@ -752,3 +758,66 @@ class DaVTKState(object):
         # restore view
 
         self.show_frame(frame_i=0)
+
+    def array_to_image(self, data):
+        img = vtkImageImportFromArray()
+        img.SetArray(data)
+        img.Update()
+        return img
+
+    def add_isosurface(self, data, extents, params):
+        # prepare transformation
+        t = vtk.vtkTransform()
+        m = t.GetMatrix()
+        c = self.cur_at().get_cell()
+        # scale so 0--1 spans entire cell vector.
+        c[0,:] /= extents[0]
+        c[1,:] /= extents[1]
+        c[2,:] /= extents[2]
+
+        # transformation matrix is transpose of cell matrix
+        for i0 in range(3):
+            for i1 in range(3):
+                m.SetElement(i1,i0,c[i0,i1])
+
+        # swap axes if needed
+        # in data array, axes are 1 and 2 (swapaxes), but these correspond to lattice vectors 0 and 1 (i_of)
+        if m.Determinant() < 0:
+            old_data = data
+            data = np.ascontiguousarray(np.swapaxes(data, 1, 2))
+            i_of = [1,0,2]
+            for i0 in range(3):
+                for i1 in range(3):
+                    m.SetElement(i1,i0,c[i_of[i0],i1])
+
+        img = self.array_to_image(data)
+
+        img_data = img.GetOutput()
+
+        isosurface = vtk.vtkMarchingCubes()
+        isosurface.SetInputData( img_data )
+        isosurface.ComputeNormalsOn()
+        isosurface.SetValue( 0, params[0] )
+        isosurface.Update()
+
+        sheared_iso = vtk.vtkTransformFilter()
+        sheared_iso.SetInputData( isosurface.GetOutput() )
+
+        sheared_iso.SetTransform(t)
+        sheared_iso.Update()
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData( sheared_iso.GetOutput() )
+        mapper.ScalarVisibilityOff()
+        mapper.Update()
+
+        actor = vtk.vtkActor()
+        actor.SetMapper( mapper )
+        actor.GetProperty().SetColor( params[1], params[2], params[3] )
+        actor.GetProperty().SetOpacity( params[4] )
+        actor.GetProperty().BackfaceCullingOff()
+        actor.SetVisibility(True)
+        actor.PickableOff()
+
+        self.isosurfaces.append(actor)
+        self.show_frame(dframe=0)
