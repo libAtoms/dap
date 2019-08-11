@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import numpy as np, sys, re, tempfile, os
+import ase.io
 
 from davtk.parse_utils import ThrowingArgumentParser
 try:
@@ -35,6 +36,69 @@ def parse_help(davtk_state, renderer, args):
 parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
 
 ################################################################################
+
+parser_write_state = ThrowingArgumentParser(prog="write_state",description="write state of dap, including atomic configs, settings, and view")
+parser_write_state.add_argument("-cur_frame_only",action="store_true")
+parser_write_state.add_argument("filename",action="store",type=str,help="name of file to save into")
+def parse_write_state(davtk_state, renderer, args):
+    args = parser_write_state.parse_args(args)
+
+    with open(args.filename+".settings","w") as fout:
+        davtk_state.settings.write(fout)
+        fout.write("restore_view -data "+" ".join([str(v) for v in davtk_state.get_view()]))
+
+    with open(args.filename,"w") as fout:
+        if args.cur_frame_only:
+            ats = [davtk_state.cur_at()]
+        else:
+            ats = davtk_state.at_list
+
+        ase.io.write(fout, ats, format=os.path.splitext(args.filename)[1].replace(".",""))
+    return None
+parsers["write_state"] = (parse_write_state, parser_write_state.format_usage(), parser_write_state.format_help())
+
+parser_restore_view = ThrowingArgumentParser(prog="restore_view",description="use stored viewing transform in ASE atoms object")
+group = parser_restore_view.add_mutually_exclusive_group()
+group.add_argument("-name",action="store",type=str,help="name of info field to restore view from", default="_vtk_view")
+group.add_argument("-data",type=float,nargs='+',action="store",help="list of values defining view")
+parser_restore_view.add_argument("-in_config",action="store_true",help="get data from configuration info dict")
+def parse_restore_view(davtk_state, renderer, args):
+    args = parser_restore_view.parse_args(args)
+
+    if args.data:
+        davtk_state.restore_view(args.data)
+    else: # by name
+        if args.in_config:
+            at = davtk_state.cur_at()
+            if args.name in at.info:
+                davtk_state.restore_view(at.info["_vtk_view_"+args.name])
+            else:
+                raise ValueError("restore_view info field '{}' not found".format(args.name))
+        else:
+            davtk_state.restore_view(davtk_state.saved_views[args.name])
+    return None
+parsers["restore_view"] = (parse_restore_view, parser_restore_view.format_usage(), parser_restore_view.format_help(), None)
+
+parser_save_view = ThrowingArgumentParser(prog="save_view",description="store viewing transform in ASE atoms object")
+parser_save_view.add_argument("-all_frames",action="store_true")
+parser_save_view.add_argument("-in_config",action="store_true",help="save data in configuration info dict")
+parser_save_view.add_argument("-name",action="store",type=str,help="name of info field to save view into", default="_vtk_view")
+def parse_save_view(davtk_state, renderer, args):
+    args = parser_save_view.parse_args(args)
+    view = davtk_state.get_view()
+    if args.in_config:
+        if args.all_frames:
+            ats = davtk_state.at_list
+        else:
+            ats = [davtk_state.cur_at()]
+
+        for at in ats:
+            at.info["_vtk_view_"+args.name] = view
+    else:
+        davtk_state.saved_views[args.name] = view
+
+    return None
+parsers["save_view"] = (parse_save_view, parser_save_view.format_usage(), parser_save_view.format_help(), None)
 
 parser_atom_type_field = ThrowingArgumentParser(prog="atom_type_field",description="ASE at.arrays field to use for atom type")
 parser_atom_type_field.add_argument("-all_frames",action="store_true")
@@ -250,6 +314,8 @@ def parse_X(davtk_state, renderer, args):
     else:
         ats = [davtk_state.cur_at()]
     settings = davtk_state.settings
+    import ase
+    from ase.io import write
     for atoms in ats:
         globals()["atoms"] = atoms
         if args.global_context:

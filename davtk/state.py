@@ -163,6 +163,8 @@ class DaVTKState(object):
         self.bond_actor_pool = []
         self.cur_n_bond_actors = 0
 
+        self.saved_views = {}
+
         self.update()
 
     def cur_at(self):
@@ -192,7 +194,7 @@ class DaVTKState(object):
             return [self.cur_frame]
         elif isinstance(frames,int):
             return [frames]
-        elif frames is None:
+        elif frames is None or frames == "all":
             return range(len(self.at_list))
         else:
             return frames
@@ -482,7 +484,7 @@ class DaVTKState(object):
             mapper = vtk.vtkPolyDataMapper()
             mapper.SetInputData(linesPolyData)
 
-            actor = self.at_list[frame_i].info["_NOPRINT_vtk_cell_box_actor"]
+            actor = self.at_list[frame_i]._NOPRINT_vtk_cell_box_actor
             actor.SetMapper(mapper)
             actor.GetProperty().SetColor(self.settings["cell_box_color"])
             actor.PickableOff()
@@ -492,7 +494,7 @@ class DaVTKState(object):
             at = self.at_list[frame_i]
 
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
-            at.info["_NOPRINT_vtk_cell_box_actor"] = vtk.vtkActor()
+            at._NOPRINT_vtk_cell_box_actor = vtk.vtkActor()
             at.info["_vtk_show_labels"] = False
 
     def show_image_atoms(self, at, pos):
@@ -598,7 +600,7 @@ class DaVTKState(object):
         self.renderer.RemoveAllViewProps()
 
         # actor for cell box
-        self.renderer.AddActor(at.info["_NOPRINT_vtk_cell_box_actor"])
+        self.renderer.AddActor(at._NOPRINT_vtk_cell_box_actor)
 
         # create actors for atom images
         pos = at.get_positions()
@@ -730,3 +732,23 @@ class DaVTKState(object):
         writer.SetInputConnection(renderLarge.GetOutputPort())
         writer.SetFileName(filename)
         writer.Write()
+
+    def get_view(self):
+        cam = self.renderer.GetActiveCamera()
+        quantities = [cam.GetParallelScale()] + list(cam.GetPosition()) + list(cam.GetFocalPoint()) + list(cam.GetClippingRange()) + list(cam.GetViewUp())
+        return quantities
+
+    def restore_view(self, quantities):
+        if len(quantities) != 12:
+            raise ValueError("restore_view got wrong number of values {} != 12".format(len(quantities)))
+        cam = self.renderer.GetActiveCamera()
+        cam.SetParallelScale(quantities[0])
+        cam.SetPosition(quantities[1:4])
+        cam.SetFocalPoint(quantities[4:7])
+        cam.SetClippingRange(quantities[7:9])
+        cam.SetViewUp(quantities[9:12])
+
+    def startup(self):
+        # restore view
+
+        self.show_frame(frame_i=0)

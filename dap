@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-import ase.io, vtk, sys, os
+import ase.io, vtk, sys, os, re
 from davtk.settings import DavTKSettings
 from davtk.parse import parse_file
 from davtk.state import *
@@ -10,17 +10,19 @@ from davtk.interactors import *
 import argparse
 
 cli_parse = argparse.ArgumentParser()
-cli_parse.add_argument("--geometry",nargs=2,type=int,default=[800,800])
-cli_parse.add_argument("atom_files",nargs="+",type=str)
+cli_parse.add_argument("--geometry","-g",type=str,default="1000x1000")
+cli_parse.add_argument("--read_commands","-r",action='append',type=str, help="files to read commands from (in addition to .daprc)", default=[])
+cli_parse.add_argument("atoms_files",nargs="+",type=str)
 args = cli_parse.parse_args()
 
-# read atoms from atom_files
+# read atoms from atoms_files
 at_list = []
-for f in args.atom_files:
+for f in args.atoms_files:
     for at in ase.io.read(f,":"):
         at.info["_vtk_filename"] = f
         at_list.append(at)
 
+# read settings from home dir and current dir
 settings = DavTKSettings()
 try:
     parse_file(os.path.join(os.environ["HOME"],".daprc"), settings=settings)
@@ -35,7 +37,10 @@ except IOError:
 renderer = vtk.vtkRenderer()
 renderer.SetBackground(settings["background_color"])
 renwin = vtk.vtkRenderWindow()
-renwin.SetSize(args.geometry[0], args.geometry[1])
+m = re.search("^(\d+)x(\d+)$", args.geometry)
+if not m:
+    raise ValueError("-geometry '{}' not NxM".format(args.geometry))
+renwin.SetSize(int(m.group(1)), int(m.group(2)))
 renwin.AddRenderer(renderer)
 
 # An interactor for mouse stuff
@@ -60,7 +65,6 @@ interactor.SetInteractorStyle(def_style)
 camera = renderer.GetActiveCamera()
 camera.ParallelProjectionOn()
 camera.SetParallelScale(np.max(max_pos-min_pos))
-transform = vtk.vtkTransform()
 extent = max(max_pos) - min(min_pos)
 camera.SetPosition([(max_pos[0]+min_pos[0])/2.0, (max_pos[1]+min_pos[1])/2.0, 1000.0+extent/2.0])
 camera.SetFocalPoint((max_pos+min_pos)/2.0)
@@ -68,7 +72,11 @@ camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
 # start viewing first frame
 davtk_state.update()
-davtk_state.show_frame(frame_i=0)
+davtk_state.startup()
+
+# now that atoms are read in and davtk_state exists, read any other commands (e.g. extra settings)
+for f in args.read_commands:
+    parse_file(f, settings=settings, state=davtk_state)
 
 print("""DAP
 
