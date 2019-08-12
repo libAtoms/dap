@@ -29,7 +29,8 @@ for (filename, fmt) in zip(args.atoms_files, args.format):
     else:
         r = ":"
     for at in ase.io.read(filename, r, format=fmt):
-        at.info["_vtk_filename"] = filename
+        if not "_vtk_filename" in at.info:
+            at.info["_vtk_filename"] = filename
         at_list.append(at)
 
 # read settings from home dir and current dir
@@ -83,6 +84,9 @@ camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 # start viewing first frame
 davtk_state.update()
 davtk_state.startup()
+
+# must do this rather late in the process
+renwin.SetWindowName("dap "+" ".join(args.atoms_files))
 
 # now that atoms are read in and davtk_state exists, read any other commands (e.g. extra settings)
 for l in args.execute_commands:
