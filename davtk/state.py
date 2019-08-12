@@ -798,7 +798,7 @@ class DaVTKState(object):
 
         return actor
 
-    def add_volume_rep(self, name, data, extents, style, params):
+    def add_volume_rep(self, name, data, style, params):
         at = self.cur_at()
         if not hasattr(at, "volume_reps"):
             at.volume_reps = {}
@@ -808,10 +808,11 @@ class DaVTKState(object):
             transform = vtk.vtkTransform()
             m = transform.GetMatrix()
             c = at.get_cell()
-            # scale so 0--1 spans entire cell vector.
-            c[0,:] /= extents[0]
-            c[1,:] /= extents[1]
-            c[2,:] /= extents[2]
+            # scale so 0--1 spans entire cell vector.  Note that data storage is opposite 
+            # of lattice vector ordering
+            c[0,:] /= data.shape[2]
+            c[1,:] /= data.shape[1]
+            c[2,:] /= data.shape[0]
             # transformation matrix is transpose of cell matrix
             for i0 in range(3):
                 for i1 in range(3):

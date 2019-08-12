@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import numpy as np, sys, re, tempfile, os
 import ase.io
+from ase.calculators.vasp import VaspChargeDensity
 
 from davtk.parse_utils import ThrowingArgumentParser
 try:
@@ -375,21 +376,25 @@ parsers["measure"] = (parse_measure, parser_measure.format_usage(), parser_measu
 
 parser_volume = ThrowingArgumentParser(prog="volume",description="read volumetric data from file")
 parser_volume.add_argument("filename",nargs='?',help="file to read from")
-parser_volume.add_argument("-name",type=str, help="name to assign", default="default")
+parser_volume.add_argument("-name",type=str, help="name to assign", default=None)
 group = parser_volume.add_mutually_exclusive_group()
-group.add_argument("-delete", action='store_true', help="delete this set of volume representations")
+group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
 group.add_argument("-list", action='store_true', help="list existing volume representations")
 group.add_argument("-isosurface",type=float,nargs=5,action='append',metavar=["THRESHOLD","R","G","B","OPACITY"], help="isosurface threshold, color, and opacity")
 group.add_argument("-volumetric",type=float,nargs=4,action='append',metavar=["SCALE","R","G","B"], help="volumetric value_to_opacity_factor and color")
 def parse_volume(davtk_state, renderer, args):
     args = parser_volume.parse_args(args)
-    if args.delete:
-        davtk_state.delete_volume_rep(args.name)
+    if args.delete is not None:
+        davtk_state.delete_volume_rep(args.delete)
     elif args.list:
-        print("Defined volume names: "+" ".join(davtk_state.volume_reps.keys()))
+        print("Defined volume names: "+" ".join(davtk_state.cur_at().volume_reps.keys()))
     else:
-        if args.filename.endswith(".CHGCAR"):
-            raise ValueError("CHGCAR not supported")
+        if args.name is None:
+            args.name = args.filename
+
+        if args.filename.endswith("CHGCAR"):
+            chgcar = VaspChargeDensity(args.filename)
+            data = chgcar.chg[0]
         else:
             with open(args.filename) as fin:
                 extents = [int(i) for i in fin.readline().rstrip().split()]
@@ -404,7 +409,7 @@ def parse_volume(davtk_state, renderer, args):
 
         if args.isosurface:
             for params in args.isosurface:
-                davtk_state.add_volume_rep(args.name, data, extents, "isosurface", params)
+                davtk_state.add_volume_rep(args.name, data, "isosurface", params)
         if args.volumetric:
             for params in args.volumetric:
                 raise ValueError("volume -volumetric not supported")
@@ -415,35 +420,34 @@ parsers["volume"] = (parse_volume, parser_volume.format_usage(), parser_volume.f
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):
-    if len(line.strip()) > 0:
-        args = line.split()
 
-        matches_settings = [ k for k in settings.parsers.keys() if k.startswith(args[0]) ]
-        matches_cmds = [ k for k in parsers.keys() if k.startswith(args[0]) ]
-
-        if len(matches_settings+matches_cmds) == 0: # no match
-            raise ValueError("Unknown command '{}'\n".format(args[0]))
-
-        if len(matches_settings+matches_cmds) == 1: # unique match
-            if len(matches_settings) == 1:
-                return settings.parsers[matches_settings[0]][0](args[1:])
-            else: # must be matches_cmds
-                return parsers[matches_cmds[0]][0](state, renderer, args[1:])
-
-        if args[0] in matches_settings:
-            return settings.parsers[args[0]][0](args[1:])
-        if args[0] in matches_cmds:
-            return parsers[args[0]][0](state, renderer, args[1:])
-
-        raise ValueError("Ambiguous command '{}', matches {}".format(args[0], matches_settings+matches_cmds))
-    else:
+    if re.search('^\s*#', line) or len(line.strip()) == 0:
         return None
+
+    args = line.split()
+
+    matches_settings = [ k for k in settings.parsers.keys() if k.startswith(args[0]) ]
+    matches_cmds = [ k for k in parsers.keys() if k.startswith(args[0]) ]
+
+    if len(matches_settings+matches_cmds) == 0: # no match
+        raise ValueError("Unknown command '{}'\n".format(args[0]))
+
+    if len(matches_settings+matches_cmds) == 1: # unique match
+        if len(matches_settings) == 1:
+            return settings.parsers[matches_settings[0]][0](args[1:])
+        else: # must be matches_cmds
+            return parsers[matches_cmds[0]][0](state, renderer, args[1:])
+
+    if args[0] in matches_settings:
+        return settings.parsers[args[0]][0](args[1:])
+    if args[0] in matches_cmds:
+        return parsers[args[0]][0](state, renderer, args[1:])
+
+    raise ValueError("Ambiguous command '{}', matches {}".format(args[0], matches_settings+matches_cmds))
 
 def parse_file(filename, settings, state=None):
     with open(filename) as fin:
         for l in fin.readlines():
-            if l.startswith("#"):
-                continue
             refresh = parse_line(l, settings, state)
             if state is not None:
                 state.update(refresh)

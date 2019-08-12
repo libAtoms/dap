@@ -11,7 +11,7 @@ import argparse
 
 cli_parse = argparse.ArgumentParser()
 cli_parse.add_argument("--geometry","-g",type=str,default="1000x1000")
-cli_parse.add_argument("--read_commands","-r",action='append',type=str, help="files to read commands from (in addition to .daprc)", default=[])
+cli_parse.add_argument("--execute_commands","-e",action='append',type=str, help="commands to execute (';' separated)", default=[])
 cli_parse.add_argument("atoms_files",nargs="+",type=str)
 args = cli_parse.parse_args()
 
@@ -75,8 +75,9 @@ davtk_state.update()
 davtk_state.startup()
 
 # now that atoms are read in and davtk_state exists, read any other commands (e.g. extra settings)
-for f in args.read_commands:
-    parse_file(f, settings=settings, state=davtk_state)
+for l in args.execute_commands:
+    for sub_l in l.split(";"):
+        parse_line(sub_l, settings=settings, state=davtk_state)
 
 print("""DAP
 
