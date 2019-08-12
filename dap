@@ -12,14 +12,24 @@ import argparse
 cli_parse = argparse.ArgumentParser()
 cli_parse.add_argument("--geometry","-g",type=str,default="1000x1000")
 cli_parse.add_argument("--execute_commands","-e",action='append',type=str, help="commands to execute (';' separated)", default=[])
-cli_parse.add_argument("atoms_files",nargs="+",type=str)
+cli_parse.add_argument("--format","-f",type=str, nargs='+', help="formats for each atoms file", default = None)
+cli_parse.add_argument("atoms_files",nargs="+",type=str,help="atoms files in any ase.io.read format, optionally including '@START:END:STEP' interval")
 args = cli_parse.parse_args()
 
 # read atoms from atoms_files
+if args.format is None:
+    args.format = [ None ] * len(args.atoms_files)
+else:
+    if len(args.format) != len(args.atoms_files):
+        raise ValueError("Got {} formats, but different number of atoms files {}".format(len(args.format), len(args.atoms_files)))
 at_list = []
-for f in args.atoms_files:
-    for at in ase.io.read(f,":"):
-        at.info["_vtk_filename"] = f
+for (filename, fmt) in zip(args.atoms_files, args.format):
+    if "@" in filename:
+        r = None
+    else:
+        r = ":"
+    for at in ase.io.read(filename, r, format=fmt):
+        at.info["_vtk_filename"] = filename
         at_list.append(at)
 
 # read settings from home dir and current dir

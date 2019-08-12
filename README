@@ -1,0 +1,58 @@
+OVERVIEW
+
+dap is a program to "Display Atoms" with "Python", based on ASE 
+    https://wiki.fysik.dtu.dk/ase/
+and vtk
+    https://pypi.org/project/vtk/
+
+FUNCTIONALITY
+    display atoms from any ase.io.read compatible format
+        atom color/radius by fixed value or based on arbitrary scalar Atoms.arrays property
+        atomic labels from ID# or other proprty (e.g. Z, species, or arbitrary Atoms.arrays property)
+    create bonds by cutoff or indices (optionally filtered by type)
+        bonds across PBCs show up as two half bonds
+    display isosurfaces from volumetric data over the config unit cell (including non-orthorhombic)
+        simple ASCII format
+        CHGCAR from VaspChargeDensity from ase.calculators.vasp 
+    multiple configurations interpreted as trajectories (i.e. identical camera view)
+    snapshots by rendering at arbitrary integer multiples of display resolution
+    automated movie creation (requires ffmpeg executable)
+    arbitrary ASE commands applied to atomic configurations
+    display legend with each used atom type
+    save full state of display (atoms, settings, but not including window size)
+
+    GUI
+        rotate, zoom, translate
+        pick by point or area
+        measure picked objects (position, distance, angle)
+            display in CLI window
+
+####################################################################################################
+
+USAGE:
+    dap [ -g WIDTHxHEIGHT ] [ -e 'command ... [ ; command ... ] ' ] atoms_filename [ atoms_filename ... ]
+Input atoms files can be any ase.io.read compatible format.
+
+Settings commands (which are required to define atomic/bond types before the atoms files are read in) 
+are read from
+    ~/.daprc
+and then
+    $PWD/.daprc
+
+Additional commands can be passed with '-e', and these include 'read commands_filename' to read 
+commands from a file.
+
+GUI help is available by typing 'h' in the GUI window (but displayed in the CLI window).
+CLI help is available with 'usage' or for each command with 'command -h' in the CLI winow
+
+####################################################################################################
+
+TODO (in no particular order, difficulty in parens)
+    read CHG as well as CHGCAR (easy)
+    change from ffmpeg executable to python-ffmpeg (easy)
+    better integration with ASE data structures (hard)
+    measure angle for atoms, not just bonds ? (easy)
+    display measurements in GUI ? (medium)
+    fix right vs. left-handed coord system (medium)
+    slices through volumetric data (maybe also voxel visualization) (depends on vtk support)
+    better examples (easy)
