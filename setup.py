@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 import os
 
 setup(name='dap',
-      version='0.8',
+      version='0.8.1',
       description='Display atomic configuration',
       author='Noam Bernstein',
       author_email='noam.bernstein@nrl.navy.mil',
