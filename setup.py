@@ -9,7 +9,7 @@ setup(name='dap',
       author='Noam Bernstein',
       author_email='noam.bernstein@nrl.navy.mil',
       packages=find_packages(),
-      data_files=[('config',['daprc, README'])],
+      data_files=[('config',['daprc', 'README'])],
       scripts=['dap'],
       install_requires=['ase','vtk']
      )

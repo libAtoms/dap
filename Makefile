@@ -1,7 +1,7 @@
 install:
 	python setup.py install --user
 
-dist:
+dist: setup.py
 	python setup.py sdist
 
 clean:
