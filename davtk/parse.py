@@ -365,7 +365,7 @@ def parse_label(davtk_state, renderer, args):
             at.info["_vtk_show_labels"] = False
         else:
             at.info["_vtk_show_labels"] = not at.info["_vtk_show_labels"] 
-    return refresh
+    return "cur"
 parsers["label"] = (parse_label, parser_label.format_usage(), parser_label.format_help())
 
 parser_measure = ThrowingArgumentParser(prog="measure",description="measure some quantities for picked objects (default) or listed atoms")

@@ -210,6 +210,9 @@ class DaVTKState(object):
 
         self.update()
 
+    def __len__(self):
+        return len(self.at_list)
+
     def cur_at(self):
         return self.at_list[self.cur_frame]
 
@@ -616,7 +619,7 @@ class DaVTKState(object):
             legend_label_actor.VisibilityOn()
             self.renderer.AddActor(legend_label_actor)
 
-    def show_frame(self, dframe=None, frame_i=None):
+    def set_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
             if frame_i is not None:
                 raise ValueError("set_show_frame got both dframe and frame_i")
@@ -632,6 +635,9 @@ class DaVTKState(object):
 
         # wrap around
         self.cur_frame = self.cur_frame % len(self.at_list)
+
+    def show_frame(self, dframe=None, frame_i=None):
+        self.set_frame(dframe, frame_i)
 
         at = self.at_list[self.cur_frame]
 

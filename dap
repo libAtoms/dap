@@ -88,6 +88,14 @@ davtk_state.startup()
 # must do this rather late in the process
 renwin.SetWindowName("dap "+" ".join(args.atoms_files))
 
+# read commands from atomic config headers
+for frame_i in range(len(davtk_state)):
+    if "_vtk_commands" in at_list[frame_i].info:
+        davtk_state.set_frame(frame_i)
+        for cmd in at_list[frame_i].info["_vtk_commands"].split(";"):
+            parse_line(cmd, settings=settings, state=davtk_state)
+davtk_state.show_frame(frame_i=0)
+
 # now that atoms are read in and davtk_state exists, read any other commands (e.g. extra settings)
 for l in args.execute_commands:
     for sub_l in l.split(";"):
