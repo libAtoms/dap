@@ -668,7 +668,7 @@ class DaVTKState(object):
 
         try:
             for volume_rep in at.volume_reps.values():
-                for actor in volume_rep[2]:
+                for (actor, _) in volume_rep[2]:
                     self.renderer.AddActor(actor)
         except AttributeError:
             pass
@@ -854,7 +854,7 @@ class DaVTKState(object):
 
         return actor
 
-    def add_volume_rep(self, name, data, style, params):
+    def add_volume_rep(self, name, data, style, params, cmd_string):
         at = self.cur_at()
         if not hasattr(at, "volume_reps"):
             at.volume_reps = {}
@@ -890,7 +890,7 @@ class DaVTKState(object):
             transform = at.volume_reps[name][1]
 
         if style == "isosurface":
-            at.volume_reps[name][2].append(self.make_isosurface(img, transform, params))
+            at.volume_reps[name][2].append((self.make_isosurface(img, transform, params), cmd_string))
         else:
             raise ValueError("add_volume_rep got unsupported style '{}'".format(style))
 
@@ -899,12 +899,30 @@ class DaVTKState(object):
             ats = self.at_list
 
         for at in ats:
+            # all _vtk_commands have already been incorporated in, should be part of state and no longer needed
+            try:
+                del at.info["_vtk_commands"]
+            except KeyError:
+                pass
+
+            # save bonds
             try:
                 bonds = at.bonds
             except AttributeError:
                 bonds = None
             if bonds:
                 at.bonds.write_to_atoms_arrays()
+
+            # save volume commands
+            if len(at.volume_reps) > 0:
+                if "_vtk_commands" not in at.info:
+                    at.info["_vtk_commands"] = ""
+                for volume_rep in at.volume_reps.values():
+                    for (_, cmd) in volume_rep[2]:
+                        at.info["_vtk_commands"] += ' '.join(cmd) + " ;"
+                if at.info["_vtk_commands"].endswith(";"):
+                    at.info["_vtk_commands"] = at.info["_vtk_commands"][:-1]
+
 
     def prep_after_atoms_read(self, ats=None):
         if ats is None:

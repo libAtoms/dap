@@ -94,6 +94,7 @@ for frame_i in range(len(davtk_state)):
         davtk_state.set_frame(frame_i)
         for cmd in at_list[frame_i].info["_vtk_commands"].split(";"):
             parse_line(cmd, settings=settings, state=davtk_state)
+        del at_list[frame_i].info["_vtk_commands"]
 davtk_state.show_frame(frame_i=0)
 
 # now that atoms are read in and davtk_state exists, read any other commands (e.g. extra settings)

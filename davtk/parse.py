@@ -393,6 +393,7 @@ group.add_argument("-list", action='store_true', help="list existing volume repr
 group.add_argument("-isosurface",type=float,nargs=5,action='append',metavar=("THRESHOLD","R","G","B","OPACITY"), help="isosurface threshold, color, and opacity")
 group.add_argument("-volumetric",type=float,nargs=4,action='append',metavar=("SCALE","R","G","B"), help="volumetric value_to_opacity_factor and color")
 def parse_volume(davtk_state, renderer, args):
+    args_list = args
     args = parser_volume.parse_args(args)
     if args.delete is not None:
         davtk_state.delete_volume_rep(args.delete)
@@ -421,7 +422,7 @@ def parse_volume(davtk_state, renderer, args):
 
         if args.isosurface:
             for params in args.isosurface:
-                davtk_state.add_volume_rep(args.name, data, "isosurface", params)
+                davtk_state.add_volume_rep(args.name, data, "isosurface", params, ["volume"] + args_list)
         if args.volumetric:
             for params in args.volumetric:
                 raise ValueError("volume -volumetric not supported")
