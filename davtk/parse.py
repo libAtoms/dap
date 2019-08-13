@@ -121,7 +121,7 @@ def parse_movie(davtk_state, renderer, args):
     for frame_i in frames:
         davtk_state.show_frame(frame_i)
         data = davtk_state.snapshot().astype(np.uint8)
-        data = flip(data, axis=0)
+        data = np.ascontiguousarray(np.flip(data, axis=0))
 
         if frame_i == frames[0]:
             # start ffmpeg
