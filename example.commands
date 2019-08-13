@@ -6,5 +6,5 @@ legend
 # bond by automatic cutoffs, default bond_type (i.e. alt)
 bond
 
-# bond C-Si, with cutoff 3.5, bond_type "first"
-bond -name first -rcut 3.5 -T 14 -T2 6
+# bond only Si-C, with cutoff 3.5, bond_type "first"
+bond -name first -rcut 3.5 -T Si -T2 C
