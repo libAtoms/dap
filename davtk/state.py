@@ -79,7 +79,7 @@ class DavTKBonds(object):
             return ( ((at_type == '*' or str(at_type_a[i]) == at_type) and (at_type2 == '*' or str(at_type_a[j]) == at_type2)) or
                      ((at_type == '*' or str(at_type_a[j]) == at_type) and (at_type2 == '*' or str(at_type_a[i]) == at_type2)) )
 
-        atom_type_array = get_atom_type_a(self.at)
+        atom_type_array = get_atom_type_a(self.settings, self.at)
 
         if in_cutoff is None or len(in_cutoff) == 0: # fully auto
             max_cutoff = max([none_zero(self.settings["atom_types"][atom_type_array[i]]["bonding_radius"]) for i in range(len(self.at))])
