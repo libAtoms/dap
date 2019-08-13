@@ -1,5 +1,6 @@
 from __future__ import print_function
-import select, sys
+
+import sys, queue
 import vtk
 from davtk.parse import parse_line
 
@@ -73,23 +74,24 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.prev_size = (0,0)
 
     def timerEvent(self,obj,event):
-        if select.select([sys.stdin], [], [], 0)[0]:
-            line = sys.stdin.readline()
-            try:
-                refresh = parse_line(line.rstrip(), self.settings, self.davtk_state, self.GetDefaultRenderer())
-                print("> ", end=''); sys.stdout.flush()
-                if refresh == "all":
-                    self.davtk_state.update()
-                elif refresh == "cur":
-                    self.davtk_state.update(frames="cur")
-                elif refresh is not None:
-                    raise ValueError("unknown refresh type "+str(refresh))
-            except Exception as e:
-                print("error parsing line",str(e))
+        try:
+            line = self.davtk_state.io_queue.get(block=False)
+        except queue.Empty:
+            return
+        try:
+            refresh = parse_line(line.rstrip(), self.settings, self.davtk_state, self.GetDefaultRenderer())
+            if refresh == "all":
+                self.davtk_state.update()
+            elif refresh == "cur":
+                self.davtk_state.update(frames="cur")
+            elif refresh is not None:
+                raise ValueError("unknown refresh type "+str(refresh))
+        except Exception as e:
+            print("error parsing line",e)
 
-            if self.GetInteractor() is not None:
-                self.GetInteractor().Render()
-            self.GetDefaultRenderer().GetRenderWindow().Render()
+        if self.GetInteractor() is not None:
+            self.GetInteractor().Render()
+        self.GetDefaultRenderer().GetRenderWindow().Render()
 
     def modifiedEvent(self,obj,event):
         new_size = obj.GetSize()
