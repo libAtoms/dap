@@ -19,7 +19,8 @@ FUNCTIONALITY
     automated movie creation (requires ffmpeg executable)
     arbitrary ASE commands applied to atomic configurations
     display legend with each used atom type
-    save full state of display (atoms, settings, but not including window size)
+    save full state of display (settings, atoms, bonds, volumetric data, but not including window size)
+    command history using readline 
 
     GUI
         rotate, zoom, translate
