@@ -93,6 +93,7 @@ for l in args.execute_commands:
     for sub_l in l.split(";"):
         parse_line(sub_l, settings=settings, state=davtk_state)
 
+davtk_state.prep_after_atoms_read()
 print("""DAP
 
 Use 'usage' for general usage info, and 'command -h' for detailed help on each command.

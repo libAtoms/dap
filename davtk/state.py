@@ -2,7 +2,7 @@ import sys, ase.io, math
 import numpy as np
 import vtk
 import ase.neighborlist
-import json
+import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 
 def find_min_max(at_list):
@@ -39,10 +39,12 @@ def get_atom_type_a(settings, at):
     return atom_type
 
 def get_atom_prop(settings, atom_type, i=None, arrays=None):
-    if settings["atom_types"][atom_type]["colormap_func"] is not None and settings["atom_types"][atom_type]["colormap_field"] is not None:
+    if settings["atom_types"][atom_type]["colormap"] is not None:
         prop = vtk.vtkProperty()
         prop.DeepCopy(settings["atom_types"][atom_type]["prop"])
-        prop.SetDiffuseColor(settings["atom_types"][atom_type]["colormap_func"](arrays[settings["atom_types"][atom_type]["colormap_field"]][i]))
+        colormap_field = settings["atom_types"][atom_type]["colormap"][1]
+        colormap_func = settings["atom_types"][atom_type]["colormap"][2]
+        prop.SetDiffuseColor(colormap_func(arrays[colormap_field][i]))
         return prop
     else:
         return settings["atom_types"][atom_type]["prop"]
@@ -106,16 +108,38 @@ class DavTKBonds(object):
             except: # failed, presumably due to bonding_radius None
                 pass
 
-    def write_to_atoms_arrays(self):
-        if "_vtk_bonds" not in self.at.arrays:
-            self.at.add_array("_vtk_bonds", [""] * len(at))
-        for (at_i, b) in enumerate(self.bonds):
-            at.arrays["_vtk_bonds"][i] = json.dumps(b)
+    def write_to_atoms_arrays(self, arrays_field="_vtk_bonds"):
+        if arrays_field is None:
+            arrays_field = "_vtk_bonds"
+        bond_set_strs = []
+        for (at_i, b_set) in enumerate(self.bonds):
+            bond_l = []
+            for b in b_set:
+                v = [ b['j'], b['v'][0], b['v'][1], b['v'][2], b['S'][0], b['S'][1], b['S'][2], b['picked'], b['name'] ]
+                bond_l.append("_".join([str(vi) for vi in v]))
+            bond_set_strs.append(",".join(bond_l) if len(bond_l) > 0 else "_NONE_")
+        self.at.arrays[arrays_field] = np.array(bond_set_strs)
 
-    def read_from_atoms_arrays(self):
+    def read_from_atoms_arrays(self, arrays_field="_vtk_bonds"):
+        if arrays_field is None:
+            arrays_field = "_vtk_bonds"
         self.reinit()
-        for (at_i, b_str) in enumerate(self.arrays["_vtk_bonds"]):
-            self.bonds[at_i] = json.loads(b_str)
+        def str_to_bool(s):
+            if s in ["F", "False", "false", "f"]:
+                return False
+            elif s in ["T", "True", "true", "t"]:
+                return True
+            else:
+                raise ValueError("str_to_bool cannot parse '{}'".format(s))
+        for (at_i, b_str) in enumerate(self.at.arrays[arrays_field]):
+            if b_str == "_NONE_":
+                continue
+            bond_strs = b_str.split(",")
+            for bond_str in bond_strs:
+                m = re.search('^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_(.*)$', bond_str)
+                if m:
+                    (j, v, S, picked, name) = (int(m.group(1)), [float(m.group(i)) for i in range(2,5)], [int(m.group(i)) for i in range(5,8)], str_to_bool(m.group(8)), m.group(9))
+                    self.bonds[at_i].append( {"j" : j, "v" : v, "d" : np.linalg.norm(v), "S" : S, "name" : name, "picked" : picked } )
 
     def pair_mic(self, name, ind1, ind2):
         v = self.at.get_distance(ind1, ind2, mic=True, vector=True)
@@ -854,3 +878,25 @@ class DaVTKState(object):
             at.volume_reps[name][2].append(self.make_isosurface(img, transform, params))
         else:
             raise ValueError("add_volume_rep got unsupported style '{}'".format(style))
+
+    def prep_for_atoms_write(self, ats=None):
+        if ats is None:
+            ats = self.at_list
+
+        for at in ats:
+            try:
+                bonds = at.bonds
+            except AttributeError:
+                bonds = None
+            if bonds:
+                at.bonds.write_to_atoms_arrays()
+
+    def prep_after_atoms_read(self, ats=None):
+        if ats is None:
+            ats = self.at_list
+
+        for at in ats:
+            print("at",at.arrays.keys())
+            if "_vtk_bonds" in at.arrays:
+                at.bonds = DavTKBonds(at, self.settings)
+                at.bonds.read_from_atoms_arrays()

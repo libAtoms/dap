@@ -34,7 +34,7 @@ class DavTKAtomTypes(object):
             return self.add_autogen(key)
 
     def add_autogen(self, name):
-        print("autogenerating with color ",self.colors[self.autogen_used])
+        print("autogenerating {} with color ",name, self.colors[self.autogen_used])
         self.set_type(name=name, color=self.colors[self.autogen_used], radius = 0.5, opacity=1.0)
         self.autogen_used += 1
         return self.types[name]
@@ -43,7 +43,7 @@ class DavTKAtomTypes(object):
         data = {}
         for name in self.types:
             t = self.types[name]
-            data[name] = (t["color"],t["colormap_field"],t["radius"],t["radius_field"],
+            data[name] = (t["color"],t["colormap"],t["radius"],t["radius_field"],
                           t["opacity"],t["label"],t["bonding_radius"])
         return data
 
@@ -52,8 +52,7 @@ class DavTKAtomTypes(object):
         if name not in self.types:
             self.types[name] = {}
             self.types[name]["color"] = None
-            self.types[name]["colormap_func"] = None
-            self.types[name]["colormap_field"] = None
+            self.types[name]["colormap"] = None
             self.types[name]["radius"] = None
             self.types[name]["radius_field"] = None
             self.types[name]["opacity"] = None
@@ -67,12 +66,13 @@ class DavTKAtomTypes(object):
             if colormap is not None:
                 raise ValueError("got color and colormap")
             self.types[name]["color"] = color
+            self.types[name]["colormap"] = None
             self.types[name]["prop"].SetColor(color)
         if colormap is not None:
             if color is not None:
                 raise ValueError("got color and colormap")
-            self.types[name]["colormap_func"] = colormaps[colormap[0]]['f']
-            self.types[name]["colormap_field"] = colormap[1]
+            self.types[name]["colormap"] = (colormap[0], colormap[1], colormaps[colormap[0]]['f'])
+            self.types[name]["color"] = None
         if radius is not None:
             if radius_field is not None:
                 raise ValueError("got radius and radius_field")
@@ -81,8 +81,8 @@ class DavTKAtomTypes(object):
         if radius_field is not None:
             if radius is not None:
                 raise ValueError("got radius_field and radius")
-            self.types[name]["radius"] = None
             self.types[name]["radius_field"] = radius_field
+            self.types[name]["radius"] = None
         if opacity is not None:
             self.types[name]["opacity"] = opacity
             self.types[name]["prop"].SetOpacity(opacity)
@@ -290,7 +290,7 @@ class DavTKSettings(object):
             if color is not None:
                 args_str += ' -color {} {} {}'.format(color[0], color[1], color[2])
             if colormap is not None:
-                args_str += ' -colormap {}'.format(colormap)
+                args_str += ' -colormap {} {}'.format(colormap[0], colormap[1])
             if radius is not None:
                 args_str += ' -radius {}'.format(radius)
             if radius_field is not None:

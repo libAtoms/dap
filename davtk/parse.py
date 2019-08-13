@@ -53,6 +53,8 @@ def parse_write_state(davtk_state, renderer, args):
         else:
             ats = davtk_state.at_list
 
+        davtk_state.prep_for_atoms_write(ats)
+
         ase.io.write(fout, ats, format=os.path.splitext(args.filename)[1].replace(".",""))
     print("Settings written to '{0}.settings', read back with\n    dap -e \"read {0}.settings\" {0}".format(args.filename))
     return None
@@ -200,13 +202,17 @@ def parse_delete(davtk_state, renderer, args):
         frame_list=None
     else:
         frame_list="cur"
-    if args.atoms is None:
-        davtk_state.delete(atoms="picked", bonds="picked", frames=frame_list)
-    else:
-        davtk_state.delete(atoms=args.atoms, frames=frame_list)
 
+    got_arg = False
+    if args.atoms is not None:
+        davtk_state.delete(atoms=args.atoms, frames=frame_list)
+        got_arg = True
     if args.bonds:
         davtk_state.delete(bonds="all", frames=frame_list)
+        got_arg = True
+    if not got_arg:
+        davtk_state.delete(atoms="picked", bonds="picked", frames=frame_list)
+
     return None
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 
