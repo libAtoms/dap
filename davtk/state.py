@@ -51,7 +51,9 @@ def get_atom_prop(settings, atom_type, i=None, arrays=None):
 
 def get_atom_radius(settings, atom_type, i=None, arrays=None):
     if settings["atom_types"][atom_type]["radius_field"] is not None:
-        r = arrays[settings["atom_types"][atom_type]["radius_field"]][i]
+        radius_field = settings["atom_types"][atom_type]["radius_field"][0]
+        factor = settings["atom_types"][atom_type]["radius_field"][1]
+        r = arrays[radius_field][i]*factor
     else:
         r = settings["atom_types"][atom_type]["radius"]
     if r is None:
@@ -72,6 +74,9 @@ class DavTKBonds(object):
 
     def cutoff(self, name, in_cutoff, at_type, at_type2):
 
+        def none_zero(x):
+            return x if x is not None else 0.0
+
         def pair_match(at_type_a, i, j, at_type, at_type2):
             return ( ((at_type == '*' or str(at_type_a[i]) == at_type) and (at_type2 == '*' or str(at_type_a[j]) == at_type2)) or
                      ((at_type == '*' or str(at_type_a[j]) == at_type) and (at_type2 == '*' or str(at_type_a[i]) == at_type2)) )
@@ -79,7 +84,7 @@ class DavTKBonds(object):
         atom_type_array = get_atom_type_a(self.at)
 
         if in_cutoff is None or len(in_cutoff) == 0: # fully auto
-            max_cutoff = max([self.settings["atom_types"][atom_type_array[i]]["bonding_radius"] for i in range(len(self.at))])
+            max_cutoff = max([none_zero(self.settings["atom_types"][atom_type_array[i]]["bonding_radius"]) for i in range(len(self.at))])
             u_cutoff_min = lambda i1, i2 : 0.0
             u_cutoff_max = lambda i1, i2 : 0.5 * ( self.settings["atom_types"][atom_type_array[i1]]["bonding_radius"] +
                                                    self.settings["atom_types"][atom_type_array[i2]]["bonding_radius"] )
@@ -97,8 +102,11 @@ class DavTKBonds(object):
 
         nn_list = ase.neighborlist.neighbor_list('ijDdS', self.at, max_cutoff, self_interaction=True)
         for (i, j, v, d, S) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3], nn_list[4]):
-            if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_match(atom_type_array, i, j, at_type, at_type2):
-                self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
+            try:
+                if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_match(atom_type_array, i, j, at_type, at_type2):
+                    self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
+            except: # failed, presumably due to bonding_radius None
+                pass
 
     def pair_mic(self, name, ind1, ind2):
         v = self.at.get_distance(ind1, ind2, mic=True, vector=True)

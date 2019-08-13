@@ -1,6 +1,6 @@
 from __future__ import print_function
 import argparse, numpy as np, vtk
-import re
+import re, sys
 from davtk.parse_utils import ThrowingArgumentParser
 
 def piecewise_linear(x, t):
@@ -43,10 +43,12 @@ class DavTKAtomTypes(object):
         data = {}
         for name in self.types:
             t = self.types[name]
-            data[name] = (t["color"],t["colormap_field"],t["radius"],t["radius_field"],t["opacity"],t["label"],t["bonding_radius"])
+            data[name] = (t["color"],t["colormap_field"],t["radius"],t["radius_field"],
+                          t["opacity"],t["label"],t["bonding_radius"])
         return data
 
-    def set_type(self, name, color=None, colormap=None, radius=None, radius_field=None, opacity=None, label=None, bonding_radius=None, colormaps=None):
+    def set_type(self, name, color=None, colormap=None, radius=None, radius_field=None,
+                 opacity=None, label=None, bonding_radius=None, colormaps=None):
         if name not in self.types:
             self.types[name] = {}
             self.types[name]["color"] = None
@@ -78,7 +80,7 @@ class DavTKAtomTypes(object):
             self.types[name]["radius_field"] = None
         if radius_field is not None:
             if radius is not None:
-                raise ValueError("got radius and radius_field")
+                raise ValueError("got radius_field and radius")
             self.types[name]["radius"] = None
             self.types[name]["radius_field"] = radius_field
         if opacity is not None:
@@ -99,11 +101,15 @@ class DavTKSettings(object):
             "picked_color" : [1.0, 1.0, 0.0], 
             "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
             "label_text_color" : [1.0, 1.0, 1.0], "label_text_fontsize" : 24,
-            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-100,-100]), 'spacing' : 200 }
+            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-100,-100]), 'spacing' : 100 }
             }
 
         self.parsers = {}
         
+        self.parser_print_settings = ThrowingArgumentParser(prog="print_settings",description="print settings")
+        self.parser_print_settings.add_argument("-keyword_regexp",type=str)
+        self.parsers["print_settings"] = (self.parse_print_settings, self.parser_print_settings.format_usage(), self.parser_print_settings.format_help(), None)
+
         self.parser_legend = ThrowingArgumentParser(prog="legend",description="control legend, toggle by default")
         group = self.parser_legend.add_mutually_exclusive_group()
         group.add_argument("-on",action='store_true',help="enable legend")
@@ -126,10 +132,12 @@ class DavTKSettings(object):
 
         self.parser_atom_type = ThrowingArgumentParser(prog="atom_type")
         self.parser_atom_type.add_argument("name",type=str)
-        self.parser_atom_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.parser_atom_type.add_argument("-colormap",nargs=2,type=str,default=None, metavar=("COLORMAP","FIELD"))
-        self.parser_atom_type.add_argument("-radius",type=float,default=None)
-        self.parser_atom_type.add_argument("-radius_field",type=str,default=None)
+        group = self.parser_atom_type.add_mutually_exclusive_group()
+        group.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
+        group.add_argument("-colormap",nargs=2,type=str,default=None, metavar=("COLORMAP","FIELD"))
+        group = self.parser_atom_type.add_mutually_exclusive_group()
+        group.add_argument("-radius",type=float,default=None)
+        group.add_argument("-radius_field",type=str,nargs=2,metavar=("RADIUS_FIELD","FACTOR"),default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
         self.parser_atom_type.add_argument("-label_field",type=str,default=None)
         self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
@@ -199,6 +207,11 @@ class DavTKSettings(object):
             if (key_re is None or re.search(key_re, keyword)) and self.parsers[keyword][3] is not None:
                 fout.write(self.parsers[keyword][3]())
 
+    def parse_print_settings(self, args):
+        args = self.parser_print_settings.parse_args(args)
+        self.write(sys.stdout, key_re=args.keyword_regexp)
+        return None
+
     def write_legend(self):
         args_str = 'legend '
         args_str += '-on' if self.settings["legend"]['show'] else '-off'
@@ -265,7 +278,7 @@ class DavTKSettings(object):
             if radius is not None:
                 args_str += ' -radius {}'.format(radius)
             if radius_field is not None:
-                args_str += ' -radius_field {}'.format(radius_field)
+                args_str += ' -radius_field {} {}'.format(radius_field[0], radius_field[1])
             if opacity is not None:
                 args_str += ' -opacity {}'.format(opacity)
             if label_field is not None:
@@ -276,6 +289,8 @@ class DavTKSettings(object):
         return args_str
     def parse_atom_type(self, args):
         args = self.parser_atom_type.parse_args(args)
+        if args.radius_field is not None:
+            args.radius_field[1] = float(args.radius_field[1])
         self.settings["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.label_field, args.bonding_radius, self.settings["colormaps"])
         return None
 

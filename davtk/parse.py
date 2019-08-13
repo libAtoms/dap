@@ -37,7 +37,6 @@ def parse_help(davtk_state, renderer, args):
 parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
 
 ################################################################################
-
 parser_write_state = ThrowingArgumentParser(prog="write_state",description="write state of dap, including atomic configs, settings, and view")
 parser_write_state.add_argument("-cur_frame_only",action="store_true")
 parser_write_state.add_argument("filename",action="store",type=str,help="name of file to save into")
@@ -381,8 +380,8 @@ parser_volume.add_argument("-name",type=str, help="name to assign", default=None
 group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
 group.add_argument("-list", action='store_true', help="list existing volume representations")
-group.add_argument("-isosurface",type=float,nargs=5,action='append',metavar=["THRESHOLD","R","G","B","OPACITY"], help="isosurface threshold, color, and opacity")
-group.add_argument("-volumetric",type=float,nargs=4,action='append',metavar=["SCALE","R","G","B"], help="volumetric value_to_opacity_factor and color")
+group.add_argument("-isosurface",type=float,nargs=5,action='append',metavar=("THRESHOLD","R","G","B","OPACITY"), help="isosurface threshold, color, and opacity")
+group.add_argument("-volumetric",type=float,nargs=4,action='append',metavar=("SCALE","R","G","B"), help="volumetric value_to_opacity_factor and color")
 def parse_volume(davtk_state, renderer, args):
     args = parser_volume.parse_args(args)
     if args.delete is not None:
@@ -390,6 +389,8 @@ def parse_volume(davtk_state, renderer, args):
     elif args.list:
         print("Defined volume names: "+" ".join(davtk_state.cur_at().volume_reps.keys()))
     else:
+        if args.filename is None:
+            raise ValueError("volume got no filename")
         if args.name is None:
             args.name = args.filename
 
