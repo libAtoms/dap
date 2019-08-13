@@ -4,6 +4,7 @@ import vtk
 import ase.neighborlist
 import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
+from vtk.util.numpy_support import vtk_to_numpy
 
 def find_min_max(at_list):
     min_pos = sys.float_info.max
@@ -772,15 +773,23 @@ class DaVTKState(object):
 
         self.update(frames)
 
-    def snapshot(self, filename, mag=1):
+    def snapshot(self, filename=None, mag=1):
         renderLarge = vtk.vtkRenderLargeImage()
         renderLarge.SetInput(self.renderer)
         renderLarge.SetMagnification(mag)
 
-        writer = vtk.vtkPNGWriter()
-        writer.SetInputConnection(renderLarge.GetOutputPort())
-        writer.SetFileName(filename)
-        writer.Write()
+        if filename is not None:
+            writer = vtk.vtkPNGWriter()
+            writer.SetInputConnection(renderLarge.GetOutputPort())
+            writer.SetFileName(filename)
+            writer.Write()
+            return None
+        else:
+            renderLarge.Update()
+            img = renderLarge.GetOutput()
+            (width, height, _) = img.GetDimensions()
+            raw_data = img.GetPointData().GetScalars()
+            return vtk_to_numpy(raw_data).reshape(height,width,3)
 
     def get_view(self):
         cam = self.renderer.GetActiveCamera()
@@ -896,7 +905,6 @@ class DaVTKState(object):
             ats = self.at_list
 
         for at in ats:
-            print("at",at.arrays.keys())
             if "_vtk_bonds" in at.arrays:
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()

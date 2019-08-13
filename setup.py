@@ -11,7 +11,7 @@ setup(name='dap',
       packages=find_packages(),
       data_files=[('config',['daprc', 'README'] + glob.glob('example.*'))],
       scripts=['dap'],
-      install_requires=['ase','vtk']
+      install_requires=['ase','vtk','ffmpeg-python']
      )
 
 print("")

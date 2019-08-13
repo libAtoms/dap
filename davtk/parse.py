@@ -3,6 +3,7 @@ from __future__ import print_function
 import numpy as np, sys, re, tempfile, os
 import ase.io
 from ase.calculators.vasp import VaspChargeDensity
+import ffmpeg
 
 from davtk.parse_utils import ThrowingArgumentParser
 try:
@@ -105,32 +106,52 @@ parsers["save_view"] = (parse_save_view, parser_save_view.format_usage(), parser
 
 parser_movie = ThrowingArgumentParser(prog="movie",description="make a movie")
 parser_movie.add_argument("-range",type=str,help="range of configs, in slice format start:[end+1]:[step]",default="::")
-parser_movie.add_argument("-fps",type=float,help="frames per second display rate", default=10.0)
+parser_movie.add_argument("-framerate",type=float,help="frames per second display rate", default=10.0)
 parser_movie.add_argument("-tmpdir",type=str,help="temporary directory for snapshots",default=".")
 parser_movie.add_argument("-ffmpeg_args",type=str,help="other ffmpeg args",default="-b:v 10M -pix_fmt yuv420p")
 parser_movie.add_argument("output_file",type=str,help="output file name")
 def parse_movie(davtk_state, renderer, args):
     args = parser_movie.parse_args(args)
-    m = re.search("^(\d*)(?::(\d*)(?::(\d*))?)?$", args.r)
+    m = re.search("^(\d*)(?::(\d*)(?::(\d*))?)?$", args.range)
     range_start = 0 if m.group(1) is None or len(m.group(1)) == 0 else int(m.group(1))
     range_end = len(davtk_state.at_list) if m.group(2) is None or len(m.group(2)) == 0 else int(m.group(2))
     range_interval = 1 if m.group(3) is None or len(m.group(3)) == 0 else int(m.group(3))
     frames = list(range(range_start, range_end, range_interval))
-    frames.append(frames[-1])
-    print(len(frames), "log",np.log10(len(frames)-1)+1)
-    fmt_core = "0{}d".format(int(np.log10(len(frames)-1)+1))
-    py_fmt = ".{{:{}}}.png".format(fmt_core)
-    tmpfiles = []
-    with tempfile.NamedTemporaryFile(dir=args.tmpdir) as fout:
-        img_file_base = fout.name
-        for (img_i, frame_i) in enumerate(frames):
-            davtk_state.show_frame(frame_i = frame_i)
-            tmpfiles.append(img_file_base+py_fmt.format(img_i))
-            davtk_state.snapshot(tmpfiles[-1], 1)
-    print("ffmpeg -i {}.%{}.png -r {} -b:v 10M -pix_fmt yuv420p {}".format(img_file_base, fmt_core, args.fps, args.output_file))
-    os.system("ffmpeg -i {}.%{}.png -r {} {} {}".format(img_file_base, fmt_core, args.fps, args.ffmpeg_args, args.output_file))
-    for f in tmpfiles:
-        os.remove(f)
+
+    for frame_i in frames:
+        davtk_state.show_frame(frame_i)
+        data = davtk_state.snapshot().astype(np.uint8)
+        data = flip(data, axis=0)
+
+        if frame_i == frames[0]:
+            # start ffmpeg
+            process = (
+                ffmpeg
+                .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(data.shape[1],data.shape[0]))
+                .output(args.output_file, pix_fmt='yuv420p', framerate=args.framerate)
+                .overwrite_output()
+                .run_async(pipe_stdin=True)
+            )
+
+        process.stdin.write(data)
+    process.stdin.close()
+    process.wait()
+
+    # frames.append(frames[-1])
+    # fmt_core = "0{}d".format(int(np.log10(len(frames)-1)+1))
+    # py_fmt = ".{{:{}}}.png".format(fmt_core)
+    # tmpfiles = []
+    # with tempfile.NamedTemporaryFile(dir=args.tmpdir) as fout:
+        # img_file_base = fout.name
+        # for (img_i, frame_i) in enumerate(frames):
+            # davtk_state.show_frame(frame_i = frame_i)
+            # tmpfiles.append(img_file_base+py_fmt.format(img_i))
+            # davtk_state.snapshot(tmpfiles[-1], 1)
+    # print    ("ffmpeg -i {}.%{}.png -r {} {} {}".format(img_file_base, fmt_core, args.framerate, args.ffmpeg_args, "alt_"+args.output_file))
+    # os.system("ffmpeg -i {}.%{}.png -r {} {} {}".format(img_file_base, fmt_core, args.framerate, args.ffmpeg_args, "alt_"+args.output_file))
+    # for f in tmpfiles:
+        # os.remove(f)
+
     return None
 parsers["movie"] = (parse_movie, parser_movie.format_usage(), parser_movie.format_help())
 

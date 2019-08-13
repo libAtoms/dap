@@ -34,7 +34,7 @@ class DavTKAtomTypes(object):
             return self.add_autogen(key)
 
     def add_autogen(self, name):
-        print("autogenerating {} with color ",name, self.colors[self.autogen_used])
+        print("autogenerating {} with color {}".format(name, self.colors[self.autogen_used]))
         self.set_type(name=name, color=self.colors[self.autogen_used], radius = 0.5, opacity=1.0)
         self.autogen_used += 1
         return self.types[name]
