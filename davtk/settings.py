@@ -101,10 +101,15 @@ class DavTKSettings(object):
             "picked_color" : [1.0, 1.0, 0.0], 
             "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
             "label_text_color" : [1.0, 1.0, 1.0], "label_text_fontsize" : 24,
-            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-100,-100]), 'spacing' : 100 }
+            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-100,-100]), 'spacing' : 100 },
+            'atom_type_field' : 'Z'
             }
 
         self.parsers = {}
+
+        self.parser_atom_type_field = ThrowingArgumentParser(prog="atom_type_field",description="ASE at.arrays field to use for atom type")
+        self.parser_atom_type_field.add_argument("field",type=str,help="name of field ('Z' for atomic numbers, 'species' for chemical symbols", default='Z')
+        self.parsers["atom_type_field"] = (self.parse_atom_type_field, self.parser_atom_type_field.format_usage(), self.parser_atom_type_field.format_help(), self.write_atom_type_field)
         
         self.parser_print_settings = ThrowingArgumentParser(prog="print_settings",description="print settings")
         self.parser_print_settings.add_argument("-keyword_regexp",type=str)
@@ -207,6 +212,17 @@ class DavTKSettings(object):
             if (key_re is None or re.search(key_re, keyword)) and self.parsers[keyword][3] is not None:
                 fout.write(self.parsers[keyword][3]())
 
+    def write_atom_type_field(self):
+        args_str = 'atom_type_field'
+        args_str += ' {}'.format(self.settings["atom_type_field"])
+        return args_str+'\n'
+    def parse_atom_type_field(self, args):
+        args = self.parser_atom_type_field.parse_args(args)
+        self.settings["atom_type_field"] = args.field
+        return "cur"
+
+    def write_print_settings(self):
+        return ''
     def parse_print_settings(self, args):
         args = self.parser_print_settings.parse_args(args)
         self.write(sys.stdout, key_re=args.keyword_regexp)

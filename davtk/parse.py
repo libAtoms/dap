@@ -101,21 +101,6 @@ def parse_save_view(davtk_state, renderer, args):
     return None
 parsers["save_view"] = (parse_save_view, parser_save_view.format_usage(), parser_save_view.format_help(), None)
 
-parser_atom_type_field = ThrowingArgumentParser(prog="atom_type_field",description="ASE at.arrays field to use for atom type")
-parser_atom_type_field.add_argument("-all_frames",action="store_true")
-parser_atom_type_field.add_argument("field",type=str,help="name of field ('Z' for atomic numbers, 'species' for chemical symbols", default='Z')
-def parse_atom_type_field(davtk_state, renderer, args):
-    args = parser_atom_type_field.parse_args(args)
-    if args.all_frames:
-        ats = davtk_state.at_list
-    else:
-        ats = [davtk_state.cur_at()]
-
-    for at in ats:
-        at.info["_vtk_type_field"] = args.field
-    return "cur"
-parsers["atom_type_field"] = (parse_atom_type_field, parser_atom_type_field.format_usage(), parser_atom_type_field.format_help())
-
 parser_movie = ThrowingArgumentParser(prog="movie",description="make a movie")
 parser_movie.add_argument("-range",type=str,help="range of configs, in slice format start:[end+1]:[step]",default="::")
 parser_movie.add_argument("-fps",type=float,help="frames per second display rate", default=10.0)
@@ -331,9 +316,7 @@ parser_read.add_argument("filename",type=str,nargs='+',help="filenames")
 def parse_read(davtk_state, renderer, args):
     args = parser_read.parse_args(args)
     for f in args.filename:
-        with open(f) as fin:
-            for l in fin.readlines():
-                parse_line(l, davtk_state.settings, davtk_state, davtk_state.renderer)
+        parse_file(f, davtk_state.settings, davtk_state)
 parsers["read"] = (parse_read, parser_read.format_usage(), parser_read.format_help())
 
 parser_label = ThrowingArgumentParser(prog="label",description="enable/disable labels (toggle by default)")
@@ -422,7 +405,6 @@ parsers["volume"] = (parse_volume, parser_volume.format_usage(), parser_volume.f
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):
-
     if re.search('^\s*#', line) or len(line.strip()) == 0:
         return None
 

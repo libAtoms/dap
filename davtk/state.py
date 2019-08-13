@@ -2,6 +2,7 @@ import sys, ase.io, math
 import numpy as np
 import vtk
 import ase.neighborlist
+import json
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 
 def find_min_max(at_list):
@@ -25,18 +26,15 @@ def find_min_max(at_list):
 
     return (min_pos, max_pos)
 
-def get_atom_type_a(at):
-    if "_vtk_type_field" in at.info:
-        atom_type_str = at.info["_vtk_type_field"]
-    else:
-        atom_type_str = "Z"
+def get_atom_type_a(settings, at):
+    atom_type_field = settings["atom_type_field"]
 
-    if atom_type_str == "Z":
+    if atom_type_field == "Z":
         atom_type = [str(Z) for Z in at.get_atomic_numbers()]
-    elif atom_type_str == "species":
+    elif atom_type_field == "species":
         atom_type = [sp for sp in at.get_chemical_symbols()]
     else:
-        atom_type = [str(val) for val in at.arrays[atom_type_str]]
+        atom_type = [str(val) for val in at.arrays[atom_type_field]]
 
     return atom_type
 
@@ -107,6 +105,17 @@ class DavTKBonds(object):
                     self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
             except: # failed, presumably due to bonding_radius None
                 pass
+
+    def write_to_atoms_arrays(self):
+        if "_vtk_bonds" not in self.at.arrays:
+            self.at.add_array("_vtk_bonds", [""] * len(at))
+        for (at_i, b) in enumerate(self.bonds):
+            at.arrays["_vtk_bonds"][i] = json.dumps(b)
+
+    def read_from_atoms_arrays(self):
+        self.reinit()
+        for (at_i, b_str) in enumerate(self.arrays["_vtk_bonds"]):
+            self.bonds[at_i] = json.loads(b_str)
 
     def pair_mic(self, name, ind1, ind2):
         v = self.at.get_distance(ind1, ind2, mic=True, vector=True)
@@ -347,7 +356,7 @@ class DaVTKState(object):
             prev_pool_size = len(self.label_actor_pool)
             self.label_actor_pool.extend([vtk.vtkBillboardTextActor3D() for i in range(len(at)-prev_pool_size)])
 
-        atom_type_array = get_atom_type_a(at)
+        atom_type_array = get_atom_type_a(self.settings, at)
         pos = at.get_positions()
 
         dp_world = self.label_offset_world(pos[0])
@@ -395,7 +404,7 @@ class DaVTKState(object):
             for actor in self.atom_actor_pool[prev_pool_size:]:
                 actor.SetMapper(self.mappers["sphere"])
 
-        atom_type_array = get_atom_type_a(at)
+        atom_type_array = get_atom_type_a(self.settings, at)
         pos = at.get_positions()
 
         for i_at in range(len(at)):
@@ -544,7 +553,7 @@ class DaVTKState(object):
     def show_legend(self, at, pos):
         display_size = self.renderer.GetRenderWindow().GetSize()
         dp_world = self.label_offset_world(pos[0])
-        unique_atom_types = sorted(list(set(get_atom_type_a(at))))
+        unique_atom_types = sorted(list(set(get_atom_type_a(self.settings, at))))
         legend_sphere_actors = [ vtk.vtkActor() for i in range(len(unique_atom_types)) ]
         legend_label_actors = [ vtk.vtkActor() for i in range(len(unique_atom_types)) ]
 
