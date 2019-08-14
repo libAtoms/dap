@@ -84,6 +84,9 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
                 self.davtk_state.update()
             elif refresh == "cur":
                 self.davtk_state.update(frames="cur")
+            elif refresh == "exit":
+                self.parent.TerminateApp()
+                sys.exit(0)
             elif refresh is not None:
                 raise ValueError("unknown refresh type "+str(refresh))
         except Exception as e:

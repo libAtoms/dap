@@ -117,12 +117,12 @@ davtk_state.io_queue = io_queue
 def do_io_readline(io_queue):
     import readline
 
-    print("started io thread")
-    l = ""
-    while l != "exit":
+    while True:
         l = input("> ")
         io_queue.put(l.rstrip())
+
 io_thread = threading.Thread(target=do_io_readline, args=(io_queue,))
+io_thread.daemon = True # needed to clean up when program exits
 io_thread.start()
 
 interactor.Start()

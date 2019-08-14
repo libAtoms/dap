@@ -38,6 +38,11 @@ def parse_help(davtk_state, renderer, args):
 parsers["help"] = (parse_help, "usage: help\n", "usage: help\n")
 
 ################################################################################
+parser_exit = ThrowingArgumentParser(prog="exit",description="end program")
+def parse_exit(davtk_state, renderer, args):
+    return "exit"
+parsers["exit"] = (parse_exit, parser_exit.format_usage(), parser_exit.format_help())
+
 parser_write_state = ThrowingArgumentParser(prog="write_state",description="write state of dap, including atomic configs, settings, and view")
 parser_write_state.add_argument("-cur_frame_only",action="store_true")
 parser_write_state.add_argument("filename",action="store",type=str,help="name of file to save into")
