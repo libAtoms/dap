@@ -2,11 +2,6 @@
 
 from __future__ import print_function
 
-import ase.io, vtk, sys, os, re
-from davtk.settings import DavTKSettings
-from davtk.parse import parse_file
-from davtk.state import *
-from davtk.interactors import *
 import argparse
 
 cli_parse = argparse.ArgumentParser()
@@ -15,6 +10,10 @@ cli_parse.add_argument("--execute_commands","-e",action='append',type=str, help=
 cli_parse.add_argument("--format","-f",type=str, nargs='+', help="formats for each atoms file", default = None)
 cli_parse.add_argument("atoms_files",nargs="+",type=str,help="atoms files in any ase.io.read format, optionally including '@START:END:STEP' interval")
 args = cli_parse.parse_args()
+
+import sys, re
+import ase.io
+from davtk import dap
 
 # read atoms from atoms_files
 if args.format is None:
@@ -33,96 +32,20 @@ for (filename, fmt) in zip(args.atoms_files, args.format):
             at.info["_vtk_filename"] = filename
         at_list.append(at)
 
-# read settings from home dir and current dir
-settings = DavTKSettings()
-try:
-    parse_file(os.path.join(os.environ["HOME"],".daprc"), settings=settings)
-except IOError:
-    pass
-try:
-    parse_file(".daprc", settings=settings)
-except IOError:
-    pass
-
-# A renderer and render window
-renderer = vtk.vtkRenderer()
-renderer.SetBackground(settings["background_color"])
-renwin = vtk.vtkRenderWindow()
 m = re.search("^(\d+)x(\d+)$", args.geometry)
 if not m:
     raise ValueError("-geometry '{}' not NxM".format(args.geometry))
-renwin.SetSize(int(m.group(1)), int(m.group(2)))
-renwin.AddRenderer(renderer)
+win_size = (int(m.group(1)), int(m.group(2)))
+viewer = dap.Viewer(at_list, win_size, "dap " + " ".join(args.atoms_files), args.execute_commands)
 
-# An interactor for mouse stuff
-interactor = vtk.vtkRenderWindowInteractor()
-interactor.SetRenderWindow(renwin)
-
-davtk_state = DaVTKState(at_list, settings, renderer, interactor)
-
-# add the custom styles for regular interaction and area selection
-sel_style = RubberbandSelect(davtk_state,parent=interactor)
-sel_style.SetDefaultRenderer(renderer)
-
-def_style = MouseInteractorHighLightActor(settings,davtk_state,sel_style,parent=interactor)
-def_style.SetDefaultRenderer(renderer)
-def_style.UseTimersOn()
-interactor.CreateRepeatingTimer(100)
-
-interactor.SetInteractorStyle(def_style)
-
-# set up camera
-(min_pos, max_pos) = find_min_max(at_list)
-camera = renderer.GetActiveCamera()
-camera.ParallelProjectionOn()
-camera.SetParallelScale(np.max(max_pos-min_pos))
-extent = max(max_pos) - min(min_pos)
-camera.SetPosition([(max_pos[0]+min_pos[0])/2.0, (max_pos[1]+min_pos[1])/2.0, 1000.0+extent/2.0])
-camera.SetFocalPoint((max_pos+min_pos)/2.0)
-camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
-
-# start viewing first frame
-davtk_state.update()
-davtk_state.startup()
-
-# must do this rather late in the process
-renwin.SetWindowName("dap "+" ".join(args.atoms_files))
-
-# read commands from atomic config headers
-for frame_i in range(len(davtk_state)):
-    if "_vtk_commands" in at_list[frame_i].info:
-        davtk_state.set_frame(frame_i)
-        for cmd in at_list[frame_i].info["_vtk_commands"].split(";"):
-            parse_line(cmd, settings=settings, state=davtk_state)
-        del at_list[frame_i].info["_vtk_commands"]
-davtk_state.show_frame(frame_i=0)
-
-# now that atoms are read in and davtk_state exists, read any other commands (e.g. extra settings)
-for l in args.execute_commands:
-    for sub_l in l.split(";"):
-        parse_line(sub_l, settings=settings, state=davtk_state)
-
-davtk_state.prep_after_atoms_read()
-print("""DAP
-
-Use 'usage' for general usage info, and 'command -h' for detailed help on each command.
-Type 'h' in GUI window for GUI help message
-""")
-# Start
-interactor.Initialize()
-
-import threading, queue
-cmd_queue = queue.Queue(0)
-davtk_state.cmd_queue = cmd_queue
-def do_cmd_readline(cmd_queue):
+def cmd_readline(cmd_queue):
     import readline
 
     while True:
         l = input("> ")
         cmd_queue.put(l.rstrip())
+        if l.rstrip() == "exit":
+            print("exiting action thread")
+            sys.exit(0)
 
-cmd_thread = threading.Thread(target=do_cmd_readline, args=(cmd_queue,))
-cmd_thread.daemon = True # needed to clean up when program exits
-cmd_thread.start()
-
-interactor.Start()
+viewer.start(cmd_readline, viewer.get_cmd_queue())

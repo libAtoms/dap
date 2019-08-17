@@ -139,7 +139,11 @@ class DavTKBonds(object):
             for bond_str in bond_strs:
                 m = re.search('^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_(.*)$', bond_str)
                 if m:
-                    (j, v, S, picked, name) = (int(m.group(1)), [float(m.group(i)) for i in range(2,5)], [int(m.group(i)) for i in range(5,8)], str_to_bool(m.group(8)), m.group(9))
+                    (j, v, S, picked, name) = ( int(m.group(1)), [float(m.group(i)) for i in range(2,5)], 
+                                                [int(m.group(i)) for i in range(5,8)], str_to_bool(m.group(8)), m.group(9) )
+                    if name not in self.settings["bond_types"]:
+                        raise ValueError("Unknown bond_type '{}' reading from Atoms object, known types: {}\n".format(name, list(self.settings["bond_types"].keys()))+
+                                         "            Perhaps you forgot to restore saved settings?")
                     self.bonds[at_i].append( {"j" : j, "v" : v, "d" : np.linalg.norm(v), "S" : S, "name" : name, "picked" : picked } )
 
     def pair_mic(self, name, ind1, ind2):

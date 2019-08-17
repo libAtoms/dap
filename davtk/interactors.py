@@ -56,7 +56,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.AddObserver("LeftButtonPressEvent",self.leftButtonPressEvent)
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.AddObserver("RightButtonPressEvent",self.rightButtonPressEvent)
-        self.AddObserver("KeyPressEvent",self.keyPressEvent)
+        self.AddObserver("CharEvent",self.charEvent)
         self.AddObserver("TimerEvent",self.timerEvent)
 
         if parent is not None:
@@ -85,7 +85,6 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             elif refresh == "cur":
                 self.davtk_state.update(frames="cur")
             elif refresh == "exit":
-                self.parent.TerminateApp()
                 sys.exit(0)
             elif refresh is not None:
                 raise ValueError("unknown refresh type "+str(refresh))
@@ -102,7 +101,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.prev_size = new_size
         self.davtk_state.update(frames="cur")
 
-    def keyPressEvent(self,obj,event):
+    def charEvent(self,obj,event):
         k = self.parent.GetKeySym()
         if k == 'p':
             self.GetInteractor().SetInteractorStyle(self.select_style)
@@ -112,7 +111,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'm':
             self.davtk_state.measure()
         elif k == 'b':
-            self.davtk_state.bond("picked", name=None, frames="cur")
+            self.davtk_state.bond(name=None, at_type1='*', at_type2='*', criterion="picked", frames="cur")
         elif k == 'l':
             self.davtk_state.cur_at().info["_vtk_show_labels"] = not self.davtk_state.cur_at().info["_vtk_show_labels"]
             # self.davtk_state.update_labels(frames="cur")
@@ -121,7 +120,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.davtk_state.show_frame(dframe=self.davtk_state.settings["frame_step"])
         elif k == 'minus':
             self.davtk_state.show_frame(dframe=-self.davtk_state.settings["frame_step"])
-        elif k == 'h':
+        elif k in [ 'h', '?' ]:
             print("""GUI usage
 h: help (this message)
 +: next frame
@@ -142,8 +141,7 @@ Mouse scroll (two finger up/down drag on OS X): zoom
             self.GetInteractor().Render()
         self.GetDefaultRenderer().GetRenderWindow().Render()
 
-        # self.OnKeyPress()
-        return
+        # self.OnChar() # Forward Events to superclass handler
 
     def leftButtonPressEvent(self,obj,event):
         self.show_labels_prev = self.davtk_state.cur_at().info["_vtk_show_labels"]
