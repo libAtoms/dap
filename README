@@ -50,7 +50,6 @@ CLI help is available with 'usage' or for each command with 'command -h' in the 
 
 TODO (in no particular order, difficulty in parens)
     read CHG as well as CHGCAR (easy)
-    change from ffmpeg executable to python-ffmpeg (easy)
     better integration with ASE data structures (hard)
     measure angle for atoms, not just bonds ? (easy)
     display measurements in GUI ? (medium)
@@ -58,4 +57,4 @@ TODO (in no particular order, difficulty in parens)
     slices through volumetric data (maybe also voxel visualization) (depends on vtk support)
     color isosurfaces by a scalar (medium)
     better examples (easy)
-    atoms (perhaps bonds) through native vtk point cloud markers (medium-hard)
+    atoms (perhaps bonds) through native vtkGlyph3D (medium-hard, but much faster, probably worth it)
