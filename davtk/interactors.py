@@ -75,7 +75,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 
     def timerEvent(self,obj,event):
         try:
-            line = self.davtk_state.io_queue.get(block=False)
+            line = self.davtk_state.cmd_queue.get(block=False)
         except queue.Empty:
             return
         try:

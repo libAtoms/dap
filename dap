@@ -112,17 +112,17 @@ Type 'h' in GUI window for GUI help message
 interactor.Initialize()
 
 import threading, queue
-io_queue = queue.Queue(0)
-davtk_state.io_queue = io_queue
-def do_io_readline(io_queue):
+cmd_queue = queue.Queue(0)
+davtk_state.cmd_queue = cmd_queue
+def do_cmd_readline(cmd_queue):
     import readline
 
     while True:
         l = input("> ")
-        io_queue.put(l.rstrip())
+        cmd_queue.put(l.rstrip())
 
-io_thread = threading.Thread(target=do_io_readline, args=(io_queue,))
-io_thread.daemon = True # needed to clean up when program exits
-io_thread.start()
+cmd_thread = threading.Thread(target=do_cmd_readline, args=(cmd_queue,))
+cmd_thread.daemon = True # needed to clean up when program exits
+cmd_thread.start()
 
 interactor.Start()
