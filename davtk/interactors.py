@@ -99,7 +99,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         new_size = obj.GetSize()
         if new_size != self.prev_size:
             self.prev_size = new_size
-        self.davtk_state.update(frames="cur")
+            self.davtk_state.update(frames="cur")
 
     def charEvent(self,obj,event):
         k = self.parent.GetKeySym()
