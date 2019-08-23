@@ -4,19 +4,24 @@ import sys, queue
 import vtk
 from davtk.parse import parse_line
 
-def pick_actors(at, actors):
+def pick_actors(at, actors, point_sets):
     new_bond_pick_statuses = {}
-
-    for actor in actors:
-        if hasattr(actor, "i_at"):
-            at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
-        elif hasattr(actor, "i_at_bond"):
-            (i_at, i_bond) = actor.i_at_bond
-            new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond]["picked"] 
+    for (actor, points) in zip(actors, point_sets):
+        if hasattr(actor, "_vtk_type"):
+            if actor._vtk_type == "atom":
+                print("picked actor atom")
+                at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
+            elif actor._vtk_type == "bonds_glyphs":
+                print("picked actor bonds")
+                for point in points:
+                    (i_at, i_bond) = actor.i_at_bond[point]
+                    new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond]["picked"] 
+            else:
+                raise ValueError("picked something that's not an atom or a bond, rather: "+actor._vtk_type+"\n"+str(actor))
         else:
-            raise ValueError("picked something that's not an atom or a bond, rather: "+actor._vtk_label+"\n"+str(actor))
-        
+            raise ValueError("picked something that's not an atom or a bond, rather:\n"+str(actor))
 
+    print("")
     for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
         at.bonds.set_picked(i_at, i_bond, stat)
 
@@ -36,7 +41,27 @@ class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
         picker = vtk.vtkAreaPicker()
         picker.AreaPick(p0[0], p0[1], p1[0], p1[1], self.GetDefaultRenderer())
         at = self.davtk_state.cur_at()
-        pick_actors(self.davtk_state.cur_at(), picker.GetProp3Ds())
+        actors = picker.GetProp3Ds()
+        points = []
+        # find selected points
+        for actor in actors:
+            if not hasattr(actor, "point_to_input_point"):
+                points.append([None])
+                continue
+            frustum = picker.GetFrustum()
+            geom = vtk.vtkExtractGeometry()
+            geom.SetImplicitFunction(frustum)
+            geom.SetInputData(actor.GetMapper().GetInput())
+            geom.Update()
+
+            IDs = geom.GetOutputDataObject(0).GetPointData().GetArray("IDs")
+            points.append([])
+            for ID_i in range(IDs.GetNumberOfTuples()):
+                points[-1].append(int(IDs.GetTuple(ID_i)[0]/actor.point_to_input_point))
+            print("actor points", set(points[-1]))
+            points[-1] = set(points[-1])
+
+        pick_actors(self.davtk_state.cur_at(), actors, points)
         self.davtk_state.update(frames="cur")
 
         self.OnLeftButtonUp()
@@ -56,8 +81,12 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.AddObserver("LeftButtonPressEvent",self.leftButtonPressEvent)
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.AddObserver("RightButtonPressEvent",self.rightButtonPressEvent)
+        self.AddObserver("MouseWheelForwardEvent",self.mouseWheelForwardEvent)
+        self.AddObserver("MouseWheelBackwardEvent",self.mouseWheelBackwardEvent)
         self.AddObserver("CharEvent",self.charEvent)
         self.AddObserver("TimerEvent",self.timerEvent)
+
+        self.mouse_wheel_moved = False
 
         if parent is not None:
             self.parent = parent
@@ -74,6 +103,10 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.prev_size = (0,0)
 
     def timerEvent(self,obj,event):
+        if self.mouse_wheel_moved:
+            self.mouse_wheel_moved = False
+            self.davtk_state.update_rotate_frame()
+
         try:
             line = self.davtk_state.cmd_queue.get(block=False)
         except queue.Empty:
@@ -150,33 +183,49 @@ Mouse scroll (two finger up/down drag on OS X): zoom
         self.show_legend_prev = self.davtk_state.settings["legend"]['show']
         self.davtk_state.settings["legend"]['show'] = False
 
-        self.davtk_state.show_frame(dframe=0)
+        self.davtk_state.update_rotate_frame()
         self.OnLeftButtonDown()
         return
+
+    def mouseWheelForwardEvent(self,obj,event):
+        self.davtk_state.update_rotate_frame()
+        self.mouse_wheel_moved = True
+
+        self.OnMouseWheelForward()
+
+    def mouseWheelBackwardEvent(self,obj,event):
+        self.davtk_state.update_rotate_frame()
+        self.mouse_wheel_moved = True
+
+        self.OnMouseWheelBackward()
 
     def leftButtonReleaseEvent(self,obj,event):
         self.davtk_state.cur_at().info["_vtk_show_labels"] = self.show_labels_prev
 
         self.davtk_state.settings["legend"]['show'] = self.show_legend_prev
 
-        self.davtk_state.show_frame(dframe=0)
+        self.davtk_state.update_rotate_frame()
         self.OnLeftButtonUp()
-        return
 
     def rightButtonPressEvent(self,obj,event):
         # get the actor at the picked position
 
         clickPos = self.GetInteractor().GetEventPosition()
-        picker = vtk.vtkPropPicker()
+        picker = vtk.vtkCellPicker()
         picker.Pick(clickPos[0], clickPos[1], 0, self.GetDefaultRenderer())
-        self.NewPickedActor = picker.GetActor()
+        pickedActor = picker.GetActor()
 
         # If something was selected
-        at = self.davtk_state.cur_at()
-        if self.NewPickedActor:
-            pick_actors(self.davtk_state.cur_at(), [self.NewPickedActor])
+        if pickedActor:
+            at = self.davtk_state.cur_at()
+            point = picker.GetPointId()
+            try:
+                point = int(point/pickedActor.point_to_input_point)
+            except AttributeError:
+                pass
+            pick_actors(self.davtk_state.cur_at(), [pickedActor], [[point]])
 
-        self.davtk_state.update(frames="cur")
+        self.davtk_state.show_frame(dframe=0)
 
         self.GetInteractor().Render()
 

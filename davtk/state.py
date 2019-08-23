@@ -4,7 +4,7 @@ import vtk
 import ase.neighborlist
 import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
-from vtk.util.numpy_support import vtk_to_numpy
+from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
 def find_min_max(at_list):
     min_pos = sys.float_info.max
@@ -105,7 +105,7 @@ class DavTKBonds(object):
         for (i, j, v, d, S) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3], nn_list[4]):
             try:
                 if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_match(atom_type_array, i, j, at_type, at_type2):
-                    self.bonds[i].append({ "j" : j, "v" : v, "d" : d, "S" : S, "name" : name, "picked" : False})
+                    self.bonds[i].append({ "j" : j, "S" : np.array(S), "name" : name, "picked" : False})
             except: # failed, presumably due to bonding_radius None
                 pass
 
@@ -137,19 +137,19 @@ class DavTKBonds(object):
                 continue
             bond_strs = b_str.split(",")
             for bond_str in bond_strs:
-                m = re.search('^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_(.*)$', bond_str)
+                m = re.search('^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_(.*)$', bond_str)
                 if m:
-                    (j, v, S, picked, name) = ( int(m.group(1)), [float(m.group(i)) for i in range(2,5)], 
-                                                [int(m.group(i)) for i in range(5,8)], str_to_bool(m.group(8)), m.group(9) )
+                    (j, S, picked, name) = ( int(m.group(1)), [int(m.group(i)) for i in range(2,5)], 
+                                             str_to_bool(m.group(5)), m.group(6) )
                     if name not in self.settings["bond_types"]:
                         raise ValueError("Unknown bond_type '{}' reading from Atoms object, known types: {}\n".format(name, list(self.settings["bond_types"].keys()))+
                                          "            Perhaps you forgot to restore saved settings?")
-                    self.bonds[at_i].append( {"j" : j, "v" : v, "d" : np.linalg.norm(v), "S" : S, "name" : name, "picked" : picked } )
+                    self.bonds[at_i].append( {"j" : j, "S" : np.array(S), "name" : name, "picked" : picked } )
 
     def pair_mic(self, name, ind1, ind2):
         v = self.at.get_distance(ind1, ind2, mic=True, vector=True)
-        self.bonds[ind1].append( {"j" : ind2, "v" : v, "d" : np.linalg.norm(v), "S" : [0,0,0], "name" : name, "picked" : False } )
-        self.bonds[ind2].append( {"j" : ind1, "v" : -v, "d" : np.linalg.norm(v), "S" : [0,0,0], "name" : name, "picked" : False } )
+        self.bonds[ind1].append( {"j" : ind2, "S" : np.array([0,0,0]), "name" : name, "picked" : False } )
+        self.bonds[ind2].append( {"j" : ind1, "S" : np.array([0,0,0]), "name" : name, "picked" : False } )
 
     def set_picked(self, i_at, j_ind, stat):
         b = self.bonds[i_at][j_ind]
@@ -207,8 +207,31 @@ class DaVTKState(object):
         self.cur_n_atom_actors = 0
         self.label_actor_pool = []
         self.cur_n_label_actors = 0
-        self.bond_actor_pool = []
-        self.cur_n_bond_actors = 0
+
+        self.bonds_data = { 'points' : None, 'axes' : None, 'angles' : None, 'scales' : None, 'color_indices' : None }
+        points = vtk.vtkPoints()
+        axes = vtk.vtkFloatArray()
+        axes.SetNumberOfComponents(3)
+        axes.SetName("axes")
+        angles = vtk.vtkFloatArray()
+        angles.SetNumberOfComponents(1)
+        angles.SetName("angles")
+        scales = vtk.vtkFloatArray()
+        scales.SetNumberOfComponents(3)
+        scales.SetName("scales")
+        color_indices = vtk.vtkFloatArray()
+        color_indices.SetNumberOfComponents(1)
+        color_indices.SetName("color_indices")
+        self.bonds_data['points'] = points
+        self.bonds_data['axes'] = axes
+        self.bonds_data['angles'] = angles
+        self.bonds_data['scales'] = scales
+        self.bonds_data['color_indices'] = color_indices
+
+        self.bonds_actor = None
+
+        self.legend_sphere_actors = []
+        self.legend_label_actors = []
 
         self.saved_views = {}
 
@@ -230,12 +253,20 @@ class DaVTKState(object):
         mappers["sphere"] = vtk.vtkPolyDataMapper()
         mappers["sphere"].SetInputConnection(source.GetOutputPort())
 
-        source = vtk.vtkCylinderSource()
-        source.SetRadius(1.0)
-        source.SetHeight(1.0)
-        source.SetResolution(8)
-        mappers["cylinder"] = vtk.vtkPolyDataMapper()
-        mappers["cylinder"].SetInputConnection(source.GetOutputPort())
+        cyl_y = vtk.vtkCylinderSource()
+        cyl_y.SetRadius(1.0)
+        cyl_y.SetHeight(1.0)
+        cyl_y.SetResolution(8)
+        cyl_y_mapper = vtk.vtkPolyDataMapper()
+        cyl_y_mapper.SetInputConnection(cyl_y.GetOutputPort())
+        cyl_y_mapper.Update()
+        mappers["cylinder_y"] = (cyl_y, cyl_y_mapper.GetInput().GetNumberOfPoints())
+        # cyl_x = vtk.vtkTransformPolyDataFilter()
+        # t = vtk.vtkTransform()
+        # t.RotateZ(90)
+        # cyl_x.SetTransform(t)
+        # cyl_x.SetInputConnection(cyl_y.GetOutputPort())
+        # mappers["cylinder_x"] = (cyl_x, cyl_y_mapper.GetInput().GetNumberOfPoints())
 
         return mappers
 
@@ -278,96 +309,138 @@ class DaVTKState(object):
                     raise ValueError("delete bonds only accepts 'picked' or 'all' or 'all'")
 
         self.update(frames)
-        self.show_frame(dframe=0)
 
     def update(self, frames=None):
+
         self.update_cell_boxes(frames)
         self.show_frame(dframe=0)
 
     def update_bonds(self, at):
         if not hasattr(at, "bonds"):
-            for i in range(self.cur_n_bond_actors):
-                self.bond_actor_pool[i].SetVisibility(False)
-            self.cur_n_bond_actors = 0
+            self.bonds_actor = None
             return
-
-        n_bonds = 0
-        for i_at in range(len(at)):
-            for (i_bond, b) in enumerate(at.bonds[i_at]):
-                if i_at < b["j"]:
-                    continue
-                n_bonds += 1
-
-        if 2*n_bonds > len(self.bond_actor_pool):
-            prev_pool_size = len(self.bond_actor_pool)
-            self.bond_actor_pool.extend([vtk.vtkActor() for i in range(2*n_bonds-prev_pool_size)])
-            for actor in self.bond_actor_pool[prev_pool_size:]:
-                actor.SetMapper(self.mappers["cylinder"])
 
         pos = at.get_positions()
 
-        global_i_bond = 0
+        i_at_bond = []
+
+        points_list = []
+        axes_list = []
+        angles_list = []
+        scales_list = []
+        color_indices_list = []
+
+        # keep track of colors, to map to lookup table
+        cell = at.get_cell()
         for i_at in range(len(at)):
             for (i_bond, b) in enumerate(at.bonds[i_at]):
-                i = i_at
-                j = b["j"]
-                if i < j:
+                j_at = b["j"]
+                if i_at < j_at:
                     continue
-                dr = np.array(b["v"])
-                dr_norm = b["d"]
+                dr = pos[j_at] - pos[i_at] + np.dot(b["S"], cell)
+                dr_norm = np.linalg.norm(dr)
                 picked = b["picked"]
                 name = b["name"]
-
                 rad = self.settings["bond_types"][name]["radius"]
 
                 axis = np.cross(dr, [0.0, 1.0, 0.0])
-                if np.linalg.norm(axis) == 0.0:
-                    axis = None
+                if np.linalg.norm(axis) < 1.0e-2:
+                    axis = (1.0,0.0,0.0)
+                    angle = 0.0
                 else:
                     axis /= np.linalg.norm(axis)
-                dr_hat = dr / dr_norm
-                angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
+                    dr_hat = dr / dr_norm
+                    # angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
+                    angle = -np.arccos(dr_hat[1])*180.0/np.pi
 
-                # first half
-                actor_1 = self.bond_actor_pool[global_i_bond]
+                color_index = 0 if picked else self.settings["bond_types"][name]["index"]
 
-                transform = vtk.vtkTransform()
-                transform.Translate(pos[i]+dr/4.0)
-                if axis is not None:
-                    transform.RotateWXYZ(angle, axis)
-                transform.Scale(rad, dr_norm/2.0, rad)
-                actor_1.SetUserMatrix(transform.GetMatrix())
+                points_list.append(pos[i_at]+dr/4.0)
+                axes_list.append(axis)
+                angles_list.append(angle)
+                scales_list.append((rad, dr_norm/2.0, rad))
+                color_indices_list.append((color_index,))
+                i_at_bond.append((i_at, i_bond))
 
-                # second half bond
-                actor_2 = self.bond_actor_pool[global_i_bond+1]
+                points_list.append(pos[j_at]-dr/4.0)
+                axes_list.append(axis)
+                angles_list.append(angle)
+                scales_list.append((rad, dr_norm/2.0, rad))
+                color_indices_list.append((color_index,))
+                i_at_bond.append((i_at, i_bond))
 
-                transform = vtk.vtkTransform()
-                transform.Translate(pos[j]-dr/4.0)
-                if axis is not None:
-                    transform.RotateWXYZ(angle, axis)
-                transform.Scale(rad, dr_norm/2.0, rad)
-                actor_2.SetUserMatrix(transform.GetMatrix())
+        # data needed to place, rotate, and scale glyphs
+        points = self.bonds_data['points']
+        points.Reset()
+        points.SetNumberOfPoints(len(points_list))
+        for i in range(len(points_list)):
+            points.SetPoint(i, points_list[i])
+        axes = numpy_to_vtk(np.array(axes_list))
+        angles = numpy_to_vtk(np.array(angles_list))
+        scales = numpy_to_vtk(np.array(scales_list))
+        color_indices = numpy_to_vtk(np.array(color_indices_list, dtype=int))
 
+        glyphs_data = vtk.vtkPolyData()
+        glyphs_data.SetPoints(points)
+        glyphs_data.GetPointData().AddArray(axes)
+        glyphs_data.GetPointData().AddArray(angles)
+        glyphs_data.GetPointData().AddArray(scales)
+        glyphs_data.GetPointData().SetScalars(color_indices)
 
-                if picked:
-                    actor_1.SetProperty(self.settings["picked_prop"])
-                    actor_2.SetProperty(self.settings["picked_prop"])
-                else:
-                    actor_1.SetProperty(self.settings["bond_types"][name]["prop"])
-                    actor_2.SetProperty(self.settings["bond_types"][name]["prop"])
+        def place_glyph(__vtk__temp0=0,__vtk__temp1=0):
+            point = glyphs.GetPoint()
+            point_id = glyphs.GetPointId()
+            d = glyphs.GetPointData()
+            axis =  d.GetAbstractArray(0).GetTuple(point_id)
+            angle = d.GetAbstractArray(1).GetTuple(point_id)
+            scale = d.GetAbstractArray(2).GetTuple(point_id)
 
-                actor_1.i_at_bond = (i_at, i_bond)
-                actor_2.i_at_bond = (i_at, i_bond)
+            trans = vtk.vtkTransform()
+            trans.Translate(point)
+            trans.RotateWXYZ(angle[0], axis)
+            trans.Scale(scale[0], scale[1], scale[2])
 
-                actor_1.SetVisibility(True)
-                actor_2.SetVisibility(True)
+            trans_cyl = vtk.vtkTransformPolyDataFilter()
+            trans_cyl.SetInputConnection(self.mappers["cylinder_y"][0].GetOutputPort())
+            trans_cyl.SetTransform(trans)
+            glyphs.SetSourceConnection(trans_cyl.GetOutputPort())
 
-                global_i_bond += 2
+        glyphs = vtk.vtkProgrammableGlyphFilter()
+        glyphs.SetSourceConnection(self.mappers["cylinder_y"][0].GetOutputPort())
+        glyphs.SetInputData(glyphs_data)
+        glyphs.SetGlyphMethod(place_glyph)
+        glyphs.SetColorModeToColorByInput()
 
-        for i in range(n_bonds*2, self.cur_n_bond_actors):
-            self.bond_actor_pool[i].SetVisibility(False)
+        id_glyphs = vtk.vtkIdFilter()
+        id_glyphs.SetInputConnection(glyphs.GetOutputPort())
+        id_glyphs.SetIdsArrayName("IDs")
+        id_glyphs.FieldDataOn() # check Off?
 
-        self.cur_n_bond_actors = 2*n_bonds
+        glyphs_mapper = vtk.vtkPolyDataMapper()
+        glyphs_mapper.SetInputConnection(id_glyphs.GetOutputPort())
+
+        def make_lut():
+            lut = vtk.vtkColorTransferFunction()
+            n_types = len(self.settings["bond_types"])
+            lut.SetRange(0, n_types)
+            lut.AddRGBPoint(0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
+            for i in range(1, n_types):
+                name = self.settings["bond_name_of_index"][i]
+                lut.AddRGBPoint(float(i), self.settings["bond_types"][name]["color"][0],
+                                          self.settings["bond_types"][name]["color"][1],
+                                          self.settings["bond_types"][name]["color"][2])
+            return lut
+
+        glyphs_mapper.SetLookupTable(make_lut())
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(glyphs_mapper)
+
+        actor._vtk_type = "bonds_glyphs"
+        actor.point_to_input_point = self.mappers["cylinder_y"][1]
+        actor.i_at_bond = i_at_bond
+        actor.PickableOn()
+        self.bonds_actor = actor
 
     def label_offset_world(self, pos):
         self.renderer.GetActiveCamera()
@@ -453,6 +526,7 @@ class DaVTKState(object):
             transform.Scale(r,r,r)
             actor.SetUserMatrix(transform.GetMatrix())
             # update in case numbers changed
+            actor._vtk_type = "atom"
             actor.i_at = i_at
             actor.SetVisibility(True)
 
@@ -583,13 +657,25 @@ class DaVTKState(object):
 
 
     def show_legend(self, at, pos):
+
         display_size = self.renderer.GetRenderWindow().GetSize()
         dp_world = self.label_offset_world(pos[0])
         unique_atom_types = sorted(list(set(get_atom_type_a(self.settings, at))))
-        legend_sphere_actors = [ vtk.vtkActor() for i in range(len(unique_atom_types)) ]
-        legend_label_actors = [ vtk.vtkActor() for i in range(len(unique_atom_types)) ]
 
-        for (l_i, (legend_sphere_actor, legend_label_actor, atom_type)) in enumerate(zip(legend_sphere_actors, legend_label_actors, unique_atom_types)):
+        n_actors = len(unique_atom_types)
+        if n_actors < len(self.legend_sphere_actors):
+            for actor in self.legend_sphere_actors[n_actors+1:] + self.legend_label_actors[n_actors+1:]:
+                self.renderer.RemoveActor(actor)
+            self.legend_sphere_actors = self.legend_sphere_actors[:n_actors]
+            self.legend_label_actors = self.legend_label_actors[:n_actors]
+        elif n_actors > len(self.legend_sphere_actors):
+            for i in range(n_actors-len(self.legend_sphere_actors)):
+                self.legend_sphere_actors.append(vtk.vtkActor())
+                self.legend_label_actors.append(vtk.vtkBillboardTextActor3D())
+                self.renderer.AddActor(self.legend_sphere_actors[-1])
+                self.renderer.AddActor(self.legend_label_actors[-1])
+
+        for (l_i, (legend_sphere_actor, legend_label_actor, atom_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
             atom_i_of_type = unique_atom_types.index(atom_type)
 
             legend_sphere_actor.SetMapper(self.mappers["sphere"])
@@ -608,9 +694,7 @@ class DaVTKState(object):
             legend_sphere_actor.SetPosition(sphere_pos_world[0:3])
             legend_sphere_actor.PickableOff()
             legend_sphere_actor.VisibilityOn()
-            self.renderer.AddActor(legend_sphere_actor)
 
-            legend_label_actor = vtk.vtkBillboardTextActor3D()
             legend_label_actor.SetInput(atom_type)
             legend_label_actor.SetPosition(sphere_pos_world[0:3])
             if dp_world > 0:
@@ -621,26 +705,30 @@ class DaVTKState(object):
             legend_label_actor.SetTextProperty(self.settings["label_text_prop"])
             legend_label_actor.PickableOff()
             legend_label_actor.VisibilityOn()
-            self.renderer.AddActor(legend_label_actor)
 
     def set_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
             if frame_i is not None:
-                raise ValueError("set_show_frame got both dframe and frame_i")
+                raise ValueError("set_frame got both dframe and frame_i")
             self.cur_frame += dframe
         else: # dframe is None
             if frame_i is None:
-                raise ValueError("set_show_frame got neither dframe and frame_i")
+                raise ValueError("set_frame got neither dframe and frame_i")
             if frame_i < 0 or frame_i >= len(self.at_list):
-                raise ValueError("set_show_frame got frame_i {} out of range {} --- {}".format(frame_i, 0, len(self.at_list)))
+                raise ValueError("set_frame got frame_i {} out of range {} --- {}".format(frame_i, 0, len(self.at_list)))
             self.cur_frame = frame_i
-
-        self.renderer.SetBackground(self.settings["background_color"])
 
         # wrap around
         self.cur_frame = self.cur_frame % len(self.at_list)
 
+    def update_rotate_frame(self):
+        if self.settings["legend"]["show"]:
+            at = self.at_list[self.cur_frame]
+            self.show_legend(at, at.positions)
+
     def show_frame(self, dframe=None, frame_i=None):
+        self.renderer.SetBackground(self.settings["background_color"])
+
         self.set_frame(dframe, frame_i)
 
         at = self.at_list[self.cur_frame]
@@ -656,15 +744,11 @@ class DaVTKState(object):
         self.renderer.AddActor(at._NOPRINT_vtk_cell_box_actor)
 
         # create actors for atom images
-        pos = at.get_positions()
-        self.show_image_atoms(at, pos)
+        self.show_image_atoms(at, at.positions)
 
         # need to do other actors, e.g. labels and bonds
-        for actor in self.bond_actor_pool[0:self.cur_n_bond_actors]:
-            self.renderer.AddActor(actor)
-
-        if self.settings["legend"]['show']:
-            self.show_legend(at, pos)
+        if self.bonds_actor:
+            self.renderer.AddActor(self.bonds_actor)
 
         if at.info.get("_vtk_show_labels", False):
             for actor in self.label_actor_pool[0:self.cur_n_label_actors]:
@@ -676,6 +760,10 @@ class DaVTKState(object):
                     self.renderer.AddActor(actor)
         except AttributeError:
             pass
+
+        # legend
+        if self.settings["legend"]['show']:
+            self.show_legend(at, at.positions)
 
         # config_n
         config_n_actor = vtk.vtkTextActor()

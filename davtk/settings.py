@@ -96,7 +96,8 @@ class DavTKAtomTypes(object):
 
 class DavTKSettings(object):
     def __init__(self):
-        self.settings = { "atom_types" : DavTKAtomTypes(), "bond_types" : {}, "colormaps" : {},
+        self.data = { "atom_types" : DavTKAtomTypes(), "colormaps" : {},
+            "bond_types" : {}, "bond_name_of_index" : [ None ],
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
             "picked_color" : [1.0, 1.0, 0.0], 
             "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
@@ -172,7 +173,7 @@ class DavTKSettings(object):
         self.parser_background_color.add_argument("R",type=float)
         self.parser_background_color.add_argument("G",type=float)
         self.parser_background_color.add_argument("B",type=float)
-        self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help(), self.write_picked_color)
+        self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help(), self.write_background_color)
 
         self.parser_config_n_text = ThrowingArgumentParser(prog="config_n_text")
         self.parser_config_n_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
@@ -189,23 +190,23 @@ class DavTKSettings(object):
         for f in ["cell_box","picked"]:
             prop = vtk.vtkProperty()
             prop.SetOpacity(1.0)
-            prop.SetColor(self.settings[f+"_color"])
-            self.settings[f+"_prop"] = prop
+            prop.SetColor(self.data[f+"_color"])
+            self.data[f+"_prop"] = prop
 
         # make picked very flat
-        self.settings["picked_prop"].SetAmbient(0.6)
-        self.settings["picked_prop"].SetDiffuse(0.4)
+        self.data["picked_prop"].SetAmbient(0.6)
+        self.data["picked_prop"].SetDiffuse(0.4)
 
         # text properties
         for f in ["config_n", "label"]:
             prop = vtk.vtkTextProperty()
-            self.settings[f+"_text_prop" ] = prop
+            self.data[f+"_text_prop" ] = prop
             prop.SetOpacity(1.0)
-            prop.SetColor(self.settings[f+"_text_color"])
-            prop.SetFontSize(self.settings[f+"_text_fontsize"])
+            prop.SetColor(self.data[f+"_text_color"])
+            prop.SetFontSize(self.data[f+"_text_fontsize"])
 
     def __getitem__(self,key):
-        return self.settings[key]
+        return self.data[key]
 
     def write(self, fout, key_re=None):
         for keyword in self.parsers:
@@ -214,11 +215,11 @@ class DavTKSettings(object):
 
     def write_atom_type_field(self):
         args_str = 'atom_type_field'
-        args_str += ' {}'.format(self.settings["atom_type_field"])
+        args_str += ' {}'.format(self.data["atom_type_field"])
         return args_str+'\n'
     def parse_atom_type_field(self, args):
         args = self.parser_atom_type_field.parse_args(args)
-        self.settings["atom_type_field"] = args.field
+        self.data["atom_type_field"] = args.field
         return "cur"
 
     def write_print_settings(self):
@@ -230,45 +231,45 @@ class DavTKSettings(object):
 
     def write_legend(self):
         args_str = 'legend '
-        args_str += '-on' if self.settings["legend"]['show'] else '-off'
-        args_str += ' -position {} {}'.format(self.settings["legend"]['position'][0],self.settings["legend"]['position'][1])
-        args_str += ' -spacing {}'.format(self.settings["legend"]['spacing'])
+        args_str += '-on' if self.data["legend"]['show'] else '-off'
+        args_str += ' -position {} {}'.format(self.data["legend"]['position'][0],self.data["legend"]['position'][1])
+        args_str += ' -spacing {}'.format(self.data["legend"]['spacing'])
         return args_str+'\n'
     def parse_legend(self, args):
         args = self.parser_legend.parse_args(args)
 
         if args.on:
-            self.settings["legend"]['show'] = True
+            self.data["legend"]['show'] = True
         elif args.off:
-            self.settings["legend"]['show']= False
+            self.data["legend"]['show']= False
 
         if args.position is not None:
-            self.settings["legend"]['position'] = np.array(args.position)
+            self.data["legend"]['position'] = np.array(args.position)
         if args.offset is not None:
-            self.settings["legend"]['position'] += args.offset
+            self.data["legend"]['position'] += args.offset
         if args.spacing is not None:
-            self.settings["legend"]['spacing'] = args.spacing
+            self.data["legend"]['spacing'] = args.spacing
 
         if args.position is None and args.offset is None and args.spacing is None and not args.on and not args.off:
-            self.settings["legend"]['show'] = not self.settings["legend"]['show']
+            self.data["legend"]['show'] = not self.data["legend"]['show']
 
         return "cur"
 
     def write_step(self):
         args_str = 'step'
-        args_str += ' {}'.format(self.settings["frame_step"])
+        args_str += ' {}'.format(self.data["frame_step"])
         return args_str+'\n'
     def parse_step(self, args):
         args = self.parser_step.parse_args(args)
-        self.settings["frame_step"] = args.n
+        self.data["frame_step"] = args.n
         return None
 
     def write_colormap (self):
         args_str = ''
-        for colormap in self.settings["colormaps"]:
+        for colormap in self.data["colormaps"]:
             args_str += 'colormap {}'.format(colormap)
-            data = self.settings["colormaps"][colormap]["data"]
-            for i in range(0,len(self.settings["colormaps"][colormap]["data"]),4):
+            data = self.data["colormaps"][colormap]["data"]
+            for i in range(0,len(self.data["colormaps"][colormap]["data"]),4):
                 args_str += '   -P {} {} {} {}'.format(data[i],data[i+1],data[i+2],data[i+3])
             args_str += '\n'
         return args_str
@@ -277,13 +278,13 @@ class DavTKSettings(object):
         args.colormap = [item for sublist in args.colormap for item in sublist]
         if len(args.colormap) % 4 != 0:
             raise ValueError("colormap arguments must be multiple of 4: v r g b")
-        self.settings["colormaps"][args.name] = { 'f' : lambda x : piecewise_linear(x, np.array(args.colormap)),
+        self.data["colormaps"][args.name] = { 'f' : lambda x : piecewise_linear(x, np.array(args.colormap)),
                                                   'data' : args.colormap }
         return "cur"
 
     def write_atom_type (self):
         args_str = ''
-        all_data = self.settings["atom_types"].get_all()
+        all_data = self.data["atom_types"].get_all()
         for atom_type in all_data:
             args_str += 'atom_type {}'.format(atom_type)
             (color, colormap, radius, radius_field, opacity, label_field, bonding_radius) = all_data[atom_type]
@@ -307,14 +308,14 @@ class DavTKSettings(object):
         args = self.parser_atom_type.parse_args(args)
         if args.radius_field is not None:
             args.radius_field[1] = float(args.radius_field[1])
-        self.settings["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.label_field, args.bonding_radius, self.settings["colormaps"])
+        self.data["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.label_field, args.bonding_radius, self.data["colormaps"])
         return None
 
     def write_bond_type (self):
         args_str = ''
-        for bond_type, data in self.settings["bond_types"].items():
+        for bond_type, data in self.data["bond_types"].items():
             args_str += 'bond_type {}'.format(bond_type)
-            c = data["prop"].GetColor()
+            c = data["color"]
             args_str += ' -color {} {} {}'.format(c[0],c[1],c[2])
             if data["opacity"] is not None:
                 args_str += ' -opacity {}'.format(data["opacity"])
@@ -323,101 +324,98 @@ class DavTKSettings(object):
             args_str += '\n'
         return args_str
     def parse_bond_type(self, args):
-        refresh = None
         args = self.parser_bond_type.parse_args(args)
 
-        if len(self.settings["bond_types"].keys()) == 0: # first bond type is initial default
-            self.settings["default_bond_type"] = args.name
+        if len(self.data["bond_types"].keys()) == 0: # first bond type is initial default
+            self.data["default_bond_type"] = args.name
 
-        if args.name not in self.settings["bond_types"]:
-            self.settings["bond_types"][args.name] = {}
-            self.settings["bond_types"][args.name]["opacity"] = 1.0
-            self.settings["bond_types"][args.name]["radius"] = 0.3
-            prop = vtk.vtkProperty()
-            prop.SetOpacity(1.0)
-            prop.SetSpecularColor(1.0,1.0,1.0)
-            prop.SetSpecularPower(10.0)
-            self.settings["bond_types"][args.name]["prop"] = prop
-            refresh = "all"
+        if args.name not in self.data["bond_types"]:
+            self.data["bond_types"][args.name] = {}
+            self.data["bond_types"][args.name]["color"] = None
+            self.data["bond_types"][args.name]["opacity"] = 1.0
+            self.data["bond_types"][args.name]["radius"] = 0.3
+            self.data["bond_types"][args.name]["index"] = len(self.data["bond_types"])
+            self.data["bond_name_of_index"].append(args.name)
+            if self.data["bond_name_of_index"][self.data["bond_types"][args.name]["index"]]  != args.name:
+                raise ValueError("mismatched bond name and index")
         if args.color is not None:
-            self.settings["bond_types"][args.name]["prop"].SetColor(args.color)
+            self.data["bond_types"][args.name]["color"] = args.color
         if args.opacity is not None:
-            self.settings["bond_types"][args.name]["prop"].SetOpacity(args.opacity)
+            self.data["bond_types"][args.name]["opacity"] = args.color
         if args.radius is not None:
-            refresh = "all"
-            self.settings["bond_types"][args.name]["radius"] = args.radius
+            self.data["bond_types"][args.name]["radius"] = args.radius
 
         if args.default:
-            self.settings["default_bond_type"] = args.name
+            self.data["default_bond_type"] = args.name
 
-        return refresh
+        return "cur"
 
     def write_cell_box_color(self):
-        args = 'cell_box_color {} {} {}'.format(self.settings["cell_box_color"][0],
-                                                self.settings["cell_box_color"][1],
-                                                self.settings["cell_box_color"][2])
+        args = 'cell_box_color {} {} {}'.format(self.data["cell_box_color"][0],
+                                                self.data["cell_box_color"][1],
+                                                self.data["cell_box_color"][2])
         return args+'\n'
     def parse_cell_box_color(self, args):
         args = self.parser_cell_box_color.parse_args(args)
-        self.settings["cell_box_color"] = (args.R, args.G, args.B)
-        self.settings["cell_box_prop"].SetColor(self.settings["cell_box_color"])
+        self.data["cell_box_color"] = (args.R, args.G, args.B)
+        self.data["cell_box_prop"].SetColor(self.data["cell_box_color"])
         return None
 
     def write_config_n_text(self):
         args = 'config_n_text'
-        if self.settings["config_n_text_color"] is not None:
-            args += ' -color {} {} {}'.format(self.settings["config_n_text_color"][0],
-                                              self.settings["config_n_text_color"][1],
-                                              self.settings["config_n_text_color"][2])
-        if self.settings["config_n_text_fontsize"] is not None:
-            args += ' -fontsize {}'.format(self.settings["config_n_text_fontsize"])
+        if self.data["config_n_text_color"] is not None:
+            args += ' -color {} {} {}'.format(self.data["config_n_text_color"][0],
+                                              self.data["config_n_text_color"][1],
+                                              self.data["config_n_text_color"][2])
+        if self.data["config_n_text_fontsize"] is not None:
+            args += ' -fontsize {}'.format(self.data["config_n_text_fontsize"])
         return args+'\n'
     def parse_config_n_text(self, args):
         args = self.parser_config_n_text.parse_args(args)
         if args.color is not None:
-            self.settings["config_n_text_color"] = args.color
+            self.data["config_n_text_color"] = args.color
         if args.fontsize is not None:
-            self.settings["config_n_text_fontsize"] = args.fontsize
-        self.settings["config_n_text_prop"].SetColor(self.settings["config_n_text_color"])
-        self.settings["config_n_text_prop"].SetFontSize(self.settings["config_n_text_fontsize"])
+            self.data["config_n_text_fontsize"] = args.fontsize
+        self.data["config_n_text_prop"].SetColor(self.data["config_n_text_color"])
+        self.data["config_n_text_prop"].SetFontSize(self.data["config_n_text_fontsize"])
         return None
 
     def write_label_text(self):
         args = 'label_text'
-        if self.settings["label_text_color"] is not None:
-            args += ' -color {} {} {}'.format(self.settings["label_text_color"][0],
-                                              self.settings["label_text_color"][1],
-                                              self.settings["label_text_color"][2])
-        if self.settings["label_text_fontsize"] is not None:
-            args += ' -fontsize {}'.format(self.settings["label_text_fontsize"])
+        if self.data["label_text_color"] is not None:
+            args += ' -color {} {} {}'.format(self.data["label_text_color"][0],
+                                              self.data["label_text_color"][1],
+                                              self.data["label_text_color"][2])
+        if self.data["label_text_fontsize"] is not None:
+            args += ' -fontsize {}'.format(self.data["label_text_fontsize"])
         return args+'\n'
     def parse_label_text(self, args):
         args = self.parser_label_text.parse_args(args)
         if args.color is not None:
-            self.settings["label_text_color"] = args.color
+            self.data["label_text_color"] = args.color
         if args.fontsize is not None:
-            self.settings["label_text_fontsize"] = args.fontsize
-        self.settings["label_text_prop"].SetColor(self.settings["label_text_color"])
-        self.settings["label_text_prop"].SetFontSize(self.settings["label_text_fontsize"])
+            self.data["label_text_fontsize"] = args.fontsize
+        self.data["label_text_prop"].SetColor(self.data["label_text_color"])
+        self.data["label_text_prop"].SetFontSize(self.data["label_text_fontsize"])
         return None
 
     def write_picked_color(self):
-        args = 'picked_color {} {} {}'.format(self.settings["picked_color"][0],
-                                              self.settings["picked_color"][1],
-                                              self.settings["picked_color"][2])
+        args = 'picked_color {} {} {}'.format(self.data["picked_color"][0],
+                                              self.data["picked_color"][1],
+                                              self.data["picked_color"][2])
         return args+'\n'
     def parse_picked_color(self, args):
         args = self.parser_picked_color.parse_args(args)
-        self.settings["picked_color"] = (args.R, args.G, args.B)
-        self.settings["picked_prop"].SetColor(self.settings["picked_color"])
+        self.data["picked_color"] = [args.R, args.G, args.B]
+        self.data["picked_prop"].SetColor(self.data["picked_color"])
         return None
 
     def write_background_color(self):
-        args = 'background_color {} {} {}'.format(self.settings["background_color"][0],
-                                                  self.settings["background_color"][1],
-                                                  self.settings["background_color"][2])
+        args = 'background_color {} {} {}'.format(self.data["background_color"][0],
+                                                  self.data["background_color"][1],
+                                                  self.data["background_color"][2])
         return args+'\n'
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)
-        self.settings["background_color"] = (args.R, args.G, args.B)
+        self.data["background_color"] = (args.R, args.G, args.B)
         return "cur"
