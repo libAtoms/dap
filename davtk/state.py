@@ -508,6 +508,7 @@ class DaVTKState(object):
             self.atom_actor_pool.extend([vtk.vtkActor() for i in range(len(at)-prev_pool_size)])
             for actor in self.atom_actor_pool[prev_pool_size:]:
                 actor.SetMapper(self.mappers["sphere"])
+                actor._vtk_type = "atom"
 
         atom_type_array = get_atom_type_a(self.settings, at)
         pos = at.get_positions()
@@ -526,7 +527,6 @@ class DaVTKState(object):
             transform.Scale(r,r,r)
             actor.SetUserMatrix(transform.GetMatrix())
             # update in case numbers changed
-            actor._vtk_type = "atom"
             actor.i_at = i_at
             actor.SetVisibility(True)
 
@@ -619,6 +619,7 @@ class DaVTKState(object):
 
             at.arrays["_vtk_picked"] = np.array([False] * len(at))
             at._NOPRINT_vtk_cell_box_actor = vtk.vtkActor()
+            at._NOPRINT_vtk_cell_box_actor._vtk_type = "cell_box"
             at.info["_vtk_show_labels"] = False
 
     def show_image_atoms(self, at, pos):
@@ -646,6 +647,7 @@ class DaVTKState(object):
                                 img_pos_scaled[2] >= -at.info["_vtk_images"][2] and
                                 img_pos_scaled[2] <= 1+at.info["_vtk_images"][2]):
                                img_actor = vtk.vtkActor()
+                               img_actor._vtk_type = "image_atom"
                                img_actor.SetProperty(actor.GetProperty())
                                img_actor.SetMapper(actor.GetMapper())
                                transform = vtk.vtkTransform()
@@ -655,25 +657,23 @@ class DaVTKState(object):
                                img_actor.i_at = i_at
                                self.renderer.AddActor(img_actor)
 
-
     def show_legend(self, at, pos):
 
         display_size = self.renderer.GetRenderWindow().GetSize()
         dp_world = self.label_offset_world(pos[0])
         unique_atom_types = sorted(list(set(get_atom_type_a(self.settings, at))))
 
-        n_actors = len(unique_atom_types)
-        if n_actors < len(self.legend_sphere_actors):
-            for actor in self.legend_sphere_actors[n_actors+1:] + self.legend_label_actors[n_actors+1:]:
-                self.renderer.RemoveActor(actor)
-            self.legend_sphere_actors = self.legend_sphere_actors[:n_actors]
-            self.legend_label_actors = self.legend_label_actors[:n_actors]
-        elif n_actors > len(self.legend_sphere_actors):
-            for i in range(n_actors-len(self.legend_sphere_actors)):
-                self.legend_sphere_actors.append(vtk.vtkActor())
-                self.legend_label_actors.append(vtk.vtkBillboardTextActor3D())
-                self.renderer.AddActor(self.legend_sphere_actors[-1])
-                self.renderer.AddActor(self.legend_label_actors[-1])
+        # remove, free, and re-create (recycling seems to suffer from bug perhaps addressed
+        # in merge request 3904)
+        for actor in self.legend_sphere_actors + self.legend_label_actors:
+            self.renderer.RemoveActor(actor)
+        self.legend_sphere_actors = []
+        self.legend_label_actors = []
+        for i in range(len(unique_atom_types)):
+            self.legend_sphere_actors.append(vtk.vtkActor())
+            self.legend_sphere_actors[-1]._vtk_type = "legend_sphere"
+            self.legend_label_actors.append(vtk.vtkBillboardTextActor3D())
+            self.legend_label_actors[-1]._vtk_type = "legend_label"
 
         for (l_i, (legend_sphere_actor, legend_label_actor, atom_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
             atom_i_of_type = unique_atom_types.index(atom_type)
@@ -686,17 +686,21 @@ class DaVTKState(object):
                                          self.atom_actor_pool[atom_i_of_type].r)
             legend_pos = self.settings["legend"]['position'] % display_size
 
-            coord = vtk.vtkCoordinate()
-            coord.SetCoordinateSystemToDisplay()
-            coord.SetValue(legend_pos[0], legend_pos[1]-self.settings["legend"]['spacing']*l_i, 0.01)
-            sphere_pos_world = coord.GetComputedWorldValue(self.renderer)
+            self.renderer.SetWorldPoint(list(pos[0]) + [1.0])
+            self.renderer.WorldToDisplay()
+            arb_point = self.renderer.GetDisplayPoint()
 
-            legend_sphere_actor.SetPosition(sphere_pos_world[0:3])
+            self.renderer.SetDisplayPoint(legend_pos[0], legend_pos[1]-self.settings["legend"]['spacing']*l_i, arb_point[2])
+            self.renderer.DisplayToWorld()
+            sphere_pos_world = self.renderer.GetWorldPoint()
+            sphere_pos_world = np.array(sphere_pos_world[0:3]) / sphere_pos_world[3]
+
+            legend_sphere_actor.SetPosition(sphere_pos_world)
             legend_sphere_actor.PickableOff()
             legend_sphere_actor.VisibilityOn()
 
             legend_label_actor.SetInput(atom_type)
-            legend_label_actor.SetPosition(sphere_pos_world[0:3])
+            legend_label_actor.SetPosition(sphere_pos_world)
             if dp_world > 0:
                 dp_disp = self.atom_actor_pool[atom_i_of_type].r/dp_world
             else:
@@ -705,6 +709,9 @@ class DaVTKState(object):
             legend_label_actor.SetTextProperty(self.settings["label_text_prop"])
             legend_label_actor.PickableOff()
             legend_label_actor.VisibilityOn()
+
+        for actor in self.legend_sphere_actors + self.legend_label_actors:
+            self.renderer.AddActor(actor)
 
     def set_frame(self, dframe=None, frame_i=None):
         if dframe is not None:
@@ -938,6 +945,7 @@ class DaVTKState(object):
         mapper.Update()
 
         actor = vtk.vtkActor()
+        actor._vtk_type = "isosurface"
         actor.SetMapper( mapper )
         actor.GetProperty().SetColor( params[1], params[2], params[3] )
         actor.GetProperty().SetOpacity( params[4] )

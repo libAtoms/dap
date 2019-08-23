@@ -81,12 +81,8 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.AddObserver("LeftButtonPressEvent",self.leftButtonPressEvent)
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.AddObserver("RightButtonPressEvent",self.rightButtonPressEvent)
-        self.AddObserver("MouseWheelForwardEvent",self.mouseWheelForwardEvent)
-        self.AddObserver("MouseWheelBackwardEvent",self.mouseWheelBackwardEvent)
         self.AddObserver("CharEvent",self.charEvent)
         self.AddObserver("TimerEvent",self.timerEvent)
-
-        self.mouse_wheel_moved = False
 
         if parent is not None:
             self.parent = parent
@@ -103,10 +99,6 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         self.prev_size = (0,0)
 
     def timerEvent(self,obj,event):
-        if self.mouse_wheel_moved:
-            self.mouse_wheel_moved = False
-            self.davtk_state.update_rotate_frame()
-
         try:
             line = self.davtk_state.cmd_queue.get(block=False)
         except queue.Empty:
@@ -181,23 +173,11 @@ Mouse scroll (two finger up/down drag on OS X): zoom
         self.davtk_state.cur_at().info["_vtk_show_labels"] = False
 
         self.show_legend_prev = self.davtk_state.settings["legend"]['show']
-        self.davtk_state.settings["legend"]['show'] = False
+        self.davtk_state.settings["legend"]["show"] = False
 
         self.davtk_state.update_rotate_frame()
         self.OnLeftButtonDown()
         return
-
-    def mouseWheelForwardEvent(self,obj,event):
-        self.davtk_state.update_rotate_frame()
-        self.mouse_wheel_moved = True
-
-        self.OnMouseWheelForward()
-
-    def mouseWheelBackwardEvent(self,obj,event):
-        self.davtk_state.update_rotate_frame()
-        self.mouse_wheel_moved = True
-
-        self.OnMouseWheelBackward()
 
     def leftButtonReleaseEvent(self,obj,event):
         self.davtk_state.cur_at().info["_vtk_show_labels"] = self.show_labels_prev
