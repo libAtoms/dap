@@ -9,10 +9,8 @@ def pick_actors(at, actors, point_sets):
     for (actor, points) in zip(actors, point_sets):
         if hasattr(actor, "_vtk_type"):
             if actor._vtk_type == "atom":
-                print("picked actor atom")
                 at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
             elif actor._vtk_type == "bonds_glyphs":
-                print("picked actor bonds")
                 for point in points:
                     (i_at, i_bond) = actor.i_at_bond[point]
                     new_bond_pick_statuses[(i_at,i_bond)] = not at.bonds[i_at][i_bond]["picked"] 
@@ -62,7 +60,7 @@ class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
             points[-1] = set(points[-1])
 
         pick_actors(self.davtk_state.cur_at(), actors, points)
-        self.davtk_state.update(frames="cur")
+        self.davtk_state.update()
 
         self.OnLeftButtonUp()
 
@@ -105,15 +103,13 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             return
         try:
             refresh = parse_line(line.rstrip(), self.settings, self.davtk_state, self.GetDefaultRenderer())
-            if refresh == "all":
-                self.davtk_state.update()
-            elif refresh == "cur":
-                self.davtk_state.update(frames="cur")
-            elif refresh == "exit":
+            if refresh == "exit":
                 sys.exit(0)
-            elif refresh is not None:
-                raise ValueError("unknown refresh type "+str(refresh))
+            else:
+                self.davtk_state.update(what=refresh)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print("error parsing line",e)
 
         if self.GetInteractor() is not None:
@@ -124,7 +120,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         new_size = obj.GetSize()
         if new_size != self.prev_size:
             self.prev_size = new_size
-            self.davtk_state.update(frames="cur")
+            self.davtk_state.update()
 
     def charEvent(self,obj,event):
         k = self.parent.GetKeySym()
@@ -175,7 +171,7 @@ Mouse scroll (two finger up/down drag on OS X): zoom
         self.show_legend_prev = self.davtk_state.settings["legend"]['show']
         self.davtk_state.settings["legend"]["show"] = False
 
-        self.davtk_state.update_rotate_frame()
+        self.davtk_state.update("rotate")
         self.OnLeftButtonDown()
         return
 
@@ -184,7 +180,7 @@ Mouse scroll (two finger up/down drag on OS X): zoom
 
         self.davtk_state.settings["legend"]['show'] = self.show_legend_prev
 
-        self.davtk_state.update_rotate_frame()
+        self.davtk_state.update("rotate")
         self.OnLeftButtonUp()
 
     def rightButtonPressEvent(self,obj,event):

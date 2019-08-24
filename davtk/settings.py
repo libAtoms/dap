@@ -44,11 +44,11 @@ class DavTKAtomTypes(object):
         for name in self.types:
             t = self.types[name]
             data[name] = (t["color"],t["colormap"],t["radius"],t["radius_field"],
-                          t["opacity"],t["label"],t["bonding_radius"])
+                          t["opacity"],t["bonding_radius"])
         return data
 
     def set_type(self, name, color=None, colormap=None, radius=None, radius_field=None,
-                 opacity=None, label=None, bonding_radius=None, colormaps=None):
+                 opacity=None, bonding_radius=None, colormaps=None):
         if name not in self.types:
             self.types[name] = {}
             self.types[name]["color"] = None
@@ -56,7 +56,6 @@ class DavTKAtomTypes(object):
             self.types[name]["radius"] = None
             self.types[name]["radius_field"] = None
             self.types[name]["opacity"] = None
-            self.types[name]["label"] = None
             self.types[name]["bonding_radius"] = None
             self.types[name]["prop"] = vtk.vtkProperty()
             self.types[name]["prop"].SetOpacity(1.0)
@@ -86,11 +85,6 @@ class DavTKAtomTypes(object):
         if opacity is not None:
             self.types[name]["opacity"] = opacity
             self.types[name]["prop"].SetOpacity(opacity)
-        if label is not None:
-            if label == "NONE" or label == "_":
-                self.types[name]["label"] = None
-            else:
-                self.types[name]["label"] = label
         if bonding_radius is not None:
             self.types[name]["bonding_radius"] = bonding_radius
 
@@ -103,14 +97,15 @@ class DavTKSettings(object):
             "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
             "label_text_color" : [1.0, 1.0, 1.0], "label_text_fontsize" : 24,
             "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-100,-100]), 'spacing' : 100 },
-            'atom_type_field' : 'Z'
+            'atom_type_field' : 'Z', 'atom_label_field' : 'ID'
             }
 
         self.parsers = {}
 
         self.parser_atom_type_field = ThrowingArgumentParser(prog="atom_type_field",description="ASE at.arrays field to use for atom type")
         self.parser_atom_type_field.add_argument("field",type=str,help="name of field ('Z' for atomic numbers, 'species' for chemical symbols", default='Z')
-        self.parsers["atom_type_field"] = (self.parse_atom_type_field, self.parser_atom_type_field.format_usage(), self.parser_atom_type_field.format_help(), self.write_atom_type_field)
+        self.parsers["atom_type_field"] = (self.parse_atom_type_field, self.parser_atom_type_field.format_usage(),
+                                           self.parser_atom_type_field.format_help(), self.write_atom_type_field)
         
         self.parser_print_settings = ThrowingArgumentParser(prog="print_settings",description="print settings")
         self.parser_print_settings.add_argument("-keyword_regexp",type=str)
@@ -145,7 +140,6 @@ class DavTKSettings(object):
         group.add_argument("-radius",type=float,default=None)
         group.add_argument("-radius_field",type=str,nargs=2,metavar=("RADIUS_FIELD","FACTOR"),default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
-        self.parser_atom_type.add_argument("-label_field",type=str,default=None)
         self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
         self.parsers["atom_type"] = (self.parse_atom_type, self.parser_atom_type.format_usage(), self.parser_atom_type.format_help(), self.write_atom_type)
 
@@ -161,29 +155,41 @@ class DavTKSettings(object):
         self.parser_cell_box_color.add_argument("R",type=float)
         self.parser_cell_box_color.add_argument("G",type=float)
         self.parser_cell_box_color.add_argument("B",type=float)
-        self.parsers["cell_box_color"] = (self.parse_cell_box_color, self.parser_cell_box_color.format_usage(), self.parser_cell_box_color.format_help(), self.write_cell_box_color)
+        self.parsers["cell_box_color"] = (self.parse_cell_box_color, self.parser_cell_box_color.format_usage(), self.parser_cell_box_color.format_help(), 
+                                          self.write_cell_box_color)
 
         self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
         self.parser_picked_color.add_argument("R",type=float)
         self.parser_picked_color.add_argument("G",type=float)
         self.parser_picked_color.add_argument("B",type=float)
-        self.parsers["picked_color"] = (self.parse_picked_color, self.parser_picked_color.format_usage(), self.parser_picked_color.format_help(), self.write_picked_color)
+        self.parsers["picked_color"] = (self.parse_picked_color, self.parser_picked_color.format_usage(), self.parser_picked_color.format_help(), 
+                                        self.write_picked_color)
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
         self.parser_background_color.add_argument("R",type=float)
         self.parser_background_color.add_argument("G",type=float)
         self.parser_background_color.add_argument("B",type=float)
-        self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help(), self.write_background_color)
+        self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help(),
+                                            self.write_background_color)
 
         self.parser_config_n_text = ThrowingArgumentParser(prog="config_n_text")
         self.parser_config_n_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_config_n_text.add_argument("-fontsize",type=int,default=None)
-        self.parsers["config_n_text"] = (self.parse_config_n_text, self.parser_config_n_text.format_usage(), self.parser_config_n_text.format_help(), self.write_config_n_text)
+        self.parsers["config_n_text"] = (self.parse_config_n_text, self.parser_config_n_text.format_usage(), self.parser_config_n_text.format_help(), 
+                                         self.write_config_n_text)
 
         self.parser_label_text = ThrowingArgumentParser(prog="label_text")
         self.parser_label_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_label_text.add_argument("-fontsize",type=int,default=None)
-        self.parsers["label_text"] = (self.parse_label_text, self.parser_label_text.format_usage(), self.parser_label_text.format_help(), self.write_label_text)
+        self.parsers["label_text"] = (self.parse_label_text, self.parser_label_text.format_usage(), self.parser_label_text.format_help(),
+                                      self.write_label_text)
+
+        self.parser_atom_label_field = ThrowingArgumentParser(prog="atom_label_field")
+        self.parser_atom_label_field.add_argument("field",type=str,default="ID",
+                                                  help="Atoms.arrays field to use for label (ID for number of atom, "+
+                                                       "Z for atomic number, species for chemical symbol")
+        self.parsers["atom_label_field"] = (self.parse_atom_label_field, self.parser_atom_label_field.format_usage(), self.parser_atom_label_field.format_help(),
+                                      self.write_atom_label_field)
 
         # properties
         # 3D Actor properties
@@ -220,7 +226,7 @@ class DavTKSettings(object):
     def parse_atom_type_field(self, args):
         args = self.parser_atom_type_field.parse_args(args)
         self.data["atom_type_field"] = args.field
-        return "cur"
+        return "settings"
 
     def write_print_settings(self):
         return ''
@@ -253,7 +259,7 @@ class DavTKSettings(object):
         if args.position is None and args.offset is None and args.spacing is None and not args.on and not args.off:
             self.data["legend"]['show'] = not self.data["legend"]['show']
 
-        return "cur"
+        return "settings"
 
     def write_step(self):
         args_str = 'step'
@@ -280,14 +286,14 @@ class DavTKSettings(object):
             raise ValueError("colormap arguments must be multiple of 4: v r g b")
         self.data["colormaps"][args.name] = { 'f' : lambda x : piecewise_linear(x, np.array(args.colormap)),
                                                   'data' : args.colormap }
-        return "cur"
+        return "settings"
 
     def write_atom_type (self):
         args_str = ''
         all_data = self.data["atom_types"].get_all()
         for atom_type in all_data:
             args_str += 'atom_type {}'.format(atom_type)
-            (color, colormap, radius, radius_field, opacity, label_field, bonding_radius) = all_data[atom_type]
+            (color, colormap, radius, radius_field, opacity, bonding_radius) = all_data[atom_type]
             if color is not None:
                 args_str += ' -color {} {} {}'.format(color[0], color[1], color[2])
             if colormap is not None:
@@ -298,8 +304,6 @@ class DavTKSettings(object):
                 args_str += ' -radius_field {} {}'.format(radius_field[0], radius_field[1])
             if opacity is not None:
                 args_str += ' -opacity {}'.format(opacity)
-            if label_field is not None:
-                args_str += ' -label_field {}'.format(label_field)
             if bonding_radius is not None:
                 args_str += ' -bonding_radius {}'.format(bonding_radius)
             args_str += '\n'
@@ -308,8 +312,8 @@ class DavTKSettings(object):
         args = self.parser_atom_type.parse_args(args)
         if args.radius_field is not None:
             args.radius_field[1] = float(args.radius_field[1])
-        self.data["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.label_field, args.bonding_radius, self.data["colormaps"])
-        return None
+        self.data["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.bonding_radius, self.data["colormaps"])
+        return "settings"
 
     def write_bond_type (self):
         args_str = ''
@@ -348,7 +352,7 @@ class DavTKSettings(object):
         if args.default:
             self.data["default_bond_type"] = args.name
 
-        return "cur"
+        return "settings"
 
     def write_cell_box_color(self):
         args = 'cell_box_color {} {} {}'.format(self.data["cell_box_color"][0],
@@ -359,7 +363,7 @@ class DavTKSettings(object):
         args = self.parser_cell_box_color.parse_args(args)
         self.data["cell_box_color"] = (args.R, args.G, args.B)
         self.data["cell_box_prop"].SetColor(self.data["cell_box_color"])
-        return None
+        return "settings"
 
     def write_config_n_text(self):
         args = 'config_n_text'
@@ -378,7 +382,7 @@ class DavTKSettings(object):
             self.data["config_n_text_fontsize"] = args.fontsize
         self.data["config_n_text_prop"].SetColor(self.data["config_n_text_color"])
         self.data["config_n_text_prop"].SetFontSize(self.data["config_n_text_fontsize"])
-        return None
+        return "settings"
 
     def write_label_text(self):
         args = 'label_text'
@@ -397,7 +401,15 @@ class DavTKSettings(object):
             self.data["label_text_fontsize"] = args.fontsize
         self.data["label_text_prop"].SetColor(self.data["label_text_color"])
         self.data["label_text_prop"].SetFontSize(self.data["label_text_fontsize"])
-        return None
+        return "settings"
+
+    def write_atom_label_field(self):
+        args = 'atom_label_field {}'.format(self.data["atom_label_field"])
+        return args+'\n'
+    def parse_atom_label_field(self, args):
+        args = self.parser_atom_label_field.parse_args(args)
+        self.data["atom_label_field"] = args.field
+        return "settings"
 
     def write_picked_color(self):
         args = 'picked_color {} {} {}'.format(self.data["picked_color"][0],
@@ -418,4 +430,4 @@ class DavTKSettings(object):
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)
         self.data["background_color"] = (args.R, args.G, args.B)
-        return "cur"
+        return "settings"

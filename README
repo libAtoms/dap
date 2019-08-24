@@ -57,4 +57,5 @@ TODO (in no particular order, difficulty in parens)
     slices through volumetric data (maybe also voxel visualization) (depends on vtk support)
     color isosurfaces by a scalar (medium)
     better examples (easy)
-    atoms (perhaps bonds) through native vtkGlyph3D (medium-hard, but much faster, probably worth it)
+    atoms and bonds through native vtkGlyph3D (medium-hard, but much faster, probably worth it) [ BONDS DONE ]
+    optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]

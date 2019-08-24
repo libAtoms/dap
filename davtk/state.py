@@ -310,9 +310,18 @@ class DaVTKState(object):
 
         self.update(frames)
 
-    def update(self, frames=None):
+    def update(self, what=None):
+        if what == "rotate":
+            if self.settings["legend"]["show"]:
+                at = self.at_list[self.cur_frame]
+                self.show_legend(at, at.positions)
+            return
 
-        self.update_cell_boxes(frames)
+        self.update_settings()
+        if what == "settings":
+            return
+
+        self.update_cell_boxes(what == "settings")
         self.show_frame(dframe=0)
 
     def update_bonds(self, at):
@@ -379,6 +388,7 @@ class DaVTKState(object):
         angles = numpy_to_vtk(np.array(angles_list))
         scales = numpy_to_vtk(np.array(scales_list))
         color_indices = numpy_to_vtk(np.array(color_indices_list, dtype=int))
+        color_indices.SetName("color_indices")
 
         glyphs_data = vtk.vtkPolyData()
         glyphs_data.SetPoints(points)
@@ -419,19 +429,7 @@ class DaVTKState(object):
         glyphs_mapper = vtk.vtkPolyDataMapper()
         glyphs_mapper.SetInputConnection(id_glyphs.GetOutputPort())
 
-        def make_lut():
-            lut = vtk.vtkColorTransferFunction()
-            n_types = len(self.settings["bond_types"])
-            lut.SetRange(0, n_types)
-            lut.AddRGBPoint(0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
-            for i in range(1, n_types):
-                name = self.settings["bond_name_of_index"][i]
-                lut.AddRGBPoint(float(i), self.settings["bond_types"][name]["color"][0],
-                                          self.settings["bond_types"][name]["color"][1],
-                                          self.settings["bond_types"][name]["color"][2])
-            return lut
-
-        glyphs_mapper.SetLookupTable(make_lut())
+        glyphs_mapper.SetLookupTable(self.bond_lut)
 
         actor = vtk.vtkActor()
         actor.SetMapper(glyphs_mapper)
@@ -441,6 +439,18 @@ class DaVTKState(object):
         actor.i_at_bond = i_at_bond
         actor.PickableOn()
         self.bonds_actor = actor
+
+    def update_settings(self):
+        # look up table for bond colors
+        self.bond_lut = vtk.vtkColorTransferFunction()
+        n_types = len(self.settings["bond_types"])
+        self.bond_lut.SetRange(0, n_types)
+        self.bond_lut.AddRGBPoint(0.0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
+        for i in range(1, n_types+1):
+            name = self.settings["bond_name_of_index"][i]
+            self.bond_lut.AddRGBPoint(float(i), self.settings["bond_types"][name]["color"][0],
+                                      self.settings["bond_types"][name]["color"][1],
+                                      self.settings["bond_types"][name]["color"][2])
 
     def label_offset_world(self, pos):
         self.renderer.GetActiveCamera()
@@ -477,7 +487,7 @@ class DaVTKState(object):
                 else:
                     label_str = at.arrays["_vtk_label"][i_at]
             if label_str is None:
-                label_field = self.settings["atom_types"][atom_type_array[i_at]]["label"]
+                label_field = self.settings["atom_label_field"]
                 if label_field is None or label_field == "ID":
                     label_str = str(i_at)
                 elif label_field == "Z" or label_field == "atomic_number":
@@ -534,84 +544,87 @@ class DaVTKState(object):
             self.atom_actor_pool[i].SetVisibility(False)
         self.cur_n_atom_actors = len(at)
 
-    def update_cell_boxes(self, frames=None):
-        for frame_i in self.frame_list(frames):
-            cell = self.at_list[frame_i].get_cell()
+    def update_cell_boxes(self, settings_only=False):
+        at = self.cur_at()
+        actor = at._NOPRINT_vtk_cell_box_actor
+        actor.GetProperty().SetColor(self.settings["cell_box_color"])
+        actor.PickableOff()
 
-            pts = vtk.vtkPoints()
-            for i0 in range(2):
-                for i1 in range(2):
-                    for i2 in range(2):
-                        pts.InsertNextPoint(i0*cell[0] + i1*cell[1] + i2*cell[2])
-            # 0 0 0    0 0 1    0 1 0    0 1 1     1 0 0  1 0 1   1 1 0   1 1 1
-            lines = vtk.vtkCellArray()
+        if settings_only:
+            return
 
-            # origin to a1, a2, a3
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,0)
-            l.GetPointIds().SetId(1,1)
-            lines.InsertNextCell(l)
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,0)
-            l.GetPointIds().SetId(1,2)
-            lines.InsertNextCell(l)
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,0)
-            l.GetPointIds().SetId(1,4)
-            lines.InsertNextCell(l)
+        cell = at.get_cell()
+        pts = vtk.vtkPoints()
+        for i0 in range(2):
+            for i1 in range(2):
+                for i2 in range(2):
+                    pts.InsertNextPoint(i0*cell[0] + i1*cell[1] + i2*cell[2])
+        # 0 0 0    0 0 1    0 1 0    0 1 1     1 0 0  1 0 1   1 1 0   1 1 1
+        lines = vtk.vtkCellArray()
 
-            # a1, a2, a3 to 6 more
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,1)
-            l.GetPointIds().SetId(1,3)
-            lines.InsertNextCell(l)
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,1)
-            l.GetPointIds().SetId(1,5)
-            lines.InsertNextCell(l)
+        # origin to a1, a2, a3
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,0)
+        l.GetPointIds().SetId(1,1)
+        lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,0)
+        l.GetPointIds().SetId(1,2)
+        lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,0)
+        l.GetPointIds().SetId(1,4)
+        lines.InsertNextCell(l)
 
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,2)
-            l.GetPointIds().SetId(1,3)
-            lines.InsertNextCell(l)
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,2)
-            l.GetPointIds().SetId(1,6)
-            lines.InsertNextCell(l)
+        # a1, a2, a3 to 6 more
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,1)
+        l.GetPointIds().SetId(1,3)
+        lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,1)
+        l.GetPointIds().SetId(1,5)
+        lines.InsertNextCell(l)
 
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,4)
-            l.GetPointIds().SetId(1,5)
-            lines.InsertNextCell(l)
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,4)
-            l.GetPointIds().SetId(1,6)
-            lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,2)
+        l.GetPointIds().SetId(1,3)
+        lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,2)
+        l.GetPointIds().SetId(1,6)
+        lines.InsertNextCell(l)
 
-            # a1+a2+a3 to 3
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,3)
-            l.GetPointIds().SetId(1,7)
-            lines.InsertNextCell(l)
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,5)
-            l.GetPointIds().SetId(1,7)
-            lines.InsertNextCell(l)
-            l = vtk.vtkLine()
-            l.GetPointIds().SetId(0,6)
-            l.GetPointIds().SetId(1,7)
-            lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,4)
+        l.GetPointIds().SetId(1,5)
+        lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,4)
+        l.GetPointIds().SetId(1,6)
+        lines.InsertNextCell(l)
 
-            linesPolyData = vtk.vtkPolyData()
-            linesPolyData.SetPoints(pts)
-            linesPolyData.SetLines(lines)
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputData(linesPolyData)
+        # a1+a2+a3 to 3
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,3)
+        l.GetPointIds().SetId(1,7)
+        lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,5)
+        l.GetPointIds().SetId(1,7)
+        lines.InsertNextCell(l)
+        l = vtk.vtkLine()
+        l.GetPointIds().SetId(0,6)
+        l.GetPointIds().SetId(1,7)
+        lines.InsertNextCell(l)
 
-            actor = self.at_list[frame_i]._NOPRINT_vtk_cell_box_actor
-            actor.SetMapper(mapper)
-            actor.GetProperty().SetColor(self.settings["cell_box_color"])
-            actor.PickableOff()
+        linesPolyData = vtk.vtkPolyData()
+        linesPolyData.SetPoints(pts)
+        linesPolyData.SetLines(lines)
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(linesPolyData)
+
+        actor.SetMapper(mapper)
 
     def create_vtk_structures(self, frames=None):
         for frame_i in self.frame_list(frames):
@@ -727,11 +740,6 @@ class DaVTKState(object):
 
         # wrap around
         self.cur_frame = self.cur_frame % len(self.at_list)
-
-    def update_rotate_frame(self):
-        if self.settings["legend"]["show"]:
-            at = self.at_list[self.cur_frame]
-            self.show_legend(at, at.positions)
 
     def show_frame(self, dframe=None, frame_i=None):
         self.renderer.SetBackground(self.settings["background_color"])
