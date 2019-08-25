@@ -50,7 +50,8 @@ CLI help is available with 'usage' or for each command with 'command -h' in the 
 
 TODO (in expected order of implementation)
     STARTED
-        atoms and bonds through native vtkGlyph3D (medium-hard, but much faster, probably worth it) [ BONDS DONE ]
+        atoms and bonds through native vtkGlyph3D (medium-hard, but much faster, probably worth it) [ NEARLY DONE ]
+        better handling of atom labels after zoom in/out
         optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]
 
     NOT EVEN STARTED

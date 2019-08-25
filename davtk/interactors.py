@@ -135,12 +135,11 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.davtk_state.bond(name=None, at_type1='*', at_type2='*', criterion="picked", frames="cur")
         elif k == 'l':
             self.davtk_state.cur_at().info["_vtk_show_labels"] = not self.davtk_state.cur_at().info["_vtk_show_labels"]
-            # self.davtk_state.update_labels(frames="cur")
-            self.davtk_state.show_frame(dframe=0)
+            self.davtk_state.update()
         elif k == 'plus':
-            self.davtk_state.show_frame(dframe=self.davtk_state.settings["frame_step"])
+            self.davtk_state.update('+'+str(self.davtk_state.settings["frame_step"]))
         elif k == 'minus':
-            self.davtk_state.show_frame(dframe=-self.davtk_state.settings["frame_step"])
+            self.davtk_state.update('-'+str(self.davtk_state.settings["frame_step"]))
         elif k in [ 'h', '?' ]:
             print("""GUI usage
 h: help (this message)
@@ -201,7 +200,7 @@ Mouse scroll (two finger up/down drag on OS X): zoom
                 pass
             pick_actors(self.davtk_state.cur_at(), [pickedActor], [[point]])
 
-        self.davtk_state.show_frame(dframe=0)
+        self.davtk_state.update()
 
         self.GetInteractor().Render()
 

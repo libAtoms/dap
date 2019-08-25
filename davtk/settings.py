@@ -70,7 +70,7 @@ class DavTKAtomTypes(object):
         if colormap is not None:
             if color is not None:
                 raise ValueError("got color and colormap")
-            self.types[name]["colormap"] = (colormap[0], colormap[1], colormaps[colormap[0]]['f'])
+            self.types[name]["colormap"] = (colormap[0], colormap[1])
             self.types[name]["color"] = None
         if radius is not None:
             if radius_field is not None:
@@ -274,18 +274,13 @@ class DavTKSettings(object):
         args_str = ''
         for colormap in self.data["colormaps"]:
             args_str += 'colormap {}'.format(colormap)
-            data = self.data["colormaps"][colormap]["data"]
-            for i in range(0,len(self.data["colormaps"][colormap]["data"]),4):
-                args_str += '   -P {} {} {} {}'.format(data[i],data[i+1],data[i+2],data[i+3])
+            for pt in self.data["colormaps"][colormap]:
+                args_str += '   -P {} {} {} {}'.format(pt[0], pt[1], pt[2], pt[3])
             args_str += '\n'
         return args_str
     def parse_colormap(self, args):
         args = self.parser_colormap.parse_args(args)
-        args.colormap = [item for sublist in args.colormap for item in sublist]
-        if len(args.colormap) % 4 != 0:
-            raise ValueError("colormap arguments must be multiple of 4: v r g b")
-        self.data["colormaps"][args.name] = { 'f' : lambda x : piecewise_linear(x, np.array(args.colormap)),
-                                                  'data' : args.colormap }
+        self.data["colormaps"][args.name] = args.colormap
         return "settings"
 
     def write_atom_type (self):

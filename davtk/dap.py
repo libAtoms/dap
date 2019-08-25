@@ -54,26 +54,25 @@ class Viewer(object):
         camera.SetFocalPoint((max_pos+min_pos)/2.0)
         camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
-        # start viewing first frame
-        self.davtk_state.update()
-        self.davtk_state.startup()
-
         # must do this rather late in the process
         renwin.SetWindowName(win_name)
 
         # read commands from atomic config headers
         for frame_i in range(len(self.davtk_state)):
             if "_vtk_commands" in at_list[frame_i].info:
-                self.davtk_state.set_frame(frame_i)
+                self.davtk_state.set_frame(str(frame_i))
                 for cmd in at_list[frame_i].info["_vtk_commands"].split(";"):
                     parse_line(cmd, settings=settings, state=self.davtk_state)
                 del at_list[frame_i].info["_vtk_commands"]
-        self.davtk_state.show_frame(frame_i=0)
+
+        self.davtk_state.set_frame("0")
 
         # now that atoms are read in and davtk_state exists, read any other commands (e.g. extra settings)
         for l in init_commands:
             for sub_l in l.split(";"):
                 parse_line(sub_l, settings=settings, state=self.davtk_state)
+
+        self.davtk_state.startup()
 
         self.davtk_state.prep_after_atoms_read()
         print("""DAP
