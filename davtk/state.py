@@ -323,19 +323,16 @@ class DaVTKState(object):
         if not re.search('^(rotate|settings|[+-]?\d+)$', what):
             raise ValueError("update what='{}', not rotate or settings or number of +/-number".format(what))
 
-        at = self.cur_at()
-
         if what == "rotate":
-            self.update_legend(at)
+            self.update_legend(self.cur_at())
             return
+
+        self.set_frame(what)
+        at = self.cur_at()
 
         self.update_settings()
 
-        if what != "settings":
-            self.set_frame(what)
-
         self.renderer.SetBackground(self.settings["background_color"])
-
 
         self.update_cell_box(at.get_cell(), what == "settings")
         self.update_atoms(at, what == "settings")
@@ -398,10 +395,9 @@ class DaVTKState(object):
         actor.SetMapper(mapper)
         self.renderer.AddActor(actor)
 
-    # need to see what can be optimized if settings_only is True
-    def update_atoms(self, at, settings_only = False):
+    def atoms_plotting_info(self, at):
         atom_type_list = get_atom_type_list(self.settings, at)
-        pos = at.get_positions()
+        pos = at.positions
 
         # create structures for each atom type
         points_lists = {}
@@ -431,6 +427,14 @@ class DaVTKState(object):
             radius_lists[at_type].append(r)
             colormap_vals_lists[at_type].append(colormap_val)
             i_at_lists[at_type].append(i_at)
+
+        return (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists)
+
+    # need to see what can be optimized if settings_only is True
+    def update_atoms(self, at, settings_only = False):
+
+        # get structures 
+        (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists) = self.atoms_plotting_info(at)
 
         # cleaup up actors
         for actor in self.atoms_actors:
