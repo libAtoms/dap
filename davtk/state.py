@@ -201,7 +201,7 @@ class DaVTKState(object):
     def __init__(self, at_list, settings, renderer, iRen=None):
         self.at_list = at_list
         self.settings = settings
-        self.sources = self.create_shape_sources()
+        self.shapes = self.create_shapes()
         self.create_vtk_structures()
         self.cur_frame = 0
         self.renderer = renderer
@@ -214,6 +214,7 @@ class DaVTKState(object):
         self.atoms_points_data = {}
 
         self.atoms_actors = []
+        self.image_atom_actors = []
         self.bonds_actor = None
         self.volume_reps_actors = []
 
@@ -234,8 +235,9 @@ class DaVTKState(object):
     def cur_at(self):
         return self.at_list[self.cur_frame]
 
-    def create_shape_sources(self):
+    def create_shapes(self):
         sources = {}
+        mappers = {}
 
         sphere = vtk.vtkSphereSource()
         sphere.SetRadius(1.0)
@@ -245,6 +247,7 @@ class DaVTKState(object):
         sphere_mapper.SetInputConnection(sphere.GetOutputPort())
         sphere_mapper.Update()
         sources["sphere"] = (sphere, sphere_mapper.GetInput().GetNumberOfPoints())
+        mappers["sphere"] = sphere_mapper
 
         cyl_y = vtk.vtkCylinderSource()
         cyl_y.SetRadius(1.0)
@@ -254,6 +257,7 @@ class DaVTKState(object):
         cyl_y_mapper.SetInputConnection(cyl_y.GetOutputPort())
         cyl_y_mapper.Update()
         sources["cylinder_y"] = (cyl_y, cyl_y_mapper.GetInput().GetNumberOfPoints())
+
         # cyl_x = vtk.vtkTransformPolyDataFilter()
         # t = vtk.vtkTransform()
         # t.RotateZ(90)
@@ -261,6 +265,7 @@ class DaVTKState(object):
         # cyl_x.SetInputConnection(cyl_y.GetOutputPort())
         # sources["cylinder_x"] = (cyl_x, cyl_y_mapper.GetInput().GetNumberOfPoints())
 
+        return { 'sources' : sources, 'mappers' : mappers }
         return sources
 
     def frame_list(self, frames):
@@ -305,7 +310,7 @@ class DaVTKState(object):
 
     def update_settings(self):
         self.create_bond_lut()
-        self.create_atom_luts()
+        self.create_atom_type_luts()
 
     def set_frame(self, frame):
         if frame.startswith("+") or frame.startswith("-"):
@@ -418,10 +423,17 @@ class DaVTKState(object):
             r = get_atom_radius(self.settings, at_type, i_at, at)
 
             colormap = self.settings["atom_types"][at_type]["colormap"]
-            if picked or colormap is None:
-                colormap_val = (0.0, 0.0, 0.0)
+            if colormap is None: # fixed color
+                if picked:
+                    colormap_val = (1.0, 0.0, 0.0)
+                else:
+                    colormap_val = (0.0, 0.0, 0.0)
             else:
-                colormap_val = (np.linalg.norm(at.arrays[colormap[1]]), 0.0, 0.0)
+                (colormap_name, colormap_field) = colormap
+                if picked: # every colormap has picked_color at max range + 1.0
+                    colormap_val = (self.settings["colormaps"][colormap_name][-1][0]+1.0, 0.0, 0.0)
+                else:
+                    colormap_val = (np.linalg.norm(at.arrays[colormap_field]), 0.0, 0.0)
 
             points_lists[at_type].append(pos[i_at])
             radius_lists[at_type].append(r)
@@ -460,7 +472,7 @@ class DaVTKState(object):
             # create spherical glyphs
             glyphs = vtk.vtkGlyph3D()
             glyphs.SetInputData(glyphs_data)
-            glyphs.SetSourceConnection(self.sources["sphere"][0].GetOutputPort())
+            glyphs.SetSourceConnection(self.shapes["sources"]["sphere"][0].GetOutputPort())
             glyphs.SetScaleModeToScaleByScalar()
             glyphs.SetColorModeToColorByVector()
             glyphs.Update()
@@ -468,13 +480,13 @@ class DaVTKState(object):
             # create mapper and set color LUT
             mapper = vtk.vtkPolyDataMapper()
             mapper.SetInputConnection(glyphs.GetOutputPort())
-            mapper.SetLookupTable(self.atom_luts[at_type])
+            mapper.SetLookupTable(self.atom_type_luts[at_type])
 
             # create actor
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
             actor._vtk_type = "atoms_glyphs"
-            actor.point_to_input_point = self.sources["sphere"][1]
+            actor.point_to_input_point = self.shapes["sources"]["sphere"][1]
             actor.i_at = i_at_lists[at_type]
 
             # add and save actor
@@ -486,12 +498,16 @@ class DaVTKState(object):
         if not hasattr(at, "bonds"):
             if self.bonds_actor is not None:
                 self.bonds_actor.VisibilityOff()
+                self.bonds_actor.PickableOff()
                 self.renderer.RemoveActor(self.bonds_actor)
             return
 
         if self.bonds_actor is None:
             self.bonds_actor = vtk.vtkActor()
-            actor._vtk_type = "bonds_glyphs"
+            self.bonds_actor._vtk_type = "bonds_glyphs"
+            self.bonds_actor.point_to_input_point = self.shapes["sources"]["cylinder_y"][1]
+
+        actor = self.bonds_actor
 
         pos = at.get_positions()
 
@@ -575,12 +591,12 @@ class DaVTKState(object):
             trans.Scale(scale[0], scale[1], scale[2])
 
             trans_cyl = vtk.vtkTransformPolyDataFilter()
-            trans_cyl.SetInputConnection(self.sources["cylinder_y"][0].GetOutputPort())
+            trans_cyl.SetInputConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
             trans_cyl.SetTransform(trans)
             glyphs.SetSourceConnection(trans_cyl.GetOutputPort())
 
         glyphs = vtk.vtkProgrammableGlyphFilter()
-        glyphs.SetSourceConnection(self.sources["cylinder_y"][0].GetOutputPort())
+        glyphs.SetSourceConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
         glyphs.SetInputData(glyphs_data)
         glyphs.SetGlyphMethod(place_glyph)
         glyphs.SetColorModeToColorByInput()
@@ -596,49 +612,64 @@ class DaVTKState(object):
         glyphs_mapper.SetLookupTable(self.bond_lut)
 
         actor.SetMapper(glyphs_mapper)
-
-        actor.point_to_input_point = self.sources["cylinder_y"][1]
         actor.i_at_bond = i_at_bond
+
+        actor.VisibilityOn()
         actor.PickableOn()
-        self.bonds_actor = actor
         self.renderer.AddActor(actor)
 
     def update_image_atoms(self, at, settings_only = False):
         if "_vtk_images" not in at.info:
             return
-        raise Exception("image atoms not supported right now")
 
+        (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists) = self.atoms_plotting_info(at)
+
+        n_images = 0
         pos = at.get_positions()
         cell = at.get_cell()
         cell_inv = at.get_reciprocal_cell().T
-        for (i_at, actor) in enumerate(self.atom_actor_pool[0:self.cur_n_atom_actors]):
-            n0 = int(math.ceil(at.info["_vtk_images"][0]))
-            n1 = int(math.ceil(at.info["_vtk_images"][1]))
-            n2 = int(math.ceil(at.info["_vtk_images"][2]))
-            for i0 in range(-n0, n0+1):
-                for i1 in range(-n1, n1+1):
-                    for i2 in range(-n2, n2+1):
-                        if (i0,i1,i2) == (0,0,0):
-                            continue
-                        img_pos = pos[i_at] + np.dot([i0, i1, i2], cell)
-                        img_pos_scaled = np.dot(img_pos, cell_inv)
-                        if (img_pos_scaled[0] >= -at.info["_vtk_images"][0] and
-                            img_pos_scaled[0] <= 1+at.info["_vtk_images"][0] and
-                            img_pos_scaled[1] >= -at.info["_vtk_images"][1] and
-                            img_pos_scaled[1] <= 1+at.info["_vtk_images"][1] and
-                            img_pos_scaled[2] >= -at.info["_vtk_images"][2] and
-                            img_pos_scaled[2] <= 1+at.info["_vtk_images"][2]):
-                           img_actor = vtk.vtkActor()
-                           img_actor._vtk_type = "image_atom"
-                           img_actor.SetProperty(actor.GetProperty())
-                           img_actor.SetMapper(actor.GetMapper())
-                           transform = vtk.vtkTransform()
-                           transform.Translate(img_pos)
-                           transform.Scale(actor.r, actor.r, actor.r)
-                           img_actor.SetUserMatrix(transform.GetMatrix())
-                           img_actor.i_at = i_at
-                           self.renderer.AddActor(img_actor)
+        for at_type in unique_types:
+            for (point, r, colormap_val, i_at) in zip(points_lists[at_type], radius_lists[at_type], colormap_vals_lists[at_type], i_at_lists[at_type]):
+                n0 = int(math.ceil(at.info["_vtk_images"][0]))
+                n1 = int(math.ceil(at.info["_vtk_images"][1]))
+                n2 = int(math.ceil(at.info["_vtk_images"][2]))
+                for i0 in range(-n0, n0+1):
+                    for i1 in range(-n1, n1+1):
+                        for i2 in range(-n2, n2+1):
+                            if (i0,i1,i2) == (0,0,0):
+                                continue
+                            image_pos = pos[i_at] + np.dot([i0, i1, i2], cell)
+                            image_pos_scaled = np.dot(image_pos, cell_inv)
+                            if (image_pos_scaled[0] >= -at.info["_vtk_images"][0] and
+                                image_pos_scaled[0] <= 1+at.info["_vtk_images"][0] and
+                                image_pos_scaled[1] >= -at.info["_vtk_images"][1] and
+                                image_pos_scaled[1] <= 1+at.info["_vtk_images"][1] and
+                                image_pos_scaled[2] >= -at.info["_vtk_images"][2] and
+                                image_pos_scaled[2] <= 1+at.info["_vtk_images"][2]):
+                                n_images += 1
+                                if n_images > len(self.image_atom_actors):
+                                    image_actor = vtk.vtkActor()
+                                    self.image_atom_actors.append(image_actor)
+                                    self.renderer.AddActor(image_actor)
+                                    image_actor.VisibilityOn()
+                                    image_actor.PickableOn()
+                                    image_actor._vtk_type = "image_atom"
+                                    image_actor.SetMapper(self.shapes["mappers"]["sphere"])
+                                else:
+                                    image_actor = self.image_atom_actors[n_images-1]
 
+                                color = self.atom_type_luts[at_type].GetColor(np.linalg.norm(colormap_val))
+                                image_actor.GetProperty().SetColor(color)
+                                image_actor.SetPosition(image_pos)
+                                image_actor.SetScale(r,r,r)
+                                image_actor.i_at = i_at
+                                image_actor.VisibilityOn()
+
+        if len(self.image_atom_actors) > n_images:
+            for actor in self.image_atom_actors[n_images:]:
+                actor.VisibilityOff()
+                actor.PickableOff()
+                actor.i_at = -1
 
     def update_legend(self, at, settings_only = False):
 
@@ -666,7 +697,7 @@ class DaVTKState(object):
             atom_i_of_type = atom_type_list.index(at_type)
 
             mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(self.sources["sphere"][0].GetOutputPort())
+            mapper.SetInputConnection(self.shapes["sources"]["sphere"][0].GetOutputPort())
             legend_sphere_actor.SetMapper(mapper)
 
             prop = get_atom_prop(self.settings, at_type, atom_i_of_type, at.arrays)
@@ -729,7 +760,7 @@ class DaVTKState(object):
             self.bond_lut.AddRGBPoint(float(i), self.settings["bond_types"][name]["color"][0],
                                       self.settings["bond_types"][name]["color"][1],
                                       self.settings["bond_types"][name]["color"][2])
-    def create_atom_luts(self):
+    def create_atom_type_luts(self):
         # make sure every atom type exists, autogenerating if needed
         for at_type in sorted(list(set(get_atom_type_list(self.settings, self.cur_at())))):
             s = self.settings["atom_types"][at_type]
@@ -741,9 +772,10 @@ class DaVTKState(object):
             lut.SetRange(data[0][0], data[-1][0])
             for pt in data:
                 lut.AddRGBPoint(pt[0], pt[1], pt[2], pt[3])
+            lut.AddRGBPoint(data[-1][0]+1.0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
             self.luts[name] = lut
 
-        self.atom_luts = {}
+        self.atom_type_luts = {}
         # create trivial color maps for fixed colors, or link to true maps
         for name in self.settings["atom_types"].get_all():
             color = self.settings["atom_types"][name]["color"]
@@ -751,11 +783,12 @@ class DaVTKState(object):
                 lut = vtk.vtkColorTransferFunction()
                 lut.SetRange(0,0)
                 lut.AddRGBPoint(0.0, color[0], color[1], color[2])
-                self.atom_luts[name] = lut
+                lut.AddRGBPoint(1.0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
+                self.atom_type_luts[name] = lut
             elif self.settings["atom_types"][name]["colormap"] is not None:
-                self.atom_luts[name] = self.luts[self.settings["atom_types"][name]["colormap"][0]]
+                self.atom_type_luts[name] = self.luts[self.settings["atom_types"][name]["colormap"][0]]
             else:
-                self.atom_luts[name] = None
+                self.atom_type_luts[name] = None
 
     def label_offset_world(self, pos):
         self.renderer.GetActiveCamera()

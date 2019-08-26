@@ -8,8 +8,12 @@ def pick_actors(at, actors, point_sets):
     new_bond_pick_statuses = {}
     for (actor, points) in zip(actors, point_sets):
         if hasattr(actor, "_vtk_type"):
-            if actor._vtk_type == "atom":
+            if actor._vtk_type == "image_atom":
                 at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
+            elif actor._vtk_type == "atoms_glyphs":
+                for point in points:
+                    i_at = actor.i_at[point]
+                    at.arrays["_vtk_picked"][i_at] = not at.arrays["_vtk_picked"][i_at]
             elif actor._vtk_type == "bonds_glyphs":
                 for point in points:
                     (i_at, i_bond) = actor.i_at_bond[point]
@@ -19,7 +23,6 @@ def pick_actors(at, actors, point_sets):
         else:
             raise ValueError("picked something that's not an atom or a bond, rather:\n"+str(actor))
 
-    print("")
     for ((i_at, i_bond), stat) in new_bond_pick_statuses.items():
         at.bonds.set_picked(i_at, i_bond, stat)
 
@@ -108,8 +111,10 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             else:
                 self.davtk_state.update(what=refresh)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            ####
+            ## import traceback
+            ## traceback.print_exc()
+            ####
             print("error parsing line",e)
 
         if self.GetInteractor() is not None:

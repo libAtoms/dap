@@ -124,7 +124,7 @@ def parse_movie(davtk_state, renderer, args):
     frames = list(range(range_start, range_end, range_interval))
 
     for frame_i in frames:
-        davtk_state.show_frame(frame_i)
+        davtk_state.update(str(frame_i))
         data = davtk_state.snapshot().astype(np.uint8)
         data = np.ascontiguousarray(np.flip(data, axis=0))
 
@@ -149,7 +149,7 @@ def parse_movie(davtk_state, renderer, args):
     # with tempfile.NamedTemporaryFile(dir=args.tmpdir) as fout:
         # img_file_base = fout.name
         # for (img_i, frame_i) in enumerate(frames):
-            # davtk_state.show_frame(frame_i = frame_i)
+            # davtk_state.update(str(frame_i))
             # tmpfiles.append(img_file_base+py_fmt.format(img_i))
             # davtk_state.snapshot(tmpfiles[-1], 1)
     # print    ("ffmpeg -i {}.%{}.png -r {} {} {}".format(img_file_base, fmt_core, args.framerate, args.ffmpeg_args, "alt_"+args.output_file))
@@ -164,7 +164,7 @@ parser_go = ThrowingArgumentParser(prog="go",description="go to a particular fra
 parser_go.add_argument("n",type=int,help="number of frames to change")
 def parse_go(davtk_state, renderer, args):
     args = parser_go.parse_args(args)
-    davtk_state.show_frame(frame_i = args.n)
+    davtk_state.update(str(args.n))
     return None
 parsers["go"] = (parse_go, parser_go.format_usage(), parser_go.format_help())
 
@@ -172,7 +172,7 @@ parser_next = ThrowingArgumentParser(prog="next",description="go forward a numbe
 parser_next.add_argument("n",type=int,nargs='?',default=0,help="number of frames to change (default set by 'step' command)")
 def parse_next(davtk_state, renderer, args):
     args = parser_next.parse_args(args)
-    davtk_state.show_frame(dframe = args.n if args.n > 0 else davtk_state.settings["frame_step"])
+    davtk_state.update("+{}".format(args.n if args.n > 0 else davtk_state.settings["frame_step"]))
     return None
 parsers["next"] = (parse_next, parser_next.format_usage(), parser_next.format_help())
 
@@ -180,7 +180,7 @@ parser_prev = ThrowingArgumentParser(prog="prev", description="go back a number 
 parser_prev.add_argument("n",type=int,nargs='?',default=0, help="number of frames to change (default set by 'step' command)")
 def parse_prev(davtk_state, renderer, args):
     args = parser_prev.parse_args(args)
-    davtk_state.show_frame(dframe = -args.n if args.n > 0 else -davtk_state.settings["frame_step"])
+    davtk_state.update("-{}".format(args.n if args.n > 0 else davtk_state.settings["frame_step"]))
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
@@ -276,7 +276,7 @@ def parse_images(davtk_state, renderer, args):
     else:
         davtk_state.cur_at().info["_vtk_images"] = args.n
 
-    davtk_state.show_frame(dframe=0)
+    davtk_state.update()
 
     return None
 parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.format_help())
