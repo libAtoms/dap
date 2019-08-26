@@ -477,9 +477,14 @@ class DaVTKState(object):
             glyphs.SetColorModeToColorByVector()
             glyphs.Update()
 
+            id_glyphs = vtk.vtkIdFilter()
+            id_glyphs.SetInputConnection(glyphs.GetOutputPort())
+            id_glyphs.SetIdsArrayName("IDs")
+            id_glyphs.FieldDataOn()
+
             # create mapper and set color LUT
             mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(glyphs.GetOutputPort())
+            mapper.SetInputConnection(id_glyphs.GetOutputPort())
             mapper.SetLookupTable(self.atom_type_luts[at_type])
 
             # create actor
