@@ -50,7 +50,8 @@ class Viewer(object):
         camera.ParallelProjectionOn()
         camera.SetParallelScale(np.max(max_pos-min_pos))
         extent = max(max_pos) - min(min_pos)
-        camera.SetPosition([(max_pos[0]+min_pos[0])/2.0, (max_pos[1]+min_pos[1])/2.0, 1000.0+extent/2.0])
+        camera.SetPosition([(max_pos[0]+min_pos[0])/2.0, -1000.0 + extent/2.0, (max_pos[2]+min_pos[2])/2.0])
+        camera.SetViewUp(0.0, 0.0, 1.0)
         camera.SetFocalPoint((max_pos+min_pos)/2.0)
         camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
