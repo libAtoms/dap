@@ -13,10 +13,10 @@ FUNCTIONALITY
         bonds across PBCs show up as two half bonds
     display isosurfaces from volumetric data over the config unit cell (including non-orthorhombic)
         simple ASCII format
-        CHGCAR from VaspChargeDensity from ase.calculators.vasp 
+        CHGCAR using VaspChargeDensity from ase.calculators.vasp 
     multiple configurations interpreted as trajectories (i.e. identical camera view)
     snapshots by rendering at arbitrary integer multiples of display resolution
-    automated movie creation (requires ffmpeg executable)
+    automated movie creation (requires ffmpeg executable in path)
     arbitrary ASE commands applied to atomic configurations
     display legend with each used atom type
     save full state of display (settings, atoms, bonds, volumetric data, but not including window size)
@@ -44,14 +44,16 @@ Additional commands can be passed with '-e', and these include 'read commands_fi
 commands from a file.
 
 GUI help is available by typing 'h' in the GUI window (but displayed in the CLI window).
-CLI help is available with 'usage' or for each command with 'command -h' in the CLI winow
+CLI help is available with 'usage' or, for each command, with 'command -h' in the CLI winow
 
 ####################################################################################################
 
 TODO (in expected order of implementation)
+    DONE, but not well tested:
+        atoms and bonds through native vtkGlyph3D (medium-hard, but much faster, probably worth it)
+
     STARTED
-        atoms and bonds through native vtkGlyph3D (medium-hard, but much faster, probably worth it) [ NEARLY DONE ]
-        better handling of atom labels after zoom in/out
+        better handling of atom labels after zoom in/out (medium)
         optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]
 
     NOT EVEN STARTED
