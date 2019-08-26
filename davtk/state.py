@@ -326,7 +326,7 @@ class DaVTKState(object):
         if what is None or what == "cur":
             what = "+0"
         if not re.search('^(rotate|settings|[+-]?\d+)$', what):
-            raise ValueError("update what='{}', not rotate or settings or number of +/-number".format(what))
+            raise ValueError("update what='{}', not rotate or settings or number or [+|-]number".format(what))
 
         if what == "rotate":
             self.update_legend(self.cur_at())

@@ -59,7 +59,6 @@ class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
             points.append([])
             for ID_i in range(IDs.GetNumberOfTuples()):
                 points[-1].append(int(IDs.GetTuple(ID_i)[0]/actor.point_to_input_point))
-            print("actor points", set(points[-1]))
             points[-1] = set(points[-1])
 
         pick_actors(self.davtk_state.cur_at(), actors, points)
