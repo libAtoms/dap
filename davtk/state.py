@@ -216,6 +216,7 @@ class DaVTKState(object):
         self.atoms_actors = []
         self.image_atom_actors = []
         self.bonds_actor = None
+        self.vectors_actor = None
         self.volume_reps_actors = []
 
         self.legend_sphere_actors = []
@@ -344,6 +345,7 @@ class DaVTKState(object):
         self.update_atoms(at, what == "settings")
         self.update_labels(at, what == "settings")
         self.update_bonds(at, what == "settings")
+        self.update_vectors(at, what == "settings")
         self.update_image_atoms(at, what == "settings")
         self.update_volume_reps(at, what == "settings")
         self.update_legend(at, what == "settings")
@@ -500,6 +502,131 @@ class DaVTKState(object):
             self.atoms_actors.append(actor)
 
     # need to see what can be optimized if settings_only is True
+    def update_vectors(self, at, settings_only = False):
+        if at.info.get("_vtk_vectors", None) is None:
+            if self.vectors_actor is not None:
+                self.vectors_actor.VisibilityOff()
+                self.vectors_actor.PickableOff()
+                self.renderer.RemoveActor(self.vectors_actor)
+            return
+
+        if self.vectors_actor is None:
+            self.vectors_actor = vtk.vtkActor()
+            self.vectors_actor._vtk_type = "vectors_glyphs"
+            self.vectors_actor.PickableOff()
+
+        actor = self.vectors_actor
+        pos = at.get_positions()
+
+        points_list = []
+        axes_list = []
+        angles_list = []
+        scales_list = []
+        color_indices_list = []
+
+        z_hat = [0.0, 0.0, 1.0]
+
+        if at.info["_vtk_vectors"]["field"] == "magmoms":
+            vectors = at.get_magnetic_moments()
+        else:
+            vectors = at.arrays[at.info["_vtk_vectors"]["field"]]
+
+        if len(vectors.shape) == 2 and vectors.shape[1] == 3: # 3-vectors
+            vectors_use = vectors
+        elif len(vectors.shape) == 1 or len(vectors.shape) == 2: # scalars or some other length vectors
+            if len(vectors.shape) == 1: # scalars
+                vectors_use = np.zeros((len(at),3))
+                vectors_use[:,2] = 1.0
+                vectors_use[:,:] = (vectors_use.T * vectors).T
+            else: # some other length vectors
+                vectors_use = np.zeros((len(at),3))
+                vectors_use[:,2] = 1.0
+                vectors_use[:,:] = (vectors_use.T * np.linalg.norm(vectors, axis=1)).T
+        else:
+            raise ValueError("Don't know how to draw vectors for field with shape {}".format(vectors.shape))
+
+        vector_norms = np.linalg.norm(vectors_use, axis=1)
+        vectors_hat = (vectors_use.T / vector_norms).T
+
+        bond_type_name = at.info["_vtk_vectors"]["color"]
+
+        cell = at.get_cell()
+        for i_at in range(len(at)):
+            rad = self.settings["bond_types"][name]["radius"]
+
+            axis = np.cross(vectors_hat[i_at], [0.0, 1.0, 0.0])
+            if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to \hat{y}
+                axis = (1.0,0.0,0.0)
+                angle = 0.0
+            else:
+                axis /= np.linalg.norm(axis)
+                angle = -np.arccos(vectors_hat[1])*180.0/np.pi
+
+            # if bond_type_name == "atom":
+            # elif bond_type_name == "spin":
+            # else:
+            color_index = self.settings["bond_types"][bond_type_name]["index"]
+
+            points_list.append(pos[i_at])
+            axes_list.append(axis)
+            angles_list.append(angle)
+            scales_list.append((rad, vector_norms[i_at], rad))
+            color_indices_list.append((color_index,))
+
+        # data needed to place, rotate, and scale glyphs
+        points = self.bonds_points_data
+        points.Reset()
+        points.SetNumberOfPoints(len(points_list))
+        for pt_i in range(len(points_list)):
+            points.SetPoint(pt_i, points_list[pt_i])
+        axes = numpy_to_vtk(np.array(axes_list))
+        angles = numpy_to_vtk(np.array(angles_list))
+        scales = numpy_to_vtk(np.array(scales_list))
+        color_indices = numpy_to_vtk(np.array(color_indices_list, dtype=int))
+        color_indices.SetName("color_indices")
+
+        glyphs_data = vtk.vtkPolyData()
+        glyphs_data.SetPoints(points)
+        glyphs_data.GetPointData().AddArray(axes)
+        glyphs_data.GetPointData().AddArray(angles)
+        glyphs_data.GetPointData().AddArray(scales)
+        glyphs_data.GetPointData().SetScalars(color_indices)
+
+        def place_glyph(__vtk__temp0=0,__vtk__temp1=0):
+            point = glyphs.GetPoint()
+            point_id = glyphs.GetPointId()
+            d = glyphs.GetPointData()
+            axis =  d.GetAbstractArray(0).GetTuple(point_id)
+            angle = d.GetAbstractArray(1).GetTuple(point_id)
+            scale = d.GetAbstractArray(2).GetTuple(point_id)
+
+            trans = vtk.vtkTransform()
+            trans.Translate(point)
+            trans.RotateWXYZ(angle[0], axis)
+            trans.Scale(scale[0], scale[1], scale[2])
+
+            trans_cyl = vtk.vtkTransformPolyDataFilter()
+            trans_cyl.SetInputConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
+            trans_cyl.SetTransform(trans)
+            glyphs.SetSourceConnection(trans_cyl.GetOutputPort())
+
+        glyphs = vtk.vtkProgrammableGlyphFilter()
+        glyphs.SetSourceConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
+        glyphs.SetInputData(glyphs_data)
+        glyphs.SetGlyphMethod(place_glyph)
+        glyphs.SetColorModeToColorByInput()
+
+        glyphs_mapper = vtk.vtkPolyDataMapper()
+        glyphs_mapper.SetInputConnection(glyphs.GetOutputPort())
+
+        glyphs_mapper.SetLookupTable(self.bond_lut)
+
+        actor.SetMapper(glyphs_mapper)
+
+        actor.VisibilityOn()
+        self.renderer.AddActor(actor)
+
+    # need to see what can be optimized if settings_only is True
     def update_bonds(self, at, settings_only = False):
         if not hasattr(at, "bonds"):
             if self.bonds_actor is not None:
@@ -525,7 +652,6 @@ class DaVTKState(object):
         scales_list = []
         color_indices_list = []
 
-        # keep track of colors, to map to lookup table
         cell = at.get_cell()
         for i_at in range(len(at)):
             for (i_bond, b) in enumerate(at.bonds[i_at]):
@@ -539,7 +665,7 @@ class DaVTKState(object):
                 rad = self.settings["bond_types"][name]["radius"]
 
                 axis = np.cross(dr, [0.0, 1.0, 0.0])
-                if np.linalg.norm(axis) < 1.0e-2:
+                if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to \hat{y}
                     axis = (1.0,0.0,0.0)
                     angle = 0.0
                 else:

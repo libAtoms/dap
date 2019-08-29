@@ -281,6 +281,32 @@ def parse_images(davtk_state, renderer, args):
     return None
 parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.format_help())
 
+parser_vectors = ThrowingArgumentParser(prog="vectors",description="Draw vectors")
+parser_vectors.add_argument("-all_frames",action="store_true",help="apply to all frames")
+parser_vectors.add_argument("-field",type=str,help="atom field to use for vectors (scalar or 3-vector)", default="magmoms")
+parser_vectors.add_argument("-color",type=str,help="name of bond_type to color by, or 'atom' or 'sign' (scalars only)", default='atom')
+parser_vectors.add_argument("-sign_colors",type=float,nargs=6,metavar=('RU','GU','BU','RD','GD','BD'), help="colors for -name sign", default=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+parser_vectors.add_argument("-radius",type=float,help="cylinder radius", default=0.1)
+parser_vectors.add_argument("-scaling_factor",type=float,help="scaling factor from field value to cylinder length", default=1.0)
+parser_vectors.add_argument("-delete",action='store_true',help="disable")
+def parse_vectors(davtk_state, renderer, args):
+    args = parser_vectors.parse_args(args)
+
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    for at in ats:
+        if args.delete:
+            del at.info["_vtk_vectors"]
+        else:
+            at.info["_vtk_vectors"] = { "field" : args.field, "color_by" : args.color, "r" : args.radius, "scale" : args.scaling_factor, "sign_colors" : args.sign_colors }
+
+    return None
+parsers["vectors"] = (parse_vectors, parser_vectors.format_usage(), parser_vectors.format_help())
+
+
 parser_bond = ThrowingArgumentParser(prog="bond",description="Create bonds")
 parser_bond.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_bond.add_argument("-name",type=str,help="name of bond type", default=None)
