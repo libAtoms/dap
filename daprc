@@ -13,5 +13,5 @@ cell_box_color 0.0 1.0 1.0
 ## atom_type -name 32 -color 1 0 0   -radius 0.5
 ## atom_type -name 52 -color 0 1 0  -radius 0.5
 
-config_n_text -fontsize 48
-label_text -fontsize 48
+frame_label -fontsize 48
+atom_label -fontsize 48

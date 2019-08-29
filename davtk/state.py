@@ -223,7 +223,7 @@ class DaVTKState(object):
 
         self.cell_box_actor = None
 
-        self.config_n_actor = None
+        self.frame_label_actor = None
 
         self.saved_views = {}
 
@@ -347,7 +347,7 @@ class DaVTKState(object):
         self.update_image_atoms(at, what == "settings")
         self.update_volume_reps(at, what == "settings")
         self.update_legend(at, what == "settings")
-        self.update_config_n(what == "settings")
+        self.update_frame_label(what == "settings")
 
         # refresh display
         self.renderer.GetRenderWindow().Render()
@@ -703,6 +703,24 @@ class DaVTKState(object):
             self.legend_label_actors.append(vtk.vtkBillboardTextActor3D())
             self.legend_label_actors[-1]._vtk_type = "legend_label"
 
+        max_r = 0.0
+        longest_label = ""
+        for (l_i, (legend_sphere_actor, legend_label_actor, at_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
+            max_r = max(max_r, get_atom_radius(self.settings, at_type, list(atom_type_list), at))
+            longest_label = longest_label if len(longest_label) > len(at_type) else at_type
+        legend_raw_pos = self.settings["legend"]['position']
+        spacing = self.settings["legend"]["spacing"] * max(int(2.5*max_r/dp_world), self.settings["atom_label"]["fontsize"])
+        legend_offset = np.zeros((2),dtype=int)
+        if legend_raw_pos[0] >= 0:
+            legend_offset[0] = int(1.3 * max_r/dp_world)
+        else:
+            legend_offset[0] = -int( 1.3 * max_r/dp_world + len(longest_label)*self.settings["atom_label"]["fontsize"]/1.5 )
+        if legend_raw_pos[1] >= 0:
+            legend_offset[1] = int(spacing * (len(unique_atom_types)-0.5))
+        else:
+            legend_offset[1] = -int(0.5*spacing)
+        legend_pos = (legend_raw_pos + legend_offset) % display_size
+
         for (l_i, (legend_sphere_actor, legend_label_actor, at_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
             atom_i_of_type = atom_type_list.index(at_type)
 
@@ -715,13 +733,12 @@ class DaVTKState(object):
             r = get_atom_radius(self.settings, at_type, list(atom_type_list), at)
             legend_sphere_actor.SetProperty(prop)
             legend_sphere_actor.SetScale(r, r, r)
-            legend_pos = self.settings["legend"]['position'] % display_size
 
             self.renderer.SetWorldPoint(list(pos[0]) + [1.0])
             self.renderer.WorldToDisplay()
             arb_point = self.renderer.GetDisplayPoint()
 
-            self.renderer.SetDisplayPoint(legend_pos[0], legend_pos[1]-self.settings["legend"]['spacing']*l_i, arb_point[2])
+            self.renderer.SetDisplayPoint(legend_pos[0], legend_pos[1]-spacing*l_i, arb_point[2])
             self.renderer.DisplayToWorld()
             sphere_pos_world = self.renderer.GetWorldPoint()
             sphere_pos_world = np.array(sphere_pos_world[0:3]) / sphere_pos_world[3]
@@ -733,31 +750,36 @@ class DaVTKState(object):
             legend_label_actor.SetInput(at_type)
             legend_label_actor.SetPosition(sphere_pos_world)
             if dp_world > 0:
-                dp_disp = r/dp_world
+                max_r_disp = max_r/dp_world
+                text_disp = self.settings["atom_label"]["fontsize"]
             else:
-                dp_disp = 0
-            legend_label_actor.SetDisplayOffset(int(1.3*dp_disp), -int(dp_disp/2.0))
-            legend_label_actor.SetTextProperty(self.settings["label_text_prop"])
+                max_r_disp = 0
+            legend_label_actor.SetDisplayOffset(int(1.3*max_r_disp), -int(text_disp/2.0))
+            legend_label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
             legend_label_actor.PickableOff()
             legend_label_actor.VisibilityOn()
 
         for actor in self.legend_sphere_actors + self.legend_label_actors:
             self.renderer.AddActor(actor)
 
-    def update_config_n(self, settings_only = False):
-        if self.config_n_actor is None:
-            self.config_n_actor = vtk.vtkTextActor()
-            self.config_n_actor._vtk_type = "config_n"
-            self.config_n_actor.PickableOff()
+    def update_frame_label(self, settings_only = False):
+        if self.frame_label_actor is None:
+            self.frame_label_actor = vtk.vtkTextActor()
+            self.frame_label_actor._vtk_type = "frame_label"
+            self.frame_label_actor.PickableOff()
 
-        self.config_n_actor.SetTextProperty(self.settings["config_n_text_prop"])
-        self.config_n_actor.SetDisplayPosition(20,20)
+        self.frame_label_actor.SetTextProperty(self.settings["frame_label"]["prop"])
+        self.frame_label_actor.SetDisplayPosition(20,20)
 
-        if settings_only:
-            return
+        if self.settings["frame_label"]["field"] == "_NONE_":
+            frame_label_str = ""
+        elif self.settings["frame_label"]["field"] == "config_n":
+            frame_label_str = str(self.cur_frame)
+        else:
+            frame_label_str = str(self.cur_at().info.get(self.settings["frame_label"]["field"],"None"))
 
-        self.config_n_actor.SetInput(str(self.cur_frame))
-        self.renderer.AddActor(self.config_n_actor)
+        self.frame_label_actor.SetInput(frame_label_str)
+        self.renderer.AddActor(self.frame_label_actor)
 
     def create_bond_lut(self):
         # look up table for bond colors
@@ -847,7 +869,7 @@ class DaVTKState(object):
                 else:
                     label_str = at.arrays["_vtk_label"][i_at]
             if label_str is None:
-                label_field = self.settings["atom_label_field"]
+                label_field = self.settings["atom_label"]["field"]
                 if label_field is None or label_field == "ID":
                     label_str = str(i_at)
                 elif label_field == "Z" or label_field == "atomic_number":
@@ -864,7 +886,7 @@ class DaVTKState(object):
             else:
                 dp_disp = 0
             label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
-            label_actor.SetTextProperty(self.settings["label_text_prop"])
+            label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
             label_actor.SetVisibility(True)
 
         for actor in self.label_actor_pool[len(at):]:

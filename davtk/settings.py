@@ -94,10 +94,10 @@ class DavTKSettings(object):
             "bond_types" : {}, "bond_name_of_index" : [ None ],
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
             "picked_color" : [1.0, 1.0, 0.0], 
-            "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
-            "label_text_color" : [1.0, 1.0, 1.0], "label_text_fontsize" : 24,
+            "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "field" : "config_n" },
+            "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "field" : "ID"},
             "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0 },
-            'atom_type_field' : 'Z', 'atom_label_field' : 'ID'
+            'atom_type_field' : 'Z'
             }
 
         self.parsers = {}
@@ -172,24 +172,20 @@ class DavTKSettings(object):
         self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help(),
                                             self.write_background_color)
 
-        self.parser_config_n_text = ThrowingArgumentParser(prog="config_n_text")
-        self.parser_config_n_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.parser_config_n_text.add_argument("-fontsize",type=int,default=None)
-        self.parsers["config_n_text"] = (self.parse_config_n_text, self.parser_config_n_text.format_usage(), self.parser_config_n_text.format_help(), 
-                                         self.write_config_n_text)
+        self.parser_frame_label = ThrowingArgumentParser(prog="frame_label")
+        self.parser_frame_label.add_argument("-field","-f", type=str, help="field to use for frame label (in atoms.info, or 'config_n')", default=None)
+        self.parser_frame_label.add_argument("-color","-c", nargs=3,type=float,default=None, metavar=("R","G","B"))
+        self.parser_frame_label.add_argument("-fontsize",type=int,default=None)
+        self.parsers["frame_label"] = (self.parse_frame_label, self.parser_frame_label.format_usage(), self.parser_frame_label.format_help(), 
+                                         self.write_frame_label)
 
-        self.parser_label_text = ThrowingArgumentParser(prog="label_text")
-        self.parser_label_text.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.parser_label_text.add_argument("-fontsize",type=int,default=None)
-        self.parsers["label_text"] = (self.parse_label_text, self.parser_label_text.format_usage(), self.parser_label_text.format_help(),
-                                      self.write_label_text)
-
-        self.parser_atom_label_field = ThrowingArgumentParser(prog="atom_label_field")
-        self.parser_atom_label_field.add_argument("field",type=str,default="ID",
-                                                  help="Atoms.arrays field to use for label (ID for number of atom, "+
-                                                       "Z for atomic number, species for chemical symbol")
-        self.parsers["atom_label_field"] = (self.parse_atom_label_field, self.parser_atom_label_field.format_usage(), self.parser_atom_label_field.format_help(),
-                                      self.write_atom_label_field)
+        self.parser_atom_label = ThrowingArgumentParser(prog="atom_label")
+        self.parser_atom_label.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
+        self.parser_atom_label.add_argument("-fontsize",type=int,default=None)
+        self.parser_atom_label.add_argument("-field",type=str,help="Atoms.arrays field to use for label (ID for number of atom, "+
+                                                                   "Z for atomic number, species for chemical symbol", default=None)
+        self.parsers["atom_label"] = (self.parse_atom_label, self.parser_atom_label.format_usage(), self.parser_atom_label.format_help(),
+                                      self.write_atom_label)
 
         # properties
         # 3D Actor properties
@@ -204,12 +200,12 @@ class DavTKSettings(object):
         self.data["picked_prop"].SetDiffuse(0.4)
 
         # text properties
-        for f in ["config_n", "label"]:
+        for f in ["frame_label", "atom_label"]:
             prop = vtk.vtkTextProperty()
-            self.data[f+"_text_prop" ] = prop
+            self.data[f]["prop"] = prop
             prop.SetOpacity(1.0)
-            prop.SetColor(self.data[f+"_text_color"])
-            prop.SetFontSize(self.data[f+"_text_fontsize"])
+            prop.SetColor(self.data[f]["color"])
+            prop.SetFontSize(self.data[f]["fontsize"])
 
     def __getitem__(self,key):
         return self.data[key]
@@ -360,50 +356,50 @@ class DavTKSettings(object):
         self.data["cell_box_prop"].SetColor(self.data["cell_box_color"])
         return "settings"
 
-    def write_config_n_text(self):
-        args = 'config_n_text'
-        if self.data["config_n_text_color"] is not None:
-            args += ' -color {} {} {}'.format(self.data["config_n_text_color"][0],
-                                              self.data["config_n_text_color"][1],
-                                              self.data["config_n_text_color"][2])
-        if self.data["config_n_text_fontsize"] is not None:
-            args += ' -fontsize {}'.format(self.data["config_n_text_fontsize"])
+    def write_frame_label(self):
+        args = 'frame_label'
+        if self.data["frame_label"]["color"] is not None:
+            args += ' -color {} {} {}'.format(self.data["frame_label"]["color"][0],
+                                              self.data["frame_label"]["color"][1],
+                                              self.data["frame_label"]["color"][2])
+        if self.data["frame_label"]["fontsize"] is not None:
+            args += ' -fontsize {}'.format(self.data["frame_label"]["fontsize"])
+        if self.data["frame_label"]["field"] is not None:
+            args += ' -field {}'.format(self.data["frame_label"]["field"])
         return args+'\n'
-    def parse_config_n_text(self, args):
-        args = self.parser_config_n_text.parse_args(args)
+    def parse_frame_label(self, args):
+        args = self.parser_frame_label.parse_args(args)
         if args.color is not None:
-            self.data["config_n_text_color"] = args.color
+            self.data["frame_label"]["color"] = args.color
         if args.fontsize is not None:
-            self.data["config_n_text_fontsize"] = args.fontsize
-        self.data["config_n_text_prop"].SetColor(self.data["config_n_text_color"])
-        self.data["config_n_text_prop"].SetFontSize(self.data["config_n_text_fontsize"])
+            self.data["frame_label"]["fontsize"] = args.fontsize
+        if args.field is not None:
+            self.data["frame_label"]["field"] = args.field
+        self.data["frame_label"]["prop"].SetColor(self.data["frame_label"]["color"])
+        self.data["frame_label"]["prop"].SetFontSize(self.data["frame_label"]["fontsize"])
         return "settings"
 
-    def write_label_text(self):
-        args = 'label_text'
-        if self.data["label_text_color"] is not None:
-            args += ' -color {} {} {}'.format(self.data["label_text_color"][0],
-                                              self.data["label_text_color"][1],
-                                              self.data["label_text_color"][2])
-        if self.data["label_text_fontsize"] is not None:
-            args += ' -fontsize {}'.format(self.data["label_text_fontsize"])
+    def write_atom_label(self):
+        args = 'atom_label'
+        if self.data["atom_label"]["color"] is not None:
+            args += ' -color {} {} {}'.format(self.data["atom_label"]["color"][0],
+                                              self.data["atom_label"]["color"][1],
+                                              self.data["atom_label"]["color"][2])
+        if self.data["atom_label"]["fontsize"] is not None:
+            args += ' -fontsize {}'.format(self.data["atom_label"]["fontsize"])
+        if self.data["atom_label"]["field"] is not None:
+            args += ' -field {}'.format(self.data["atom_label"]["field"])
         return args+'\n'
-    def parse_label_text(self, args):
-        args = self.parser_label_text.parse_args(args)
+    def parse_atom_label(self, args):
+        args = self.parser_atom_label.parse_args(args)
         if args.color is not None:
-            self.data["label_text_color"] = args.color
+            self.data["atom_label"]["color"] = args.color
         if args.fontsize is not None:
-            self.data["label_text_fontsize"] = args.fontsize
-        self.data["label_text_prop"].SetColor(self.data["label_text_color"])
-        self.data["label_text_prop"].SetFontSize(self.data["label_text_fontsize"])
-        return "settings"
-
-    def write_atom_label_field(self):
-        args = 'atom_label_field {}'.format(self.data["atom_label_field"])
-        return args+'\n'
-    def parse_atom_label_field(self, args):
-        args = self.parser_atom_label_field.parse_args(args)
-        self.data["atom_label_field"] = args.field
+            self.data["atom_label"]["fontsize"] = args.fontsize
+        if args.field is not None:
+            self.data["atom_label"]["field"] = args.field
+        self.data["atom_label"]["prop"].SetColor(self.data["atom_label"]["color"])
+        self.data["atom_label"]["prop"].SetFontSize(self.data["atom_label"]["fontsize"])
         return "settings"
 
     def write_picked_color(self):
