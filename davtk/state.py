@@ -332,7 +332,8 @@ class DaVTKState(object):
             self.update_legend(self.cur_at())
             return
 
-        self.set_frame(what)
+        if what != "settings":
+            self.set_frame(what)
         at = self.cur_at()
 
         self.update_settings()
@@ -678,6 +679,16 @@ class DaVTKState(object):
 
     def update_legend(self, at, settings_only = False):
 
+        # remove, free, and re-create (recycling seems to suffer from bug perhaps addressed
+        # in merge request 3904)
+        for actor in self.legend_sphere_actors + self.legend_label_actors:
+            self.renderer.RemoveActor(actor)
+        self.legend_sphere_actors = []
+        self.legend_label_actors = []
+
+        if not self.settings["legend"]["show"]:
+            return
+
         pos = at.get_positions()
 
         display_size = self.renderer.GetRenderWindow().GetSize()
@@ -686,12 +697,6 @@ class DaVTKState(object):
         atom_type_list = get_atom_type_list(self.settings, at)
         unique_atom_types = sorted(list(set(atom_type_list)))
 
-        # remove, free, and re-create (recycling seems to suffer from bug perhaps addressed
-        # in merge request 3904)
-        for actor in self.legend_sphere_actors + self.legend_label_actors:
-            self.renderer.RemoveActor(actor)
-        self.legend_sphere_actors = []
-        self.legend_label_actors = []
         for i in range(len(unique_atom_types)):
             self.legend_sphere_actors.append(vtk.vtkActor())
             self.legend_sphere_actors[-1]._vtk_type = "legend_sphere"

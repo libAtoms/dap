@@ -215,7 +215,7 @@ def parse_pick(davtk_state, renderer, args):
         ats = [davtk_state.cur_at()]
     for at in ats:
         at.arrays["_vtk_picked"][args.n] = True
-    return "all"
+    return "cur"
 parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_help())
 
 parser_delete = ThrowingArgumentParser(prog="delete",description="delete objects (picked by default)")
@@ -340,7 +340,7 @@ def parse_X(davtk_state, renderer, args):
             exec(ase_command) in globals(), globals()
         else:
             exec(ase_command)
-    return "all"
+    return "cur"
 parsers["X"] = (parse_X, parser_X.format_usage(), parser_X.format_help())
 
 parser_read = ThrowingArgumentParser(prog="read",description="read commands from file(s)")
