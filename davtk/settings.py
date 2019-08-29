@@ -96,7 +96,7 @@ class DavTKSettings(object):
             "picked_color" : [1.0, 1.0, 0.0], 
             "config_n_text_color" : [1.0, 1.0, 1.0], "config_n_text_fontsize" : 36,
             "label_text_color" : [1.0, 1.0, 1.0], "label_text_fontsize" : 24,
-            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-100,-100]), 'spacing' : 100 },
+            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0 },
             'atom_type_field' : 'Z', 'atom_label_field' : 'ID'
             }
 
