@@ -543,7 +543,7 @@ class DaVTKState(object):
 
         if at.info["_vtk_vectors"]["field"] == "magmoms":
             vectors = at.get_magnetic_moments()
-        if at.info["_vtk_vectors"]["field"] == "initial_magmoms":
+        elif at.info["_vtk_vectors"]["field"] == "initial_magmoms":
             vectors = at.get_initial_magnetic_moments()
         else:
             vectors = at.arrays[at.info["_vtk_vectors"]["field"]]
