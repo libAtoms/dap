@@ -272,6 +272,13 @@ class DaVTKState(object):
         arrow_x_mapper.Update()
         mappers["arrow_x"] = arrow_x_mapper
 
+        cone_x = vtk.vtkConeSource()
+        cone_x.SetRadius(1.0)
+        cone_x.SetHeight(1.0)
+        cone_x.SetResolution(16)
+        cone_x.SetDirection(1.0, 0.0, 0.0)
+        sources["cone_x"] = (cone_x,)
+
         cyl_x = vtk.vtkTransformPolyDataFilter()
         t = vtk.vtkTransform()
         t.RotateZ(-90)
@@ -541,8 +548,6 @@ class DaVTKState(object):
 
         # start out with fake orientation
         self.renderer.GetActiveCamera().OrthogonalizeViewUp()
-        displacement_v = self.renderer.GetActiveCamera().GetViewUp()
-        displacement_v /= np.linalg.norm(displacement_v)
         orientation = [ 0.0, 1.0, 0.0 ]
 
         # use vector field shape to determine whether orientation is meaningful
@@ -563,6 +568,7 @@ class DaVTKState(object):
 
         cyl_x_mapper = self.shapes["mappers"]["cylinder_x_end_origin"]
         arrow_x_mapper = self.shapes["mappers"]["arrow_x"]
+        cone_x_source = self.shapes["sources"]["cone_x"][0]
         source_orient = [1.0, 0.0, 0.0]
 
         for i_at in range(len(at)):
@@ -587,16 +593,31 @@ class DaVTKState(object):
                 color = at.info["_vtk_vectors"]["color"]
 
             if orientation is not None:
-                actors = [vtk.vtkFollower(),vtk.vtkFollower()]
+                actors = [vtk.vtkFollower(),vtk.vtkFollower(),vtk.vtkFollower()]
                 for actor in actors:
                     actor.SetCamera(self.renderer.GetActiveCamera())
-                    # assumes source_orient = \hat{x}
-                    actor.SetScale(vector_norms[i_at]/2.0, rad, rad)
                     actor.SetPosition(pos[i_at])
-                actors[0].SetMapper(arrow_x_mapper)
+                    # assumes source_orient = \hat{x}
+
+                # 0 gets arrowhead
+                actors[0].SetMapper(cyl_x_mapper)
                 actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                actors[0].SetScale(vector_norms[i_at]/2.0-3.0*rad, rad, rad)
                 actors[1].SetMapper(cyl_x_mapper)
                 actors[1].RotateWXYZ(angle+180.0, axis[0], axis[1], axis[2])
+                actors[1].SetScale(vector_norms[i_at]/2.0, rad, rad)
+
+                cone = vtk.vtkTransformPolyDataFilter()
+                t = vtk.vtkTransform()
+                t.Translate((vector_norms[i_at]/2.0-1.5*rad) / (3.0*rad), 0.0, 0.0)
+                cone.SetTransform(t)
+                cone.SetInputConnection(cone_x_source.GetOutputPort())
+                cone_mapper = vtk.vtkPolyDataMapper()
+                cone_mapper.SetInputConnection(cone.GetOutputPort())
+                actors[2].SetMapper(cone_mapper)
+                actors[2].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                actors[2].SetScale(rad*3.0, rad*2.5, rad*2.5)
+
             else:
                 actors = [vtk.vtkActor()]
                 actors[0].SetMapper(arrow_x_mapper)
