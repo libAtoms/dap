@@ -217,7 +217,7 @@ class DaVTKState(object):
         self.atoms_actors = []
         self.image_atom_actors = []
         self.bonds_actor = None
-        self.vectors_actor = None
+        self.vector_actors = []
         self.volume_reps_actors = []
 
         self.legend_sphere_actors = []
@@ -259,24 +259,29 @@ class DaVTKState(object):
         cyl_y_mapper.SetInputConnection(cyl_y.GetOutputPort())
         cyl_y_mapper.Update()
         sources["cylinder_y"] = (cyl_y, cyl_y_mapper.GetInput().GetNumberOfPoints())
+        mappers["cylinder_y"] = cyl_y_mapper
 
         arrow_x = vtk.vtkArrowSource()
         arrow_x.SetShaftRadius(1.0)
-        arrow_x.SetTipRadius(3.5)
+        arrow_x.SetTipRadius(2.5)
         arrow_x.SetTipLength(0.25)
         arrow_x.SetShaftResolution(8)
         arrow_x.SetTipResolution(16)
         arrow_x_mapper = vtk.vtkPolyDataMapper()
         arrow_x_mapper.SetInputConnection(arrow_x.GetOutputPort())
         arrow_x_mapper.Update()
-        sources["arrow_x"] = (arrow_x, arrow_x_mapper.GetInput().GetNumberOfPoints())
+        mappers["arrow_x"] = arrow_x_mapper
 
-        # cyl_x = vtk.vtkTransformPolyDataFilter()
-        # t = vtk.vtkTransform()
-        # t.RotateZ(90)
-        # cyl_x.SetTransform(t)
-        # cyl_x.SetInputConnection(cyl_y.GetOutputPort())
-        # sources["cylinder_x"] = (cyl_x, cyl_y_mapper.GetInput().GetNumberOfPoints())
+        cyl_x = vtk.vtkTransformPolyDataFilter()
+        t = vtk.vtkTransform()
+        t.RotateZ(-90)
+        t.Translate(0.0, 0.5, 0.0)
+        cyl_x.SetTransform(t)
+        cyl_x.SetInputConnection(cyl_y.GetOutputPort())
+        cyl_x_mapper = vtk.vtkPolyDataMapper()
+        cyl_x_mapper.SetInputConnection(cyl_x.GetOutputPort())
+        cyl_x_mapper.Update()
+        mappers["cylinder_x_end_origin"] = cyl_x_mapper
 
         return { 'sources' : sources, 'mappers' : mappers }
         return sources
@@ -515,54 +520,39 @@ class DaVTKState(object):
 
     # need to see what can be optimized if settings_only is True
     def update_vectors(self, at, settings_only = False):
+        for actor in self.vector_actors:
+            self.renderer.RemoveActor(actor)
+        self.vector_actors = []
+
         if at.info.get("_vtk_vectors", None) is None:
-            if self.vectors_actor is not None:
-                self.vectors_actor.VisibilityOff()
-                self.vectors_actor.PickableOff()
-                self.renderer.RemoveActor(self.vectors_actor)
             return
 
-        if self.vectors_actor is None:
-            self.vectors_actor = vtk.vtkActor()
-            self.vectors_actor._vtk_type = "vectors_glyphs"
-            self.vectors_actor.PickableOff()
-
-        actor = self.vectors_actor
         pos = at.get_positions()
 
-        points_list = []
-        axes_list = []
-        angles_list = []
-        scales_list = []
-        color_indices_list = []
-
-        if at.info["_vtk_vectors"]["color"] == "atom":
+        rad = at.info["_vtk_vectors"]["radius"]
+        vector_color = at.info["_vtk_vectors"]["color"]
+        if vector_color == "atom":
             atom_type_list = get_atom_type_list(self.settings, at)
-            index_of_at_type = {}
-            color_list = []
-
-        z_hat = [0.0, 0.0, 1.0]
 
         if at.info["_vtk_vectors"]["field"] == "magmoms":
             vectors = at.get_magnetic_moments()
         else:
             vectors = at.arrays[at.info["_vtk_vectors"]["field"]]
 
-        rad = at.info["_vtk_vectors"]["radius"]
+        # start out with fake orientation
+        self.renderer.GetActiveCamera().OrthogonalizeViewUp()
+        displacement_v = self.renderer.GetActiveCamera().GetViewUp()
+        displacement_v /= np.linalg.norm(displacement_v)
+        orientation = [ 0.0, 1.0, 0.0 ]
 
-        scalar_spins = False
+        # use vector field shape to determine whether orientation is meaningful
         if len(vectors.shape) == 2 and vectors.shape[1] == 3: # 3-vectors
+            if vector_color == "sign":
+                raise ValueError("Can't color vectors by sign when they are not actually scalars")
             vectors_use = vectors
-        elif len(vectors.shape) == 1 or len(vectors.shape) == 2: # scalars or some other length vectors
-            if len(vectors.shape) == 1: # scalars
-                scalar_spins = True
-                vectors_use = np.zeros((len(at),3))
-                vectors_use[:,2] = 1.0
-                vectors_use[:,:] = (vectors_use.T * vectors).T
-            else: # some other length vectors
-                vectors_use = np.zeros((len(at),3))
-                vectors_use[:,2] = 1.0
-                vectors_use[:,:] = (vectors_use.T * np.linalg.norm(vectors, axis=1)).T
+            orientation = None
+        elif len(vectors.shape) == 1: # scalars
+            vectors_use = np.outer(vectors, orientation)
         else:
             raise ValueError("Don't know how to draw vectors for field with shape {}".format(vectors.shape))
 
@@ -571,94 +561,57 @@ class DaVTKState(object):
         vector_norms = np.linalg.norm(vectors_use, axis=1)
         vectors_hat = (vectors_use.T / vector_norms).T
 
-        vector_color_by = at.info["_vtk_vectors"]["color"]
+        cyl_x_mapper = self.shapes["mappers"]["cylinder_x_end_origin"]
+        arrow_x_mapper = self.shapes["mappers"]["arrow_x"]
+        source_orient = [1.0, 0.0, 0.0]
 
-        cell = at.get_cell()
         for i_at in range(len(at)):
 
-            axis = np.cross(vectors_hat[i_at], [1.0, 0.0, 0.0])
-            if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to \hat{x}
+            axis = np.cross(vectors_hat[i_at], source_orient)
+            if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to source_orient,  set angle to 0, axis irrelevant
                 axis = (1.0,0.0,0.0)
                 angle = 0.0
             else:
                 axis /= np.linalg.norm(axis)
-                angle = -np.arccos(vectors_hat[0])*180.0/np.pi
+                angle = -np.arccos(np.dot(vectors_hat[i_at], source_orient))*180.0/np.pi
 
-            if vector_color_by == "atom":
+            if vector_color == "atom":
                 at_type = atom_type_list[i_at] 
-                if at_type not in index_of_at_type:
-                    index_of_at_type[at_type] = len(index_of_at_type)
-                    color_list.append(get_atom_prop(self.settings, at_type, i_at, at.arrays).GetColor())
-                color_index = index_of_at_type[at_type]
-            elif vector_color_by == "sign":
-                if not scalar_spins:
-                    raise ValueError("Can't color vectors by sign if spin is not scalar {}".format(vectors.shape))
-                color_index = 1 if vectors[i_at] < 0 else 0
+                color = get_atom_prop(self.settings, at_type, i_at, at.arrays).GetColor()
+            elif vector_color == "sign":
+                if vectors[i_at] < 0:
+                    color = at.info["_vtk_vectors"]["sign_colors"][3:6]
+                else:
+                    color = at.info["_vtk_vectors"]["sign_colors"][0:3]
             else:
-                color_index = 0
+                color = at.info["_vtk_vectors"]["color"]
 
-            points_list.append(pos[i_at]-vector_norms[i_at]/2.0*vectors_hat[i_at])
-            axes_list.append(axis)
-            angles_list.append(angle)
-            scales_list.append((vector_norms[i_at], rad, rad))
-            color_indices_list.append((color_index,))
+            if orientation is not None:
+                actors = [vtk.vtkFollower(),vtk.vtkFollower()]
+                for actor in actors:
+                    actor.SetCamera(self.renderer.GetActiveCamera())
+                    # assumes source_orient = \hat{x}
+                    actor.SetScale(vector_norms[i_at]/2.0, rad, rad)
+                    actor.SetPosition(pos[i_at])
+                actors[0].SetMapper(arrow_x_mapper)
+                actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                actors[1].SetMapper(cyl_x_mapper)
+                actors[1].RotateWXYZ(angle+180.0, axis[0], axis[1], axis[2])
+            else:
+                actors = [vtk.vtkActor()]
+                actors[0].SetMapper(arrow_x_mapper)
+                # assumes source_orient = \hat{x}
+                actors[0].SetScale(vector_norms[i_at], rad, rad)
+                actors[0].SetPosition(pos[i_at]-vector_norms[i_at]/2.0*vectors_hat[i_at])
+                actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
 
-        # data needed to place, rotate, and scale glyphs
-        points = self.vectors_points_data
-        points.Reset()
-        points.SetNumberOfPoints(len(points_list))
-        for pt_i in range(len(points_list)):
-            points.SetPoint(pt_i, points_list[pt_i])
-        axes = numpy_to_vtk(np.array(axes_list))
-        angles = numpy_to_vtk(np.array(angles_list))
-        scales = numpy_to_vtk(np.array(scales_list))
-        color_indices = numpy_to_vtk(np.array(color_indices_list, dtype=int))
-        color_indices.SetName("color_indices")
-
-        glyphs_data = vtk.vtkPolyData()
-        glyphs_data.SetPoints(points)
-        glyphs_data.GetPointData().AddArray(axes)
-        glyphs_data.GetPointData().AddArray(angles)
-        glyphs_data.GetPointData().AddArray(scales)
-        glyphs_data.GetPointData().SetScalars(color_indices)
-
-        def place_glyph(__vtk__temp0=0,__vtk__temp1=0):
-            point = glyphs.GetPoint()
-            point_id = glyphs.GetPointId()
-            d = glyphs.GetPointData()
-            axis =  d.GetAbstractArray(0).GetTuple(point_id)
-            angle = d.GetAbstractArray(1).GetTuple(point_id)
-            scale = d.GetAbstractArray(2).GetTuple(point_id)
-
-            trans = vtk.vtkTransform()
-            trans.Translate(point)
-            trans.RotateWXYZ(angle[0], axis)
-            trans.Scale(scale[0], scale[1], scale[2])
-
-            trans_cyl = vtk.vtkTransformPolyDataFilter()
-            trans_cyl.SetInputConnection(self.shapes["sources"]["arrow_x"][0].GetOutputPort())
-            trans_cyl.SetTransform(trans)
-            glyphs.SetSourceConnection(trans_cyl.GetOutputPort())
-
-        glyphs = vtk.vtkProgrammableGlyphFilter()
-        glyphs.SetSourceConnection(self.shapes["sources"]["arrow_x"][0].GetOutputPort())
-        glyphs.SetInputData(glyphs_data)
-        glyphs.SetGlyphMethod(place_glyph)
-        glyphs.SetColorModeToColorByInput()
-
-        glyphs_mapper = vtk.vtkPolyDataMapper()
-        glyphs_mapper.SetInputConnection(glyphs.GetOutputPort())
-
-        if vector_color_by == "sign":
-            color_list = [ at.info["_vtk_vectors"]["sign_colors"][0:3], at.info["_vtk_vectors"]["sign_colors"][3:6] ]
-        elif vector_color_by != "atom":
-            color_list = [ vector_color_by ]
-        glyphs_mapper.SetLookupTable(self.vector_lut(color_list))
-
-        actor.SetMapper(glyphs_mapper)
-
-        actor.VisibilityOn()
-        self.renderer.AddActor(actor)
+            for actor in actors:
+                actor._vtk_type = "vector"
+                actor.VisibilityOn()
+                actor.PickableOff()
+                actor.GetProperty().SetColor(color)
+                self.renderer.AddActor(actor)
+                self.vector_actors.append(actor)
 
     # need to see what can be optimized if settings_only is True
     def update_bonds(self, at, settings_only = False):
