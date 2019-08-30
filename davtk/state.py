@@ -211,6 +211,7 @@ class DaVTKState(object):
         self.cur_n_label_actors = 0
 
         self.bonds_points_data = vtk.vtkPoints()
+        self.vectors_points_data = vtk.vtkPoints()
         self.atoms_points_data = {}
 
         self.atoms_actors = []
@@ -258,6 +259,17 @@ class DaVTKState(object):
         cyl_y_mapper.SetInputConnection(cyl_y.GetOutputPort())
         cyl_y_mapper.Update()
         sources["cylinder_y"] = (cyl_y, cyl_y_mapper.GetInput().GetNumberOfPoints())
+
+        arrow_x = vtk.vtkArrowSource()
+        arrow_x.SetShaftRadius(1.0)
+        arrow_x.SetTipRadius(3.5)
+        arrow_x.SetTipLength(0.25)
+        arrow_x.SetShaftResolution(8)
+        arrow_x.SetTipResolution(16)
+        arrow_x_mapper = vtk.vtkPolyDataMapper()
+        arrow_x_mapper.SetInputConnection(arrow_x.GetOutputPort())
+        arrow_x_mapper.Update()
+        sources["arrow_x"] = (arrow_x, arrow_x_mapper.GetInput().GetNumberOfPoints())
 
         # cyl_x = vtk.vtkTransformPolyDataFilter()
         # t = vtk.vtkTransform()
@@ -524,6 +536,11 @@ class DaVTKState(object):
         scales_list = []
         color_indices_list = []
 
+        if at.info["_vtk_vectors"]["color"] == "atom":
+            atom_type_list = get_atom_type_list(self.settings, at)
+            index_of_at_type = {}
+            color_list = []
+
         z_hat = [0.0, 0.0, 1.0]
 
         if at.info["_vtk_vectors"]["field"] == "magmoms":
@@ -531,10 +548,14 @@ class DaVTKState(object):
         else:
             vectors = at.arrays[at.info["_vtk_vectors"]["field"]]
 
+        rad = at.info["_vtk_vectors"]["radius"]
+
+        scalar_spins = False
         if len(vectors.shape) == 2 and vectors.shape[1] == 3: # 3-vectors
             vectors_use = vectors
         elif len(vectors.shape) == 1 or len(vectors.shape) == 2: # scalars or some other length vectors
             if len(vectors.shape) == 1: # scalars
+                scalar_spins = True
                 vectors_use = np.zeros((len(at),3))
                 vectors_use[:,2] = 1.0
                 vectors_use[:,:] = (vectors_use.T * vectors).T
@@ -545,36 +566,45 @@ class DaVTKState(object):
         else:
             raise ValueError("Don't know how to draw vectors for field with shape {}".format(vectors.shape))
 
+        vectors_use *= at.info["_vtk_vectors"]["scale"]
+
         vector_norms = np.linalg.norm(vectors_use, axis=1)
         vectors_hat = (vectors_use.T / vector_norms).T
 
-        bond_type_name = at.info["_vtk_vectors"]["color"]
+        vector_color_by = at.info["_vtk_vectors"]["color"]
 
         cell = at.get_cell()
         for i_at in range(len(at)):
-            rad = self.settings["bond_types"][name]["radius"]
 
-            axis = np.cross(vectors_hat[i_at], [0.0, 1.0, 0.0])
-            if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to \hat{y}
+            axis = np.cross(vectors_hat[i_at], [1.0, 0.0, 0.0])
+            if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to \hat{x}
                 axis = (1.0,0.0,0.0)
                 angle = 0.0
             else:
                 axis /= np.linalg.norm(axis)
-                angle = -np.arccos(vectors_hat[1])*180.0/np.pi
+                angle = -np.arccos(vectors_hat[0])*180.0/np.pi
 
-            # if bond_type_name == "atom":
-            # elif bond_type_name == "spin":
-            # else:
-            color_index = self.settings["bond_types"][bond_type_name]["index"]
+            if vector_color_by == "atom":
+                at_type = atom_type_list[i_at] 
+                if at_type not in index_of_at_type:
+                    index_of_at_type[at_type] = len(index_of_at_type)
+                    color_list.append(get_atom_prop(self.settings, at_type, i_at, at.arrays).GetColor())
+                color_index = index_of_at_type[at_type]
+            elif vector_color_by == "sign":
+                if not scalar_spins:
+                    raise ValueError("Can't color vectors by sign if spin is not scalar {}".format(vectors.shape))
+                color_index = 1 if vectors[i_at] < 0 else 0
+            else:
+                color_index = 0
 
-            points_list.append(pos[i_at])
+            points_list.append(pos[i_at]-vector_norms[i_at]/2.0*vectors_hat[i_at])
             axes_list.append(axis)
             angles_list.append(angle)
-            scales_list.append((rad, vector_norms[i_at], rad))
+            scales_list.append((vector_norms[i_at], rad, rad))
             color_indices_list.append((color_index,))
 
         # data needed to place, rotate, and scale glyphs
-        points = self.bonds_points_data
+        points = self.vectors_points_data
         points.Reset()
         points.SetNumberOfPoints(len(points_list))
         for pt_i in range(len(points_list)):
@@ -606,12 +636,12 @@ class DaVTKState(object):
             trans.Scale(scale[0], scale[1], scale[2])
 
             trans_cyl = vtk.vtkTransformPolyDataFilter()
-            trans_cyl.SetInputConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
+            trans_cyl.SetInputConnection(self.shapes["sources"]["arrow_x"][0].GetOutputPort())
             trans_cyl.SetTransform(trans)
             glyphs.SetSourceConnection(trans_cyl.GetOutputPort())
 
         glyphs = vtk.vtkProgrammableGlyphFilter()
-        glyphs.SetSourceConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
+        glyphs.SetSourceConnection(self.shapes["sources"]["arrow_x"][0].GetOutputPort())
         glyphs.SetInputData(glyphs_data)
         glyphs.SetGlyphMethod(place_glyph)
         glyphs.SetColorModeToColorByInput()
@@ -619,7 +649,11 @@ class DaVTKState(object):
         glyphs_mapper = vtk.vtkPolyDataMapper()
         glyphs_mapper.SetInputConnection(glyphs.GetOutputPort())
 
-        glyphs_mapper.SetLookupTable(self.bond_lut)
+        if vector_color_by == "sign":
+            color_list = [ at.info["_vtk_vectors"]["sign_colors"][0:3], at.info["_vtk_vectors"]["sign_colors"][3:6] ]
+        elif vector_color_by != "atom":
+            color_list = [ vector_color_by ]
+        glyphs_mapper.SetLookupTable(self.vector_lut(color_list))
 
         actor.SetMapper(glyphs_mapper)
 
@@ -689,6 +723,12 @@ class DaVTKState(object):
                 scales_list.append((rad, dr_norm/2.0, rad))
                 color_indices_list.append((color_index,))
                 i_at_bond.append((i_at, i_bond))
+
+        if len(points_list) == 0:
+            self.bonds_actor.VisibilityOff()
+            self.bonds_actor.PickableOff()
+            self.renderer.RemoveActor(self.bonds_actor)
+            return
 
         # data needed to place, rotate, and scale glyphs
         points = self.bonds_points_data
@@ -907,6 +947,14 @@ class DaVTKState(object):
         self.frame_label_actor.SetInput(frame_label_str)
         self.renderer.AddActor(self.frame_label_actor)
 
+    def vector_lut(self, colors):
+        # look up table for bond colors
+        vector_lut = vtk.vtkColorTransferFunction()
+        vector_lut.SetRange(0, len(colors)-1)
+        for (i, c) in enumerate(colors):
+            vector_lut.AddRGBPoint(float(i), c[0], c[1], c[2])
+        return vector_lut
+
     def create_bond_lut(self):
         # look up table for bond colors
         self.bond_lut = vtk.vtkColorTransferFunction()
@@ -918,6 +966,7 @@ class DaVTKState(object):
             self.bond_lut.AddRGBPoint(float(i), self.settings["bond_types"][name]["color"][0],
                                       self.settings["bond_types"][name]["color"][1],
                                       self.settings["bond_types"][name]["color"][2])
+
     def create_atom_type_luts(self):
         # make sure every atom type exists, autogenerating if needed
         for at_type in sorted(list(set(get_atom_type_list(self.settings, self.cur_at())))):

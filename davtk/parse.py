@@ -283,14 +283,27 @@ parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.f
 
 parser_vectors = ThrowingArgumentParser(prog="vectors",description="Draw vectors")
 parser_vectors.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_vectors.add_argument("-field",type=str,help="atom field to use for vectors (scalar or 3-vector)", default="magmoms")
-parser_vectors.add_argument("-color",type=str,help="name of bond_type to color by, or 'atom' or 'sign' (scalars only)", default='atom')
-parser_vectors.add_argument("-sign_colors",type=float,nargs=6,metavar=('RU','GU','BU','RD','GD','BD'), help="colors for -name sign", default=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-parser_vectors.add_argument("-radius",type=float,help="cylinder radius", default=0.1)
-parser_vectors.add_argument("-scaling_factor",type=float,help="scaling factor from field value to cylinder length", default=1.0)
+parser_vectors.add_argument("-field",type=str,help="atom field to use for vectors (scalar or 3-vector)", default=None)
+parser_vectors.add_argument("-color",type=str,nargs='+',help="R G B, or string atom (by atom) or string sign (by sign of scalars only)", default=None)
+parser_vectors.add_argument("-sign_colors",type=float,nargs=6,metavar=('RU','GU','BU','RD','GD','BD'), help="colors for -name sign", default=None)
+parser_vectors.add_argument("-radius",type=float,help="cylinder radius", default=None)
+parser_vectors.add_argument("-scale",type=float,help="scaling factor from field value to cylinder length", default=None)
 parser_vectors.add_argument("-delete",action='store_true',help="disable")
 def parse_vectors(davtk_state, renderer, args):
     args = parser_vectors.parse_args(args)
+
+    if args.color is not None:
+        if len(args.color) == 1:
+            if args.color[0] != "atom" and args.color[0] != "sign":
+                raise ValueError("Got single word -color argument '{}', not 'atom' or 'sign'".format(args.color))
+            args.color = args.color[0]
+        elif len(args.color) == 3:
+            try:
+                args.color = [float(v) for v in args.color]
+            except:
+                raise ValueError("Got 3-word args.color '{}' not convertible to float".format(args.color))
+        else:
+            raise ValueError("Got args.color '{}' length not 1 or 3".format(args.color))
 
     if args.all_frames:
         ats = davtk_state.at_list
@@ -301,11 +314,13 @@ def parse_vectors(davtk_state, renderer, args):
         if args.delete:
             del at.info["_vtk_vectors"]
         else:
-            at.info["_vtk_vectors"] = { "field" : args.field, "color_by" : args.color, "r" : args.radius, "scale" : args.scaling_factor, "sign_colors" : args.sign_colors }
-
+            if "_vtk_vectors" not in at.info:
+                at.info["_vtk_vectors"] = { "field" : "magmoms", "color" : "atom", "radius" : 0.1, "scale" : 1.0, "sign_colors" : [1.0, 0.0, 0.0,    0.0, 0.0, 1.0] }
+            for p in ["field", "color", "sign_colors", "radius", "scale" ]:
+                if getattr(args,p) is not None:
+                    at.info["_vtk_vectors"][p] = getattr(args, p)
     return None
 parsers["vectors"] = (parse_vectors, parser_vectors.format_usage(), parser_vectors.format_help())
-
 
 parser_bond = ThrowingArgumentParser(prog="bond",description="Create bonds")
 parser_bond.add_argument("-all_frames",action="store_true",help="apply to all frames")

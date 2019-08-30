@@ -137,7 +137,7 @@ class DavTKSettings(object):
         group.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         group.add_argument("-colormap",nargs=2,type=str,default=None, metavar=("COLORMAP","FIELD"))
         group = self.parser_atom_type.add_mutually_exclusive_group()
-        group.add_argument("-radius",type=float,default=None)
+        group.add_argument("-radius","-rad","-r",type=float,default=None)
         group.add_argument("-radius_field",type=str,nargs=2,metavar=("RADIUS_FIELD","FACTOR"),default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
         self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
