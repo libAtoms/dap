@@ -15,5 +15,5 @@ bond_type  first -color 1 1 1 -rad 0.1
 # second bond type, set to the default
 bond_type alt -color 1 0 0 -rad 0.2 -default
 
-atom_label_field species
+atom_label -field species
 label
