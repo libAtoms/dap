@@ -354,7 +354,8 @@ class DaVTKState(object):
             raise ValueError("update what='{}', not rotate or settings or number or [+|-]number".format(what))
 
         if what == "rotate":
-            self.update_legend(self.cur_at())
+            self.update_legend(self.cur_at(), False)
+            self.update_labels(self.cur_at(), False)
             return
 
         if what != "settings":
@@ -1033,7 +1034,7 @@ class DaVTKState(object):
             label_actor.SetPosition(pos[i_at])
             r = get_atom_radius(self.settings, atom_type_list[i_at], i_at, at)
             if dp_world > 0:
-                dp_disp = 0.7*r/dp_world
+                dp_disp = 3+0.7*r/dp_world
             else:
                 dp_disp = 0
             label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
