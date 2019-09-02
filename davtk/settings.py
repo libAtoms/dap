@@ -95,7 +95,7 @@ class DavTKSettings(object):
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
             "picked_color" : [1.0, 1.0, 0.0], 
             "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "string" : "${config_n}", "show" : True },
-            "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "field" : "ID", "show" : False},
+            "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "string" : "${ID}", "show" : False},
             "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0 },
             'atom_type_field' : 'Z'
             }
@@ -174,7 +174,7 @@ class DavTKSettings(object):
 
         self.parser_frame_label = ThrowingArgumentParser(prog="frame_label")
         self.parser_frame_label.add_argument("-string","-s", type=str, 
-            help="string, substituting ${FIELD} with fields in atoms.info (or 'config_n'), or _NONE_", default=None)
+            help="string, substituting ${STRING} with fields in atoms.info (or 'config_n'), or _NONE_", default=None)
         self.parser_frame_label.add_argument("-color","-c", nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_frame_label.add_argument("-fontsize",type=int,default=None)
         group = self.parser_frame_label.add_mutually_exclusive_group()
@@ -184,8 +184,9 @@ class DavTKSettings(object):
                                        self.write_frame_label)
 
         self.parser_atom_label = ThrowingArgumentParser(prog="atom_label")
-        self.parser_atom_label.add_argument("-field",type=str,help="Atoms.arrays field to use for label (or 'ID' for number of atom, "+
-                                                                   "'Z' for atomic number, 'species' for chemical symbol, or '_NONE_')", default=None)
+        self.parser_atom_label.add_argument("-string",type=str,help="string to use for label, substituting $${STRING} with fields in atoms.arrays "+
+                                                                   "(or 'ID' for number of atom, 'Z' for atomic number, 'species' for chemical symbol), "+
+                                                                   "or '_NONE_'", default=None)
         self.parser_atom_label.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_atom_label.add_argument("-fontsize",type=int,default=None)
         group = self.parser_atom_label.add_mutually_exclusive_group()
@@ -380,17 +381,23 @@ class DavTKSettings(object):
         return args+'\n'
     def parse_frame_label(self, args):
         args = self.parser_frame_label.parse_args(args)
+
+        got_setting = False
         if args.color is not None:
             self.data["frame_label"]["color"] = args.color
+            got_setting = True
         if args.fontsize is not None:
             self.data["frame_label"]["fontsize"] = args.fontsize
+            got_setting = True
         if args.string is not None:
             self.data["frame_label"]["string"] = args.string
+            got_setting = True
+
         if args.on:
             self.data["frame_label"]["show"] = True
         elif args.off:
             self.data["frame_label"]["show"] = False
-        else: # toggle
+        elif not got_setting: # toggle
             self.data["frame_label"]["show"] = not self.data["frame_label"]["show"] 
         self.data["frame_label"]["prop"].SetColor(self.data["frame_label"]["color"])
         self.data["frame_label"]["prop"].SetFontSize(self.data["frame_label"]["fontsize"])
@@ -404,8 +411,8 @@ class DavTKSettings(object):
                                               self.data["atom_label"]["color"][2])
         if self.data["atom_label"]["fontsize"] is not None:
             args += ' -fontsize {}'.format(self.data["atom_label"]["fontsize"])
-        if self.data["atom_label"]["field"] is not None:
-            args += ' -field {}'.format(self.data["atom_label"]["field"])
+        if self.data["atom_label"]["string"] is not None:
+            args += ' -string {}'.format(self.data["atom_label"]["string"])
         if self.data["atom_label"]["show"]:
             args += ' -on'
         else:
@@ -421,8 +428,8 @@ class DavTKSettings(object):
         if args.fontsize is not None:
             self.data["atom_label"]["fontsize"] = args.fontsize
             got_setting = True
-        if args.field is not None:
-            self.data["atom_label"]["field"] = args.field
+        if args.string is not None:
+            self.data["atom_label"]["string"] = args.string
             got_setting = True
 
         if args.on:

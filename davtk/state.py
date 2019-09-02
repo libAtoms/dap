@@ -357,7 +357,7 @@ class DaVTKState(object):
 
         if what == "rotate":
             self.update_legend(self.cur_at(), False)
-            self.update_labels(self.cur_at(), False)
+            self.update_atom_labels(self.cur_at(), False)
             return
 
         if what != "settings":
@@ -370,7 +370,7 @@ class DaVTKState(object):
 
         self.update_cell_box(at.get_cell(), what == "settings")
         self.update_atoms(at, what == "settings")
-        self.update_labels(at, what == "settings")
+        self.update_atom_labels(at, what == "settings")
         self.update_bonds(at, what == "settings")
         self.update_vectors(at, what == "settings")
         self.update_image_atoms(at, what == "settings")
@@ -910,12 +910,33 @@ class DaVTKState(object):
         for actor in self.legend_sphere_actors + self.legend_label_actors:
             self.renderer.AddActor(actor)
 
-    def string_dollar_sub(self, string, d, d_special_case):
-        for substr in re.findall('\${([^}]*)}', string):
-            if substr in d_special_case:
-                string = re.sub('\${'+substr+'}',str(d_special_case[substr]),string,count=1)
-            elif substr in d:
-                string = re.sub('\${'+substr+'}',str(d[substr]),string,count=1)
+    def string_dollar_sub(self, string, at, i_at=None):
+        dict_frame = at.info
+        dict_frame_special_case = { "config_n" : self.cur_frame }
+        dict_atom = at.arrays
+        dict_atom_special_case = { "ID" : list(range(len(at))), 
+                                   "Z" : at.get_atomic_numbers(),
+                                   "species" : at.get_chemical_symbols(),
+                                   "magmom" : at.get_magnetic_moments(),
+                                   "initial_magmoms" : at.get_initial_magnetic_moments() 
+                                 }
+        for substr in re.findall('\$\${([^}]*)}', string):
+            if i_at is None:
+                raise ValueError("found $${{}} substitution for '{}' but i_at is None".format(substr))
+            if dict_atom_special_case is not None and substr in dict_atom_special_case:
+                string = re.sub('\$\${'+substr+'}',str(dict_atom_special_case[substr][i_at]),string,count=1)
+            elif dict_atom is not None and substr in dict_atom:
+                string = re.sub('\$\${'+substr+'}',str(dict_atom[substr][i_at]),string,count=1)
+            else:
+                raise ValueError("Tried to do $${{}} substitution on undefined field '{}'".format(substr))
+        for substr in re.findall('(?:^|[^$])\${([^}]*)}', string):
+            if dict_frame_special_case is not None and substr in dict_frame_special_case:
+                string = re.sub('\${'+substr+'}',str(dict_frame_special_case[substr]),string,count=1)
+            elif dict_frame is not None and substr in dict_frame:
+                string = re.sub('\${'+substr+'}',str(dict_frame[substr]),string,count=1)
+            else:
+                raise ValueError("Tried to do ${{}} substitution on undefined field '{}'".format(substr))
+
         return string
 
     def update_frame_label(self, settings_only = False):
@@ -940,10 +961,11 @@ class DaVTKState(object):
         else:
             frame_label_string = self.settings["frame_label"]["string"]
 
+        print("BOB")
         if frame_label_string == "_NONE_":
             frame_label_str = ""
         else:
-            frame_label_str = self.string_dollar_sub(frame_label_string, at.info, {"config_n" : self.cur_frame})
+            frame_label_str = self.string_dollar_sub(frame_label_string, at)
 
         self.frame_label_actor.SetInput(frame_label_str)
         self.renderer.AddActor(self.frame_label_actor)
@@ -1014,7 +1036,7 @@ class DaVTKState(object):
 
     # need to see what can be optimized if settings_only is True
     # can/should this be done with some sort of GlyphMapper?
-    def update_labels(self, at, settings_only = False):
+    def update_atom_labels(self, at, settings_only = False):
         if "_vtk_atom_label_show" in at.info and at.info["_vtk_atom_label_show"] is not None:
             show_labels = at.info["_vtk_atom_label_show"]
         else:
@@ -1038,32 +1060,26 @@ class DaVTKState(object):
 
         dp_world = self.label_offset_world(pos[0])
 
-        for i_at in range(len(at)):
+        IDs = list(range(len(at)))
+        Zs = at.get_atomic_numbers()
+        species = at.get_chemical_symbols()
+        for i_at in IDs:
+            label_raw_string = None
+            if "_vtk_label" in at.arrays: # try per-atom value first
+                label_raw_string = at.arrays["_vtk_label"][i_at]
+                if re.search('^\s*$', label_raw_string) or re.search('^"?\s*"?$', label_raw_string) or re.search("^'?\s*'?$", label_raw_string):
+                    label_raw_string = None
+            if label_raw_string is None: # use string from per-config or global setting
+                if "_vtk_atom_label_string" in at.info:
+                    label_raw_string = at.info["_vtk_atom_label_string"]
+                else:
+                    label_raw_string = self.settings["atom_label"]["string"]
+            if label_raw_string == "_NONE_":
+                label_str = ""
+            else:
+                label_str = self.string_dollar_sub(label_raw_string, at, i_at)
+
             label_actor = self.atom_label_actor_pool[i_at]
-            label_str = None
-            if "_vtk_label" in at.arrays:
-                raw_label = at.arrays["_vtk_label"][i_at]
-                if at.arrays["_vtk_label"][i_at] == "_NONE_":
-                    label_str = ""
-                elif re.search('^\s*$', raw_label) or re.search('^"?\s*"?$', raw_label) or re.search("^'?\s*'?$", raw_label):
-                    label_str = None
-                else:
-                    label_str = at.arrays["_vtk_label"][i_at]
-            if label_str is None: # use field
-                if "_vtk_atom_label_field" in at.info:
-                    label_field = at.info["_vtk_atom_label_field"]
-                else:
-                    label_field = self.settings["atom_label"]["field"]
-                if label_field is None or label_field == "ID":
-                    label_str = str(i_at)
-                elif label_field == "_NONE_":
-                    label_str = ""
-                elif label_field == "Z" or label_field == "atomic_number":
-                    label_str = str(at.get_atomic_numbers()[i_at])
-                elif label_field == "species":
-                    label_str = at.get_chemical_symbols()[i_at]
-                else:
-                    label_str = str(at.arrays[label_field][i_at])
             label_actor.SetInput(label_str)
             label_actor.SetPosition(pos[i_at])
             r = get_atom_radius(self.settings, atom_type_list[i_at], i_at, at)
