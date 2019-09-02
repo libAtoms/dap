@@ -202,13 +202,12 @@ class DaVTKState(object):
         self.at_list = at_list
         self.settings = settings
         self.shapes = self.create_shapes()
-        self.create_vtk_structures()
         self.cur_frame = 0
         self.renderer = renderer
         self.iRen = iRen
 
-        self.label_actor_pool = []
-        self.cur_n_label_actors = 0
+        self.atom_label_actor_pool = []
+        self.cur_n_atom_label_actors = 0
 
         self.bonds_points_data = vtk.vtkPoints()
         self.vectors_points_data = vtk.vtkPoints()
@@ -311,7 +310,10 @@ class DaVTKState(object):
             at.arrays["_vtk_orig_indices"] = np.array(range(len(at)))
             if atoms is not None:
                 if atoms == "picked":
-                    at_inds = np.where(at.arrays["_vtk_picked"])[0]
+                    if "_vtk_picked" in at.arrays:
+                        at_inds = np.where(at.arrays["_vtk_picked"])[0]
+                    else:
+                        at_inds = []
                 elif isinstance(atoms,int):
                     at_inds = np.array([atoms])
                 else:
@@ -447,7 +449,10 @@ class DaVTKState(object):
         # create position, radius, and colormap value lists, separately for each atom type
         for i_at in range(len(at)):
             at_type = atom_type_list[i_at]
-            picked = at.arrays["_vtk_picked"][i_at]
+            try:
+                picked = at.arrays["_vtk_picked"][i_at]
+            except KeyError:
+                picked = False
             r = get_atom_radius(self.settings, at_type, i_at, at)
 
             colormap = self.settings["atom_types"][at_type]["colormap"]
@@ -905,21 +910,40 @@ class DaVTKState(object):
         for actor in self.legend_sphere_actors + self.legend_label_actors:
             self.renderer.AddActor(actor)
 
+    def string_dollar_sub(self, string, d, d_special_case):
+        for substr in re.findall('\${([^}]*)}', string):
+            if substr in d_special_case:
+                string = re.sub('\${'+substr+'}',str(d_special_case[substr]),string,count=1)
+            elif substr in d:
+                string = re.sub('\${'+substr+'}',str(d[substr]),string,count=1)
+        return string
+
     def update_frame_label(self, settings_only = False):
         if self.frame_label_actor is None:
             self.frame_label_actor = vtk.vtkTextActor()
             self.frame_label_actor._vtk_type = "frame_label"
             self.frame_label_actor.PickableOff()
 
+        if not self.settings["frame_label"]["show"]:
+            self.frame_label_actor.VisibilityOff()
+            return
+
+        self.frame_label_actor.VisibilityOn()
+
         self.frame_label_actor.SetTextProperty(self.settings["frame_label"]["prop"])
         self.frame_label_actor.SetDisplayPosition(20,20)
 
-        if self.settings["frame_label"]["field"] == "_NONE_":
-            frame_label_str = ""
-        elif self.settings["frame_label"]["field"] == "config_n":
-            frame_label_str = str(self.cur_frame)
+        at = self.cur_at()
+
+        if at.info.get("_vtk_frame_label_string", None) is not None:
+            frame_label_string = at.info["_vtk_frame_label_string"]
         else:
-            frame_label_str = str(self.cur_at().info.get(self.settings["frame_label"]["field"],"None"))
+            frame_label_string = self.settings["frame_label"]["string"]
+
+        if frame_label_string == "_NONE_":
+            frame_label_str = ""
+        else:
+            frame_label_str = self.string_dollar_sub(frame_label_string, at.info, {"config_n" : self.cur_frame})
 
         self.frame_label_actor.SetInput(frame_label_str)
         self.renderer.AddActor(self.frame_label_actor)
@@ -991,19 +1015,23 @@ class DaVTKState(object):
     # need to see what can be optimized if settings_only is True
     # can/should this be done with some sort of GlyphMapper?
     def update_labels(self, at, settings_only = False):
-        if not at.info["_vtk_show_labels"]:
-            for actor in self.label_actor_pool:
+        if "_vtk_atom_label_show" in at.info and at.info["_vtk_atom_label_show"] is not None:
+            show_labels = at.info["_vtk_atom_label_show"]
+        else:
+            show_labels = self.settings["atom_label"]["show"]
+        if show_labels is False:
+            for actor in self.atom_label_actor_pool:
                 actor.SetVisibility(False)
             return
 
-        if len(at) > len(self.label_actor_pool):
-            prev_pool_size = len(self.label_actor_pool)
+        if len(at) > len(self.atom_label_actor_pool):
+            prev_pool_size = len(self.atom_label_actor_pool)
             new_actors = [vtk.vtkBillboardTextActor3D() for i in range(len(at)-prev_pool_size)]
             for actor in new_actors:
                 actor._vtk_type="atom_label"
                 self.renderer.AddActor(actor)
                 actor.PickableOff()
-            self.label_actor_pool.extend(new_actors)
+            self.atom_label_actor_pool.extend(new_actors)
 
         atom_type_list = get_atom_type_list(self.settings, at)
         pos = at.get_positions()
@@ -1011,19 +1039,25 @@ class DaVTKState(object):
         dp_world = self.label_offset_world(pos[0])
 
         for i_at in range(len(at)):
-            label_actor = self.label_actor_pool[i_at]
+            label_actor = self.atom_label_actor_pool[i_at]
             label_str = None
             if "_vtk_label" in at.arrays:
+                raw_label = at.arrays["_vtk_label"][i_at]
                 if at.arrays["_vtk_label"][i_at] == "_NONE_":
                     label_str = ""
-                elif len(at.arrays["_vtk_label"][i_at]) == 0 or at.arrays["_vtk_label"][i_at] == "'''" or at.arrays["_vtk_label"][i_at] == '""':
+                elif re.search('^\s*$', raw_label) or re.search('^"?\s*"?$', raw_label) or re.search("^'?\s*'?$", raw_label):
                     label_str = None
                 else:
                     label_str = at.arrays["_vtk_label"][i_at]
-            if label_str is None:
-                label_field = self.settings["atom_label"]["field"]
+            if label_str is None: # use field
+                if "_vtk_atom_label_field" in at.info:
+                    label_field = at.info["_vtk_atom_label_field"]
+                else:
+                    label_field = self.settings["atom_label"]["field"]
                 if label_field is None or label_field == "ID":
                     label_str = str(i_at)
+                elif label_field == "_NONE_":
+                    label_str = ""
                 elif label_field == "Z" or label_field == "atomic_number":
                     label_str = str(at.get_atomic_numbers()[i_at])
                 elif label_field == "species":
@@ -1041,16 +1075,9 @@ class DaVTKState(object):
             label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
             label_actor.SetVisibility(True)
 
-        for actor in self.label_actor_pool[len(at):]:
+        for actor in self.atom_label_actor_pool[len(at):]:
             actor.SetVisibility(False)
-        self.cur_n_label_actors = len(at)
-
-    def create_vtk_structures(self, frames=None):
-        for frame_i in self.frame_list(frames):
-            at = self.at_list[frame_i]
-
-            at.arrays["_vtk_picked"] = np.array([False] * len(at))
-            at.info["_vtk_show_labels"] = False
+        self.cur_n_atom_label_actors = len(at)
 
     def measure(self, n=None, frame_i=None):
         if frame_i is None:
@@ -1059,7 +1086,10 @@ class DaVTKState(object):
             at = self.at_list[frame_i]
 
         if n is None:
-            at_indices = np.where(at.arrays["_vtk_picked"])[0]
+            if "_vtk_picked" in at.arrays:
+                at_indices = np.where(at.arrays["_vtk_picked"])[0]
+            else:
+                at_indices = []
         else:
             at_indices = n
 
@@ -1117,7 +1147,6 @@ class DaVTKState(object):
             if hasattr(at, "bonds"):
                 at.bonds.reinit()
 
-        self.create_vtk_structures(frames)
         self.update(frames)
 
     def bond(self, name, at_type1, at_type2, criterion, frames=None):
@@ -1131,7 +1160,10 @@ class DaVTKState(object):
                 at.bonds = DavTKBonds(at, self.settings)
 
             if criterion == "picked":
-                indices = np.where(self.cur_at().arrays["_vtk_picked"])[0]
+                if "_vtk_picked" in at.arrays:
+                    indices = np.where(self.cur_at().arrays["_vtk_picked"])[0]
+                else:
+                    indices = []
                 if len(indices) != 2:
                     raise ValueError("tried to bond picked, but number of atoms picked {} != 2".format(len(indices)))
                 at.bonds.pair_mic(name, indices[0], indices[1])

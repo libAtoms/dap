@@ -94,8 +94,8 @@ class DavTKSettings(object):
             "bond_types" : {}, "bond_name_of_index" : [ None ],
             "cell_box_color" : [1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
             "picked_color" : [1.0, 1.0, 0.0], 
-            "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "field" : "config_n" },
-            "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "field" : "ID"},
+            "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "string" : "${config_n}", "show" : True },
+            "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "field" : "ID", "show" : False},
             "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0 },
             'atom_type_field' : 'Z'
             }
@@ -173,17 +173,24 @@ class DavTKSettings(object):
                                             self.write_background_color)
 
         self.parser_frame_label = ThrowingArgumentParser(prog="frame_label")
-        self.parser_frame_label.add_argument("-field","-f", type=str, help="field to use for frame label (in atoms.info, or 'config_n')", default=None)
+        self.parser_frame_label.add_argument("-string","-s", type=str, 
+            help="string, substituting ${FIELD} with fields in atoms.info (or 'config_n'), or _NONE_", default=None)
         self.parser_frame_label.add_argument("-color","-c", nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_frame_label.add_argument("-fontsize",type=int,default=None)
+        group = self.parser_frame_label.add_mutually_exclusive_group()
+        group.add_argument("-on", action='store_true')
+        group.add_argument("-off", action='store_true')
         self.parsers["frame_label"] = (self.parse_frame_label, self.parser_frame_label.format_usage(), self.parser_frame_label.format_help(), 
-                                         self.write_frame_label)
+                                       self.write_frame_label)
 
         self.parser_atom_label = ThrowingArgumentParser(prog="atom_label")
+        self.parser_atom_label.add_argument("-field",type=str,help="Atoms.arrays field to use for label (or 'ID' for number of atom, "+
+                                                                   "'Z' for atomic number, 'species' for chemical symbol, or '_NONE_')", default=None)
         self.parser_atom_label.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_atom_label.add_argument("-fontsize",type=int,default=None)
-        self.parser_atom_label.add_argument("-field",type=str,help="Atoms.arrays field to use for label (ID for number of atom, "+
-                                                                   "Z for atomic number, species for chemical symbol", default=None)
+        group = self.parser_atom_label.add_mutually_exclusive_group()
+        group.add_argument("-on", action='store_true')
+        group.add_argument("-off", action='store_true')
         self.parsers["atom_label"] = (self.parse_atom_label, self.parser_atom_label.format_usage(), self.parser_atom_label.format_help(),
                                       self.write_atom_label)
 
@@ -365,7 +372,11 @@ class DavTKSettings(object):
         if self.data["frame_label"]["fontsize"] is not None:
             args += ' -fontsize {}'.format(self.data["frame_label"]["fontsize"])
         if self.data["frame_label"]["field"] is not None:
-            args += ' -field {}'.format(self.data["frame_label"]["field"])
+            args += ' -string {}'.format(self.data["frame_label"]["string"])
+        if self.data["frame_label"]["show"]:
+            args += ' -on'
+        else:
+            args += ' -off'
         return args+'\n'
     def parse_frame_label(self, args):
         args = self.parser_frame_label.parse_args(args)
@@ -373,8 +384,14 @@ class DavTKSettings(object):
             self.data["frame_label"]["color"] = args.color
         if args.fontsize is not None:
             self.data["frame_label"]["fontsize"] = args.fontsize
-        if args.field is not None:
-            self.data["frame_label"]["field"] = args.field
+        if args.string is not None:
+            self.data["frame_label"]["string"] = args.string
+        if args.on:
+            self.data["frame_label"]["show"] = True
+        elif args.off:
+            self.data["frame_label"]["show"] = False
+        else: # toggle
+            self.data["frame_label"]["show"] = not self.data["frame_label"]["show"] 
         self.data["frame_label"]["prop"].SetColor(self.data["frame_label"]["color"])
         self.data["frame_label"]["prop"].SetFontSize(self.data["frame_label"]["fontsize"])
         return "settings"
@@ -389,15 +406,32 @@ class DavTKSettings(object):
             args += ' -fontsize {}'.format(self.data["atom_label"]["fontsize"])
         if self.data["atom_label"]["field"] is not None:
             args += ' -field {}'.format(self.data["atom_label"]["field"])
+        if self.data["atom_label"]["show"]:
+            args += ' -on'
+        else:
+            args += ' -off'
         return args+'\n'
     def parse_atom_label(self, args):
         args = self.parser_atom_label.parse_args(args)
+
+        got_setting = False
         if args.color is not None:
             self.data["atom_label"]["color"] = args.color
+            got_setting = True
         if args.fontsize is not None:
             self.data["atom_label"]["fontsize"] = args.fontsize
+            got_setting = True
         if args.field is not None:
             self.data["atom_label"]["field"] = args.field
+            got_setting = True
+
+        if args.on:
+            self.data["atom_label"]["show"] = True
+        elif args.off:
+            self.data["atom_label"]["show"] = False
+        elif not got_setting:
+            self.data["atom_label"]["show"] = not self.data["atom_label"]["show"] 
+
         self.data["atom_label"]["prop"].SetColor(self.data["atom_label"]["color"])
         self.data["atom_label"]["prop"].SetFontSize(self.data["atom_label"]["fontsize"])
         return "settings"

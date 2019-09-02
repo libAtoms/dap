@@ -16,4 +16,3 @@ bond_type  first -color 1 1 1 -rad 0.1
 bond_type alt -color 1 0 0 -rad 0.2 -default
 
 atom_label -field species
-label

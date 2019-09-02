@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import sys, queue
+import numpy as np
 import vtk
 from davtk.parse import parse_line
 
@@ -8,12 +9,18 @@ def pick_actors(at, actors, point_sets):
     new_bond_pick_statuses = {}
     for (actor, points) in zip(actors, point_sets):
         if hasattr(actor, "_vtk_type"):
-            if actor._vtk_type == "image_atom":
-                at.arrays["_vtk_picked"][actor.i_at] = not at.arrays["_vtk_picked"][actor.i_at]
-            elif actor._vtk_type == "atoms_glyphs":
-                for point in points:
-                    i_at = actor.i_at[point]
-                    at.arrays["_vtk_picked"][i_at] = not at.arrays["_vtk_picked"][i_at]
+            if actor._vtk_type in ["image_atom", "atoms_glyphs"]:
+                if "_vtk_picked" not in at.arrays:
+                    at.new_array("_vtk_picked",np.array([False]*len(at)))
+
+                if actor._vtk_type == "image_atom":
+                    i_at_list = [actor.i_at]
+                elif actor._vtk_type == "atoms_glyphs":
+                    i_at_list = [actor.i_at[point] for point in points]
+                else:
+                    raise RuntimeError("pick_actors() should never get here")
+
+                at.arrays["_vtk_picked"][i_at_list] = not at.arrays["_vtk_picked"][i_at_list]
             elif actor._vtk_type == "bonds_glyphs":
                 for point in points:
                     (i_at, i_bond) = actor.i_at_bond[point]
@@ -138,7 +145,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         elif k == 'b':
             self.davtk_state.bond(name=None, at_type1='*', at_type2='*', criterion="picked", frames="cur")
         elif k == 'l':
-            self.davtk_state.cur_at().info["_vtk_show_labels"] = not self.davtk_state.cur_at().info["_vtk_show_labels"]
+            self.davtk_state.settings["atom_label"]["show"] = not self.davtk_state.settings["atom_label"]["show"]
             self.davtk_state.update()
         elif k == 'plus':
             self.davtk_state.update('+'+str(self.davtk_state.settings["frame_step"]))
@@ -168,8 +175,8 @@ Mouse scroll (two finger up/down drag on OS X): zoom
         # self.OnChar() # Forward Events to superclass handler
 
     def leftButtonPressEvent(self,obj,event):
-        self.show_labels_prev = self.davtk_state.cur_at().info["_vtk_show_labels"]
-        self.davtk_state.cur_at().info["_vtk_show_labels"] = False
+        self.show_atom_labels_prev = self.davtk_state.settings["atom_label"]["show"]
+        self.davtk_state.settings["atom_label"]["show"] = False
 
         self.show_legend_prev = self.davtk_state.settings["legend"]['show']
         self.davtk_state.settings["legend"]["show"] = False
@@ -179,7 +186,7 @@ Mouse scroll (two finger up/down drag on OS X): zoom
         return
 
     def leftButtonReleaseEvent(self,obj,event):
-        self.davtk_state.cur_at().info["_vtk_show_labels"] = self.show_labels_prev
+        self.davtk_state.settings["atom_label"]["show"] = self.show_atom_labels_prev
 
         self.davtk_state.settings["legend"]['show'] = self.show_legend_prev
 

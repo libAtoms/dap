@@ -184,19 +184,23 @@ def parse_prev(davtk_state, renderer, args):
     return None
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
-parser_unpick = ThrowingArgumentParser(prog="unpick", description="unpick all picked atoms")
-parser_unpick.add_argument("-all_frames",action="store_true")
-parser_unpick.add_argument("-only",nargs='+',choices=["atoms","bonds"],action="store", default=None)
+parser_unpick = ThrowingArgumentParser(prog="unpick", description="unpick picked atoms and/or bonds (default both)")
+parser_unpick.add_argument("-all_frames", action="store_true")
+parser_unpick.add_argument("-atoms", action="store_true")
+parser_unpick.add_argument("-bonds", action="store_true")
 def parse_unpick(davtk_state, renderer, args):
     args = parser_unpick.parse_args(args)
     if args.all_frames:
         ats = davtk_state.at_list
     else:
         ats = [davtk_state.cur_at()]
+    none_selected = not any([args.atoms, args.bonds])
     for at in ats:
-        if args.only is None or "atoms" in args.only:
+        if none_selected or args.atoms:
+            if "_vtk_picked" not in at.arrays:
+                continue
             at.arrays["_vtk_picked"][:] = False
-        if args.only is None or "bonds" in args.only:
+        if none_selected or args.bonds:
             if hasattr(at, "bonds"):
                 for i_at in range(len(at)):
                     for b in at.bonds[i_at]:
@@ -213,7 +217,10 @@ def parse_pick(davtk_state, renderer, args):
         ats = davtk_state.at_list
     else:
         ats = [davtk_state.cur_at()]
+
     for at in ats:
+        if "_vtk_picked" not in at.arrays:
+            at.new_arrays("_vtk_picked",np.array([False]*len(at)))
         at.arrays["_vtk_picked"][args.n] = True
     return "cur"
 parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_help())
@@ -392,27 +399,61 @@ def parse_read(davtk_state, renderer, args):
         parse_file(f, davtk_state.settings, davtk_state)
 parsers["read"] = (parse_read, parser_read.format_usage(), parser_read.format_help())
 
-parser_label = ThrowingArgumentParser(prog="label",description="enable/disable labels (toggle by default)")
-parser_label.add_argument("-all_frames",action="store_true",help="apply to all frames")
-group = parser_label.add_mutually_exclusive_group()
-group.add_argument("-on",action='store_true',help="turn on")
-group.add_argument("-off",action='store_true',help="turn off")
-def parse_label(davtk_state, renderer, args):
-    args = parser_label.parse_args(args)
+parser_override_frame_label = ThrowingArgumentParser(prog="override_frame_label",description="set per-frame label")
+parser_override_frame_label.add_argument("-all_frames",action="store_true",help="apply to all frames")
+parser_override_frame_label.add_argument("string",action="store",help="per-configuration string, substituting ${FIELD} with fields "+
+                                                                      "in atoms.info (or 'config_n'), or _NONE_")
+def parse_override_frame_label(davtk_state, renderer, args):
+    args = parser_override_frame_label.parse_args(args)
     if args.all_frames:
         ats = davtk_state.at_list
     else:
         ats = [davtk_state.cur_at()]
 
     for at in ats:
-        if args.on:
-            at.info["_vtk_show_labels"] = True
-        elif args.off:
-            at.info["_vtk_show_labels"] = False
-        else:
-            at.info["_vtk_show_labels"] = not at.info["_vtk_show_labels"] 
+        at.info["_vtk_frame_label_string"] = args.string
+
     return "cur"
-parsers["label"] = (parse_label, parser_label.format_usage(), parser_label.format_help())
+parsers["override_frame_label"] = (parse_override_frame_label, parser_override_frame_label.format_usage(), parser_override_frame_label.format_help())
+
+parser_override_atom_label = ThrowingArgumentParser(prog="override_atom_label",description="override atom label on a per-atom basis")
+parser_override_atom_label.add_argument("-all_frames",action="store_true",help="apply to all frames")
+group = parser_override_atom_label.add_mutually_exclusive_group()
+group.add_argument("-picked",action='store_true',help="label picked atoms with STRING, default", default=None)
+group.add_argument("-i",type=str,action='store',help="label specified atoms with STRING, comma separated set of ranges", default=None)
+group.add_argument("-eval",type=str,nargs='+',action='store',help="label specified atoms with STRING, expression that evaluates "+
+                                                                  "to list of indices or logical array with dim len(atoms)", default=None)
+parser_override_atom_label.add_argument("string",type=str,nargs='+',action='store',help="string to set as per-atom label", default=[])
+def parse_override_atom_label(davtk_state, renderer, args):
+    args = parser_override_atom_label.parse_args(args)
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    for at in ats:
+        new_label = " ".join(args.string)
+        if "_vtk_label" not in at.arrays or len(new_label) > len(at.arrays["_vtk_label"][0]):
+            a = np.array([" "*len(new_label)]*len(at))
+            if "_vtk_label" in at.arrays:
+                a[:] = at.arrays["_vtk_label"]
+                del at.arrays["_vtk_label"]
+            at.new_array("_vtk_label", a)
+        if args.i:
+            for range_item in args.i.split(","):
+                exec('at.arrays["_vtk_label"]['+range_item+'] = new_label')
+        elif args.eval:
+            atoms = at
+            expr = " ".join(args.eval)
+            exec('atoms.arrays["_vtk_label"]['+expr+'] = new_label')
+        else: # -picked, or nothing selected (default)
+            if "_vtk_picked" not in at.arrays:
+                return None
+            for i_at in range(len(at)):
+                if at.arrays["_vtk_picked"][i_at]:
+                    at.arrays["_vtk_label"][i_at] = new_label
+    return "cur"
+parsers["override_atom_label"] = (parse_override_atom_label, parser_override_atom_label.format_usage(), parser_override_atom_label.format_help())
 
 parser_measure = ThrowingArgumentParser(prog="measure",description="measure some quantities for picked objects (default) or listed atoms")
 parser_measure.add_argument("-all_frames",action="store_true",help="apply to all frames")
