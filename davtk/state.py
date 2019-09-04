@@ -914,11 +914,19 @@ class DaVTKState(object):
         dict_frame = at.info
         dict_frame_special_case = { "config_n" : self.cur_frame }
         dict_atom = at.arrays
+        try:
+            magmoms = at.get_magnetic_moments()
+        except:
+            magmoms = None
+        try:
+            init_magmoms = at.get_initial_magnetic_moments()
+        except:
+            init_magmoms = None
         dict_atom_special_case = { "ID" : list(range(len(at))), 
                                    "Z" : at.get_atomic_numbers(),
                                    "species" : at.get_chemical_symbols(),
-                                   "magmom" : at.get_magnetic_moments(),
-                                   "initial_magmoms" : at.get_initial_magnetic_moments() 
+                                   "magmom" : magmoms,
+                                   "initial_magmoms" : init_magmoms
                                  }
         for substr in re.findall('\$\${([^}]*)}', string):
             if i_at is None:
@@ -961,7 +969,6 @@ class DaVTKState(object):
         else:
             frame_label_string = self.settings["frame_label"]["string"]
 
-        print("BOB")
         if frame_label_string == "_NONE_":
             frame_label_str = ""
         else:
