@@ -96,7 +96,7 @@ class DavTKSettings(object):
             "picked_color" : [1.0, 1.0, 0.0], 
             "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "string" : "${config_n}", "show" : True },
             "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "string" : "${ID}", "show" : False},
-            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0 },
+            "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0, 'sphere_scale' : 1.0 },
             'atom_type_field' : 'Z'
             }
 
@@ -120,6 +120,7 @@ class DavTKSettings(object):
                                                              " (negative values relative to top right)", default=None)
         group.add_argument("-offset",type=int,nargs=2,help="offset relative to current position", default=None)
         self.parser_legend.add_argument("-spacing",type=int,help="spacing between rows", default=None)
+        self.parser_legend.add_argument("-sphere_scale",action='store',type=float,help="scaling factor for sphere radius", default=None)
         self.parsers["legend"] = (self.parse_legend, self.parser_legend.format_usage(), self.parser_legend.format_help(), self.write_legend)
 
         self.parser_step = ThrowingArgumentParser(prog="step",description="number of frames to skip in +/- and prev/next")
@@ -244,23 +245,31 @@ class DavTKSettings(object):
         args_str += '-on' if self.data["legend"]['show'] else '-off'
         args_str += ' -position {} {}'.format(self.data["legend"]['position'][0],self.data["legend"]['position'][1])
         args_str += ' -spacing {}'.format(self.data["legend"]['spacing'])
+        args_str += ' -sphere_scale {}'.format(self.data["legend"]['sphere_scale'])
         return args_str+'\n'
     def parse_legend(self, args):
         args = self.parser_legend.parse_args(args)
+
+        got_setting = False
+        if args.position is not None:
+            self.data["legend"]['position'] = np.array(args.position)
+            got_setting = True
+        if args.offset is not None:
+            self.data["legend"]['position'] += args.offset
+            got_setting = True
+        if args.spacing is not None:
+            self.data["legend"]['spacing'] = args.spacing
+            got_setting = True
+        if args.sphere_scale is not None:
+            self.data["legend"]['sphere_scale'] = args.sphere_scale
+            got_setting = True
+
 
         if args.on:
             self.data["legend"]['show'] = True
         elif args.off:
             self.data["legend"]['show']= False
-
-        if args.position is not None:
-            self.data["legend"]['position'] = np.array(args.position)
-        if args.offset is not None:
-            self.data["legend"]['position'] += args.offset
-        if args.spacing is not None:
-            self.data["legend"]['spacing'] = args.spacing
-
-        if args.position is None and args.offset is None and args.spacing is None and not args.on and not args.off:
+        elif not got_setting: # toggle
             self.data["legend"]['show'] = not self.data["legend"]['show']
 
         return "settings"

@@ -848,27 +848,15 @@ class DaVTKState(object):
         for i in range(len(unique_atom_types)):
             self.legend_sphere_actors.append(vtk.vtkActor())
             self.legend_sphere_actors[-1]._vtk_type = "legend_sphere"
-            self.legend_label_actors.append(vtk.vtkBillboardTextActor3D())
+            self.legend_label_actors.append(vtk.vtkActor2D())
             self.legend_label_actors[-1]._vtk_type = "legend_label"
 
-        max_r = 0.0
-        longest_label = ""
-        for (l_i, (legend_sphere_actor, legend_label_actor, at_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
-            max_r = max(max_r, get_atom_radius(self.settings, at_type, list(atom_type_list), at))
-            longest_label = longest_label if len(longest_label) > len(at_type) else at_type
-        legend_raw_pos = self.settings["legend"]['position']
-        spacing = self.settings["legend"]["spacing"] * max(int(2.5*max_r/dp_world), self.settings["atom_label"]["fontsize"])
-        legend_offset = np.zeros((2),dtype=int)
-        if legend_raw_pos[0] >= 0:
-            legend_offset[0] = int(1.3 * max_r/dp_world)
-        else:
-            legend_offset[0] = -int( 1.3 * max_r/dp_world + len(longest_label)*self.settings["atom_label"]["fontsize"]/1.5 )
-        if legend_raw_pos[1] >= 0:
-            legend_offset[1] = int(spacing * (len(unique_atom_types)-0.5))
-        else:
-            legend_offset[1] = -int(0.5*spacing)
-        legend_pos = (legend_raw_pos + legend_offset) % display_size
+        sphere_scale = self.settings["legend"]["sphere_scale"]
 
+        # create all actors, except for positions, to get actual screen sizes
+        sphere_max_size = 0.0
+        legend_max_width = 0.0
+        legend_max_height = 0.0
         for (l_i, (legend_sphere_actor, legend_label_actor, at_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
             atom_i_of_type = atom_type_list.index(at_type)
 
@@ -878,37 +866,67 @@ class DaVTKState(object):
 
             prop = get_atom_prop(self.settings, at_type, atom_i_of_type, at.arrays)
 
-            r = get_atom_radius(self.settings, at_type, list(atom_type_list), at)
+            r = sphere_scale*get_atom_radius(self.settings, at_type, list(atom_type_list), at)
             legend_sphere_actor.SetProperty(prop)
             legend_sphere_actor.SetScale(r, r, r)
 
+            legend_sphere_actor.PickableOff()
+            legend_sphere_actor.VisibilityOn()
+
+            m = vtk.vtkTextMapper()
+            m.SetInput(at_type)
+            m.SetTextProperty(self.settings["atom_label"]["prop"])
+            legend_label_actor.SetMapper(m)
+            legend_label_actor.PickableOff()
+            legend_label_actor.VisibilityOn()
+
+        # figure out max sizes
+        for actor in self.legend_sphere_actors + self.legend_label_actors:
+            self.renderer.AddActor(actor)
+        self.renderer.GetRenderWindow().Render()
+        max_sphere_size = 0.0
+        max_text_size_x = 0.0
+        max_text_size_y = 0.0
+        for (l_i, (legend_sphere_actor, legend_label_actor, at_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
+            b = np.array(legend_sphere_actor.GetBounds())
+            max_sphere_size = max(max_sphere_size, np.linalg.norm(b[1::2]-b[0::2])/np.sqrt(3))
+            max_text_size_x = max(max_text_size_x, legend_label_actor.GetMapper().GetWidth(self.renderer)*dp_world)
+            max_text_size_y = max(max_text_size_y, legend_label_actor.GetMapper().GetHeight(self.renderer)*dp_world)
+
+        # position and space legend using actual sizes
+        legend_raw_pos = self.settings["legend"]['position']
+        spacing = self.settings["legend"]["spacing"] * max(max_sphere_size*1.5, max_text_size_y*1.5)/dp_world
+        legend_offset = np.zeros((2),dtype=int)
+        if legend_raw_pos[0] >= 0:
+            legend_offset[0] = int(1.3 * max_sphere_size/dp_world)
+        else:
+            legend_offset[0] = -int( 1.3 * max_sphere_size/dp_world + max_text_size_x/dp_world)
+        if legend_raw_pos[1] >= 0:
+            legend_offset[1] = int(spacing * (len(unique_atom_types)-0.5))
+        else:
+            legend_offset[1] = -int(0.5*spacing)
+        legend_pos_display = (legend_raw_pos + legend_offset) % display_size
+
+        label_x_offset = int(max_sphere_size/dp_world)
+        label_y_offset = -int(max_text_size_y/2.0/dp_world)
+
+        for (l_i, (legend_sphere_actor, legend_label_actor, at_type)) in enumerate(zip(self.legend_sphere_actors, self.legend_label_actors, unique_atom_types)):
+            # let's hope atom 0 isn't getting clipped
             self.renderer.SetWorldPoint(list(pos[0]) + [1.0])
             self.renderer.WorldToDisplay()
             arb_point = self.renderer.GetDisplayPoint()
 
-            self.renderer.SetDisplayPoint(legend_pos[0], legend_pos[1]-spacing*l_i, arb_point[2])
+            # got from legend pos in display coords to world pos (for sphere)
+            sphere_pos_display = [legend_pos_display[0], legend_pos_display[1]-spacing*l_i, arb_point[2]]
+            self.renderer.SetDisplayPoint(sphere_pos_display)
             self.renderer.DisplayToWorld()
             sphere_pos_world = self.renderer.GetWorldPoint()
-            sphere_pos_world = np.array(sphere_pos_world[0:3]) / sphere_pos_world[3]
 
-            legend_sphere_actor.SetPosition(sphere_pos_world)
-            legend_sphere_actor.PickableOff()
-            legend_sphere_actor.VisibilityOn()
+            legend_sphere_actor.SetPosition(np.array(sphere_pos_world[0:3])/sphere_pos_world[3])
 
-            legend_label_actor.SetInput(at_type)
-            legend_label_actor.SetPosition(sphere_pos_world)
-            if dp_world > 0:
-                max_r_disp = max_r/dp_world
-                text_disp = self.settings["atom_label"]["fontsize"]
-            else:
-                max_r_disp = 0
-            legend_label_actor.SetDisplayOffset(int(1.3*max_r_disp), -int(text_disp/2.0))
-            legend_label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
-            legend_label_actor.PickableOff()
-            legend_label_actor.VisibilityOn()
+            label_pos_display = [ sphere_pos_display[0]+label_x_offset, sphere_pos_display[1]+label_y_offset]
+            legend_label_actor.SetPosition(label_pos_display)
 
-        for actor in self.legend_sphere_actors + self.legend_label_actors:
-            self.renderer.AddActor(actor)
 
     def string_dollar_sub(self, string, at, i_at=None):
         dict_frame = at.info
