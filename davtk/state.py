@@ -242,8 +242,8 @@ class DaVTKState(object):
 
         sphere = vtk.vtkSphereSource()
         sphere.SetRadius(1.0)
-        sphere.SetPhiResolution(8)
-        sphere.SetThetaResolution(16)
+        sphere.SetPhiResolution(16)
+        sphere.SetThetaResolution(32)
         sphere_mapper = vtk.vtkPolyDataMapper()
         sphere_mapper.SetInputConnection(sphere.GetOutputPort())
         sphere_mapper.Update()
@@ -530,6 +530,7 @@ class DaVTKState(object):
             # add and save actor
             self.renderer.AddActor(actor)
             self.atoms_actors.append(actor)
+            actor.SetProperty(self.settings["atom_types"][at_type]["prop"])
 
     # need to see what can be optimized if settings_only is True
     def update_vectors(self, at, settings_only = False):
@@ -768,6 +769,11 @@ class DaVTKState(object):
         actor.SetMapper(glyphs_mapper)
         actor.i_at_bond = i_at_bond
 
+        actor.GetProperty().SetAmbient(0.1)
+        # actor.GetProperty().SetSpecularColor(1.0, 1.0, 1.0)
+        # actor.GetProperty().SetSpecularPower(10.0)
+        # actor.GetProperty().SetSpecular(0.8)
+
         actor.VisibilityOn()
         actor.PickableOn()
         self.renderer.AddActor(actor)
@@ -813,7 +819,8 @@ class DaVTKState(object):
                                     image_actor = self.image_atom_actors[n_images-1]
 
                                 color = self.atom_type_luts[at_type].GetColor(np.linalg.norm(colormap_val))
-                                image_actor.GetProperty().SetColor(color)
+                                image_actor.SetProperty(self.settings["atom_types"][at_type]["prop"])
+                                # image_actor.GetProperty().SetColor(color)
                                 image_actor.SetPosition(image_pos)
                                 image_actor.SetScale(r,r,r)
                                 image_actor.i_at = i_at

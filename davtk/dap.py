@@ -55,6 +55,11 @@ class Viewer(object):
         camera.SetFocalPoint((max_pos+min_pos)/2.0)
         camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
 
+        l = vtk.vtkLight()
+        l.SetPosition(100,70,200)
+        l.SetLightTypeToCameraLight()
+        renderer.GetLights().AddItem(l)
+
         # must do this rather late in the process
         renwin.SetWindowName(win_name)
 

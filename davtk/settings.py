@@ -47,7 +47,7 @@ class DavTKAtomTypes(object):
                           t["opacity"],t["bonding_radius"])
         return data
 
-    def set_type(self, name, color=None, colormap=None, radius=None, radius_field=None,
+    def set_type(self, name, color=None, specular=None, specular_radius=None, ambient=None, colormap=None, radius=None, radius_field=None,
                  opacity=None, bonding_radius=None, colormaps=None):
         if name not in self.types:
             self.types[name] = {}
@@ -57,16 +57,29 @@ class DavTKAtomTypes(object):
             self.types[name]["radius_field"] = None
             self.types[name]["opacity"] = None
             self.types[name]["bonding_radius"] = None
-            self.types[name]["prop"] = vtk.vtkProperty()
-            self.types[name]["prop"].SetOpacity(1.0)
-            self.types[name]["prop"].SetSpecularColor(1.0,1.0,1.0)
-            self.types[name]["prop"].SetSpecularPower(10.0)
+            prop = vtk.vtkProperty()
+            prop.SetOpacity(1.0)
+            prop.SetSpecularColor(1.0,1.0,1.0)
+            prop.SetSpecularPower(10.0)
+            prop.SetSpecular(0.7)
+            prop.SetAmbient(0.3)
+            self.types[name]["prop"] = prop
         if color is not None:
             if colormap is not None:
                 raise ValueError("got color and colormap")
             self.types[name]["color"] = color
             self.types[name]["colormap"] = None
-            self.types[name]["prop"].SetColor(color)
+            self.types[name]["prop"].SetDiffuseColor(color)
+            self.types[name]["prop"].SetAmbientColor(color)
+        if specular is not None:
+            self.types[name]["specular"] = specular
+            self.types[name]["prop"].SetSpecular(specular)
+        if specular_radius is not None:
+            self.types[name]["specular_radius"] = specular_radius
+            self.types[name]["prop"].SetSpecularPower(1.0/specular_radius)
+        if ambient is not None:
+            self.types[name]["ambient"] = ambient
+            self.types[name]["prop"].SetAmbient(ambient)
         if colormap is not None:
             if color is not None:
                 raise ValueError("got color and colormap")
@@ -140,6 +153,9 @@ class DavTKSettings(object):
         group = self.parser_atom_type.add_mutually_exclusive_group()
         group.add_argument("-radius","-rad","-r",type=float,default=None)
         group.add_argument("-radius_field",type=str,nargs=2,metavar=("RADIUS_FIELD","FACTOR"),default=None)
+        self.parser_atom_type.add_argument("-specular","-s",type=float,default=None)
+        self.parser_atom_type.add_argument("-specular_radius",type=float,default=None)
+        self.parser_atom_type.add_argument("-ambient","-a",type=float,default=None)
         self.parser_atom_type.add_argument("-opacity",type=float,default=None)
         self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
         self.parsers["atom_type"] = (self.parse_atom_type, self.parser_atom_type.format_usage(), self.parser_atom_type.format_help(), self.write_atom_type)
@@ -320,7 +336,9 @@ class DavTKSettings(object):
         args = self.parser_atom_type.parse_args(args)
         if args.radius_field is not None:
             args.radius_field[1] = float(args.radius_field[1])
-        self.data["atom_types"].set_type(args.name, args.color, args.colormap, args.radius, args.radius_field, args.opacity, args.bonding_radius, self.data["colormaps"])
+        self.data["atom_types"].set_type(args.name, color=args.color, specular=args.specular, specular_radius=args.specular_radius, ambient=args.ambient,
+                                         colormap=args.colormap, radius=args.radius, radius_field=args.radius_field, opacity=args.opacity,
+                                         bonding_radius=args.bonding_radius, colormaps=self.data["colormaps"])
         return "settings"
 
     def write_bond_type (self):
