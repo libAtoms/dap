@@ -1,5 +1,5 @@
 import sys, ase.io, math
-import numpy as np
+import numpy as np, scipy
 import vtk
 import ase.neighborlist
 import re
@@ -219,8 +219,12 @@ class DaVTKState(object):
         self.vector_actors = []
         self.volume_reps_actors = []
 
+        self.bond_lut = None
+
         self.legend_sphere_actors = []
         self.legend_label_actors = []
+
+        self.polyhedra_actors = []
 
         self.cell_box_actor = None
 
@@ -376,7 +380,8 @@ class DaVTKState(object):
         self.update_image_atoms(at, what == "settings")
         self.update_volume_reps(at, what == "settings")
         self.update_legend(at, what == "settings")
-        self.update_frame_label(what == "settings")
+        self.update_frame_label(at, what == "settings")
+        self.update_polyhedra(at, what == "settings")
 
         # refresh display
         self.renderer.GetRenderWindow().Render()
@@ -400,7 +405,8 @@ class DaVTKState(object):
             self.cell_box_actor._vtk_type = "cell_box"
 
         actor = self.cell_box_actor
-        actor.GetProperty().SetColor(self.settings["cell_box_color"])
+        actor.GetProperty().SetColor(self.settings["cell_box_color"][0:3])
+        actor.GetProperty().SetOpacity(self.settings["cell_box_color"][3])
         actor.PickableOff()
 
         if settings_only:
@@ -645,6 +651,9 @@ class DaVTKState(object):
 
     # need to see what can be optimized if settings_only is True
     def update_bonds(self, at, settings_only = False):
+        if settings_only: # colors are handled by self.bond_lut and a fixed vtkProperty
+            return
+
         if not hasattr(at, "bonds"):
             if self.bonds_actor is not None:
                 self.bonds_actor.VisibilityOff()
@@ -769,10 +778,7 @@ class DaVTKState(object):
         actor.SetMapper(glyphs_mapper)
         actor.i_at_bond = i_at_bond
 
-        actor.GetProperty().SetAmbient(0.1)
-        # actor.GetProperty().SetSpecularColor(1.0, 1.0, 1.0)
-        # actor.GetProperty().SetSpecularPower(10.0)
-        # actor.GetProperty().SetSpecular(0.8)
+        actor.SetProperty(self.settings["bond_types"][name]["prop"])
 
         actor.VisibilityOn()
         actor.PickableOn()
@@ -972,7 +978,7 @@ class DaVTKState(object):
 
         return string
 
-    def update_frame_label(self, settings_only = False):
+    def update_frame_label(self, at, settings_only = False):
         if self.frame_label_actor is None:
             self.frame_label_actor = vtk.vtkTextActor()
             self.frame_label_actor._vtk_type = "frame_label"
@@ -986,8 +992,6 @@ class DaVTKState(object):
 
         self.frame_label_actor.SetTextProperty(self.settings["frame_label"]["prop"])
         self.frame_label_actor.SetDisplayPosition(20,20)
-
-        at = self.cur_at()
 
         if at.info.get("_vtk_frame_label_string", None) is not None:
             frame_label_string = at.info["_vtk_frame_label_string"]
@@ -1012,7 +1016,10 @@ class DaVTKState(object):
 
     def create_bond_lut(self):
         # look up table for bond colors
-        self.bond_lut = vtk.vtkColorTransferFunction()
+        if self.bond_lut is None:
+            self.bond_lut = vtk.vtkColorTransferFunction()
+        else:
+            self.bond_lut.RemoveAllPoints()
         n_types = len(self.settings["bond_types"])
         self.bond_lut.SetRange(0, n_types)
         self.bond_lut.AddRGBPoint(0.0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
@@ -1199,7 +1206,7 @@ class DaVTKState(object):
 
     def bond(self, name, at_type1, at_type2, criterion, frames=None):
         if name is None:
-            name = self.settings["default_bond_type"]
+            name = "default"
 
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
@@ -1386,3 +1393,88 @@ class DaVTKState(object):
             if "_vtk_bonds" in at.arrays:
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()
+
+    def polyhedra(self, at, Z, Zn, rcut):
+        pos = at.get_positions()
+        Zs = at.get_atomic_numbers()
+        points = [ [] for i in range(len(at)) ]
+        strings = [ "" ] * len(at)
+
+        nn_list = ase.neighborlist.neighbor_list('ijdD', at, rcut, self_interaction=True)
+        for (i,j,d,D) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
+            if Zs[i] != Z or d == 0.0 or (Zn is not None and Zs[j] != Zn):
+                continue
+            points[i].append(pos[i]+D)
+        for i_at in range(len(at)):
+            if len(points[i_at]) > 0:
+                hull = scipy.spatial.ConvexHull(np.array(points[i_at]))
+
+                for point in points[i_at]:
+                    strings[i_at] += "_".join([str(v) for v in point]) + "_"
+                strings[i_at] = re.sub(r'_$', '', strings[i_at])
+
+                strings[i_at] += "___"
+
+                for simplex in hull.simplices:
+                    strings[i_at] += "_".join([str(i) for i in simplex]) + "__"
+                strings[i_at] = re.sub(r'__$', '', strings[i_at])
+
+            else:
+                strings[i_at] = "_NONE_"
+
+        try:
+            del at.arrays["_vtk_polyhedra"]
+        except KeyError:
+            pass
+
+        at.new_array("_vtk_polyhedra", np.array(strings))
+
+    def update_polyhedra(self, at, settings_only = False):
+        if settings_only: # colors handled by fixed vtkProperty
+            return
+
+        for actor in self.polyhedra_actors:
+            self.renderer.RemoveActor(actor)
+        if "_vtk_polyhedra" not in at.arrays:
+            return
+
+        self.polyhedra_actors = []
+
+        try:
+            surface_type = at.info["_vtk_polyhedra_surface_type"]
+        except KeyError:
+            surface_type = "default"
+
+        for string in at.arrays["_vtk_polyhedra"]:
+            if string == "_NONE_":
+                continue
+            m = re.search('(.*)___(.*)', string)
+            (points_str, polygons_str) = (m.group(1), m.group(2))
+            points_data = np.reshape([float(p) for p in points_str.split("_")],(-1,3))
+            points = vtk.vtkPoints()
+            for p in points_data:
+                points.InsertNextPoint(p)
+            polygons = vtk.vtkCellArray()
+            for m in re.findall('[0-9]+(?:_[0-9]+)+', polygons_str):
+                polygon_data = [int(i) for i in m.split("_")]
+                polygon = vtk.vtkPolygon()
+                polygon.GetPointIds().SetNumberOfIds(len(polygon_data))
+                for (i_vertex, i) in enumerate(polygon_data):
+                    polygon.GetPointIds().SetId(i_vertex, i)
+                polygons.InsertNextCell(polygon)
+
+            polydata = vtk.vtkPolyData()
+            polydata.SetPoints(points)
+            polydata.SetPolys(polygons)
+
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputData(polydata)
+
+            actor = vtk.vtkActor()
+            actor._vtk_type = "polyhedron"
+            actor.SetMapper(mapper)
+            actor.SetProperty(self.settings["surface_types"][surface_type]["prop"])
+            actor.PickableOff()
+
+            self.renderer.AddActor(actor)
+            self.polyhedra_actors.append(actor)

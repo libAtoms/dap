@@ -7,4 +7,4 @@ legend
 bond
 
 # bond only Si-C, with cutoff 3.5, bond_type "first"
-bond -name first -rcut 3.5 -T Si -T2 C
+bond -type alt -rcut 3.5 -T Si -T2 C

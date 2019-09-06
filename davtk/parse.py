@@ -331,7 +331,7 @@ parsers["vectors"] = (parse_vectors, parser_vectors.format_usage(), parser_vecto
 
 parser_bond = ThrowingArgumentParser(prog="bond",description="Create bonds")
 parser_bond.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_bond.add_argument("-name",type=str,help="name of bond type", default=None)
+parser_bond.add_argument("-type",type=str,help="name of bond type", default=None)
 parser_bond.add_argument("-T",type=str,help="Restrict one member to given atom_type", default="*")
 parser_bond.add_argument("-T2",type=str,help="Restrict other member to given atom_type", default="*")
 grp = parser_bond.add_mutually_exclusive_group()
@@ -350,13 +350,13 @@ def parse_bond(davtk_state, renderer, args):
         frames = "cur"
 
     if args.picked:
-        davtk_state.bond(args.name, args.T, args.T2, "picked", frames)
+        davtk_state.bond(args.type, args.T, args.T2, "picked", frames)
     elif args.n:
-        davtk_state.bond(args.name, args.T, args.T2, ("n", args.n), frames)
+        davtk_state.bond(args.type, args.T, args.T2, ("n", args.n), frames)
     elif args.cutoff:
-        davtk_state.bond(args.name, args.T, args.T2, ("cutoff", args.cutoff), frames)
+        davtk_state.bond(args.type, args.T, args.T2, ("cutoff", args.cutoff), frames)
     else:
-        davtk_state.bond(args.name, args.T, args.T2, ("cutoff", None), frames)
+        davtk_state.bond(args.type, args.T, args.T2, ("cutoff", None), frames)
     return None
 parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_help())
 
@@ -470,6 +470,49 @@ def parse_measure(davtk_state, renderer, args):
         davtk_state.measure(args.n, frame_i)
     return None
 parsers["measure"] = (parse_measure, parser_measure.format_usage(), parser_measure.format_help())
+
+parser_polyhedra = ThrowingArgumentParser(prog="polyhedra",description="draw coordination polyhedra")
+parser_polyhedra.add_argument("-all_frames", action="store_true", help="apply to all frames")
+parser_polyhedra.add_argument("-type", help="name of surface_type to use")
+parser_polyhedra.add_argument("-Z", type=int, help="Z for polyhedron center, required",  default=None)
+parser_polyhedra.add_argument("-rcut", type=float, help="center-neighbor cutoff distance, required",  default=None)
+parser_polyhedra.add_argument("-Zn", type=int, help="Z for polyhedron neighbors",  default=None)
+parser_polyhedra.add_argument("-delete", action='store_true', help="delete existing polyhedra")
+def parse_polyhedra(davtk_state, renderer, args):
+    args = parser_polyhedra.parse_args(args)
+
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    if args.delete:
+        if any([args.type, args.Z is not None, args.rcut is not None, args.Zn is not None]): # deleting
+            raise RuntimeError("polyhedra got -delete and some other argument")
+
+    if any([args.type is not None, args.Z is not None, args.rcut is not None, args.Zn is not None]): # creating new polyhedra
+        if args.Z is None or args.rcut is None:
+            raise RuntimeError("polyhedra requires at least -Z and -rcut")
+
+    if args.type is None:
+        args.type = "default"
+
+    for at in ats:
+        if args.delete:
+            try:
+                del at.arrays["_vtk_polyhedra"]
+            except KeyError:
+                pass
+            try:
+                del at.info["_vtk_polyhedra_surface_type"]
+            except KeyError:
+                pass
+        else:
+            davtk_state.polyhedra(at, args.Z, args.Zn, args.rcut)
+            at.info["_vtk_polyhedra_surface_type"] = args.type
+
+    return "cur"
+parsers["polyhedra"] = (parse_polyhedra, parser_polyhedra.format_usage(), parser_polyhedra.format_help())
 
 parser_volume = ThrowingArgumentParser(prog="volume",description="read volumetric data from file")
 parser_volume.add_argument("filename",nargs='?',help="file to read from")
