@@ -497,7 +497,7 @@ def parse_polyhedra(davtk_state, renderer, args):
 
     if any([args.surface_type is not None, args.T is not None, args.rcut is not None, args.bond_type is not None, args.Tn is not None]) or (not args.delete and not args.list): # creating new polyhedra
         if args.T is None:
-            raise RuntimeError("polyhedra requires -Z to create new polyhedra")
+            raise RuntimeError("polyhedra requires -T to create new polyhedra")
 
     if args.surface_type is None:
         args.surface_type = "default"
