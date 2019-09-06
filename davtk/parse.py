@@ -473,13 +473,16 @@ parsers["measure"] = (parse_measure, parser_measure.format_usage(), parser_measu
 
 parser_polyhedra = ThrowingArgumentParser(prog="polyhedra",description="draw coordination polyhedra")
 parser_polyhedra.add_argument("-all_frames", action="store_true", help="apply to all frames")
-parser_polyhedra.add_argument("-type", help="name of surface_type to use")
+parser_polyhedra.add_argument("-name", help="name of polyhedron set, for later reference with -delete", default="default")
+parser_polyhedra.add_argument("-surface_type", help="name of surface_type to use (default to 'default')")
 parser_polyhedra.add_argument("-Z", type=int, help="Z for polyhedron center, required",  default=None)
 group = parser_polyhedra.add_mutually_exclusive_group()
 group.add_argument("-rcut", type=float, help="center-neighbor cutoff distance, this or -bond_type required",  default=None)
 group.add_argument("-bond_type", help="type of bond to use for neighbors, this or -rcut required",  default=None)
 parser_polyhedra.add_argument("-Zn", type=int, help="Z for polyhedron neighbors",  default=None)
-parser_polyhedra.add_argument("-delete", action='store_true', help="delete existing polyhedra")
+group = parser_polyhedra.add_mutually_exclusive_group()
+group.add_argument("-delete", action='store_true', help="delete existing polyhedra")
+group.add_argument("-list", action='store_true', help="list existing polyhedra")
 def parse_polyhedra(davtk_state, renderer, args):
     args = parser_polyhedra.parse_args(args)
 
@@ -488,30 +491,32 @@ def parse_polyhedra(davtk_state, renderer, args):
     else:
         ats = [davtk_state.cur_at()]
 
-    if args.delete:
-        if any([args.type, args.Z is not None, args.rcut is not None, args.bond_type is not None, args.Zn is not None]): # deleting
-            raise RuntimeError("polyhedra got -delete and also some other argument")
+    if args.delete or args.list:
+        if any([args.surface_type, args.Z is not None, args.rcut is not None, args.bond_type is not None, args.Zn is not None]): # deleting
+            raise RuntimeError("polyhedra got -delete or -list and also some argument for polyhedra creation")
 
-    if any([args.type is not None, args.Z is not None, args.rcut is not None, args.bond_type is not None, args.Zn is not None]) or not args.delete: # creating new polyhedra
+    if any([args.surface_type is not None, args.Z is not None, args.rcut is not None, args.bond_type is not None, args.Zn is not None]) or (not args.delete and not args.list): # creating new polyhedra
         if args.Z is None:
             raise RuntimeError("polyhedra requires -Z to create new polyhedra")
 
-    if args.type is None:
-        args.type = "default"
+    if args.surface_type is None:
+        args.surface_type = "default"
 
     for at in ats:
         if args.delete:
             try:
-                del at.arrays["_vtk_polyhedra"]
+                del at.arrays["_vtk_polyhedra_"+args.name]
             except KeyError:
                 pass
             try:
-                del at.info["_vtk_polyhedra_surface_type"]
+                del at.info["_vtk_polyhedra_surface_types"][args.name]
             except KeyError:
                 pass
+        elif args.list:
+            if "_vtk_polyhedra_surface_types" in at.info:
+                print("polyhedra sets",list(at.info["_vtk_polyhedra_surface_types"].keys()))
         else:
-            davtk_state.polyhedra(at, args.Z, args.Zn, args.rcut, args.bond_type)
-            at.info["_vtk_polyhedra_surface_type"] = args.type
+            davtk_state.polyhedra(at, args.name, args.Z, args.Zn, args.rcut, args.bond_type, args.surface_type)
 
     return "cur"
 parsers["polyhedra"] = (parse_polyhedra, parser_polyhedra.format_usage(), parser_polyhedra.format_help())
@@ -522,7 +527,7 @@ parser_volume.add_argument("-name",type=str, help="name to assign", default=None
 group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
 group.add_argument("-list", action='store_true', help="list existing volume representations")
-group.add_argument("-isosurface",type=float,nargs=5,action='append',metavar=("THRESHOLD","R","G","B","OPACITY"), help="isosurface threshold, color, and opacity")
+group.add_argument("-isosurface",type=float,nargs=2,action='append',metavar=("THRESHOLD","SURFACE_TYPE"), help="isosurface threshold, and surface_type")
 group.add_argument("-volumetric",type=float,nargs=4,action='append',metavar=("SCALE","R","G","B"), help="volumetric value_to_opacity_factor and color")
 def parse_volume(davtk_state, renderer, args):
     args_list = args

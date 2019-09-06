@@ -7,6 +7,14 @@ import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
+
+def bond_vector(cell, pos, i_at, j_at, S, dist=True):
+    D = pos[j_at] - pos[i_at] + np.dot(S, cell)
+    if dist:
+        return (D, np.linalg.norm(D))
+    else:
+        return D
+
 def find_min_max(at_list):
     min_pos = sys.float_info.max
     max_pos = -sys.float_info.max
@@ -357,15 +365,15 @@ class DaVTKState(object):
 
         if what is None or what == "cur":
             what = "+0"
-        if not re.search('^(rotate|settings|[+-]?\d+)$', what):
+        if not re.search('^(rotate|settings|color_only|[+-]?\d+)$', what):
             raise ValueError("update what='{}', not rotate or settings or number or [+|-]number".format(what))
 
         if what == "rotate":
-            self.update_legend(self.cur_at(), False)
-            self.update_atom_labels(self.cur_at(), False)
+            self.update_legend(self.cur_at())
+            self.update_atom_labels(self.cur_at())
             return
 
-        if what != "settings":
+        if what != "settings" and what != "color_only":
             self.set_frame(what)
         at = self.cur_at()
 
@@ -373,21 +381,24 @@ class DaVTKState(object):
 
         self.renderer.SetBackground(self.settings["background_color"])
 
-        self.update_cell_box(at.get_cell(), what == "settings")
-        self.update_atoms(at, what == "settings")
-        self.update_atom_labels(at, what == "settings")
-        self.update_bonds(at, what == "settings")
-        self.update_vectors(at, what == "settings")
-        self.update_image_atoms(at, what == "settings")
-        self.update_volume_reps(at, what == "settings")
-        self.update_legend(at, what == "settings")
-        self.update_frame_label(at, what == "settings")
-        self.update_polyhedra(at, what == "settings")
+        self.update_cell_box(at.get_cell(), what == "settings" or what == "color_only")
+        self.update_atoms(at)
+        self.update_atom_labels(at)
+        self.update_bonds(at, what == "color_only")
+        self.update_vectors(at)
+        self.update_image_atoms(at)
+        self.update_volume_reps(at, what == "settings" or what == "color_only")
+        self.update_legend(at)
+        self.update_frame_label(at)
+        self.update_polyhedra(at, what == "settings" or what == "color_only")
 
         # refresh display
         self.renderer.GetRenderWindow().Render()
 
     def update_volume_reps(self, at, settings_only = False):
+        if settings_only:
+            return
+
         # clean out existing actors
         for actor in self.volume_reps_actors:
             self.renderer.RemoveActor(actor)
@@ -483,7 +494,7 @@ class DaVTKState(object):
         return (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists)
 
     # need to see what can be optimized if settings_only is True
-    def update_atoms(self, at, settings_only = False):
+    def update_atoms(self, at):
 
         # get structures 
         (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists) = self.atoms_plotting_info(at)
@@ -540,7 +551,7 @@ class DaVTKState(object):
             actor.SetProperty(self.settings["atom_types"][at_type]["prop"])
 
     # need to see what can be optimized if settings_only is True
-    def update_vectors(self, at, settings_only = False):
+    def update_vectors(self, at):
         for actor in self.vector_actors:
             self.renderer.RemoveActor(actor)
         self.vector_actors = []
@@ -651,8 +662,8 @@ class DaVTKState(object):
                 self.vector_actors.append(actor)
 
     # need to see what can be optimized if settings_only is True
-    def update_bonds(self, at, settings_only = False):
-        if settings_only: # colors are handled by self.bond_lut and a fixed vtkProperty
+    def update_bonds(self, at, color_only):
+        if color_only: # colors are handled by self.bond_lut and a fixed vtkProperty
             return
 
         if not hasattr(at, "bonds"):
@@ -685,7 +696,7 @@ class DaVTKState(object):
                 j_at = b["j"]
                 if i_at < j_at:
                     continue
-                dr = pos[j_at] - pos[i_at] + np.dot(b["S"], cell)
+                (dr, dr_norm) = bond_vector(cell, pos, i_at, j_at, b["S"], dist=True)
                 dr_norm = np.linalg.norm(dr)
                 picked = b["picked"]
                 name = b["name"]
@@ -785,7 +796,7 @@ class DaVTKState(object):
         actor.PickableOn()
         self.renderer.AddActor(actor)
 
-    def update_image_atoms(self, at, settings_only = False):
+    def update_image_atoms(self, at):
         if "_vtk_images" not in at.info:
             return
 
@@ -839,7 +850,7 @@ class DaVTKState(object):
                 actor.PickableOff()
                 actor.i_at = -1
 
-    def update_legend(self, at, settings_only = False):
+    def update_legend(self, at):
 
         # remove, free, and re-create (recycling seems to suffer from bug perhaps addressed
         # in merge request 3904)
@@ -979,7 +990,7 @@ class DaVTKState(object):
 
         return string
 
-    def update_frame_label(self, at, settings_only = False):
+    def update_frame_label(self, at):
         if self.frame_label_actor is None:
             self.frame_label_actor = vtk.vtkTextActor()
             self.frame_label_actor._vtk_type = "frame_label"
@@ -1076,7 +1087,7 @@ class DaVTKState(object):
 
     # need to see what can be optimized if settings_only is True
     # can/should this be done with some sort of GlyphMapper?
-    def update_atom_labels(self, at, settings_only = False):
+    def update_atom_labels(self, at):
         if "_vtk_atom_label_show" in at.info and at.info["_vtk_atom_label_show"] is not None:
             show_labels = at.info["_vtk_atom_label_show"]
         else:
@@ -1150,6 +1161,7 @@ class DaVTKState(object):
             at_indices = n
 
         p = at.get_positions()
+        c = at.get_cell()
 
         print("measure:")
         for i_at in at_indices:
@@ -1164,15 +1176,18 @@ class DaVTKState(object):
             for i_at in range(len(at)):
                 for b in at.bonds[i_at]:
                     if b["picked"] and b["j"] >= i_at:
-                        print("bond {} {} vec {} {} {} ({})".format(i_at, b["j"], b["v"][0], b["v"][1], b["v"][2], b["d"]))
+                        (dr, dist) = bond_vector(c, p, i_at, b["j"], b["S"], dist=True)
+                        print("bond {} {} vec {} {} {} ({})".format(i_at, b["j"], dr[0], dr[1], dr[2], dist))
             for i_at in range(len(at)):
-                for b in at.bonds[i_at]:
-                    j_at = b["j"]
-                    if b["picked"]:
-                        for bb in at.bonds[j_at]:
-                            k_at = bb["j"]
-                            if bb["picked"] and k_at <= i_at and (k_at != i_at or np.any(b["S"] != -bb["S"])):
-                                ang = 180.0/np.pi * np.arccos(np.dot(b["v"],-bb["v"])/(np.linalg.norm(b["v"])*np.linalg.norm(bb["v"])))
+                for b1 in at.bonds[i_at]:
+                    j_at = b1["j"]
+                    if b1["picked"]:
+                        for b2 in at.bonds[i_at]:
+                            k_at = b2["j"]
+                            if b2["picked"] and k_at <= j_at and (k_at != j_at or np.any(b1["S"] != -b2["S"])):
+                                (v1, v1_dist) = bond_vector(c, p, i_at, b1["j"], b1["S"], dist=True)
+                                (v2, v2_dist) = bond_vector(c, p, i_at, b2["j"], b2["S"], dist=True)
+                                ang = 180.0/np.pi * np.arccos(np.dot(v1,v2)/(v1_dist*v2_dist))
                                 print("bond-angle {} {} {} angle {}".format(i_at, j_at, k_at, ang))
 
     def duplicate(self, n_dup, frames=None):
@@ -1287,10 +1302,12 @@ class DaVTKState(object):
 
     def make_isosurface(self, img, transform, params):
 
+        (threshold, surface_type) = params
+
         isosurface = vtk.vtkMarchingCubes()
         isosurface.SetInputData( img.GetOutput() )
         isosurface.ComputeNormalsOn()
-        isosurface.SetValue( 0, params[0] )
+        isosurface.SetValue( 0, threshold )
         isosurface.Update()
 
         scaled_iso = vtk.vtkTransformFilter()
@@ -1307,8 +1324,7 @@ class DaVTKState(object):
         actor = vtk.vtkActor()
         actor._vtk_type = "isosurface"
         actor.SetMapper( mapper )
-        actor.GetProperty().SetColor( params[1], params[2], params[3] )
-        actor.GetProperty().SetOpacity( params[4] )
+        actor.SetProperty(self.settings["surface_types"][surface_type]["prop"])
         actor.GetProperty().BackfaceCullingOff()
         actor.PickableOff()
 
@@ -1395,7 +1411,7 @@ class DaVTKState(object):
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()
 
-    def polyhedra(self, at, Z, Zn, rcut=None, bond_type=None):
+    def polyhedra(self, at, name, Z, Zn, rcut=None, bond_type=None, surface_type=None):
         if rcut is None: # no rcut, use existing bonds
             if not hasattr(at, "bonds"):
                 warn("coordination polyhedra without rcut require bonds already exist") 
@@ -1423,7 +1439,7 @@ class DaVTKState(object):
                     if bond_type is not None and b["name"] != bond_type:
                         continue
 
-                    D = pos[j_at] - pos[i_at] + np.dot(b["S"], cell)
+                    D = bond_vector(cell, pos, i_at, j_at, b["S"])
                     points[i_at].append(pos[i_at]+D)
         else:
             nn_list = ase.neighborlist.neighbor_list('ijdD', at, rcut, self_interaction=True)
@@ -1449,12 +1465,19 @@ class DaVTKState(object):
             else:
                 strings[i_at] = "_NONE_"
 
+        # add strings
         try:
-            del at.arrays["_vtk_polyhedra"]
+            del at.arrays["_vtk_polyhedra_"+name]
         except KeyError:
             pass
+        at.new_array("_vtk_polyhedra_"+name, np.array(strings))
 
-        at.new_array("_vtk_polyhedra", np.array(strings))
+        # store surface_types
+        if "_vtk_polyhedra_surface_types" not in at.info:
+            at.info["_vtk_polyhedra_surface_types"] = {}
+        if surface_type is None:
+            surface_type = "default"
+        at.info["_vtk_polyhedra_surface_types"][name] = surface_type
 
     def update_polyhedra(self, at, settings_only = False):
         if settings_only: # colors handled by fixed vtkProperty
@@ -1462,46 +1485,45 @@ class DaVTKState(object):
 
         for actor in self.polyhedra_actors:
             self.renderer.RemoveActor(actor)
-        if "_vtk_polyhedra" not in at.arrays:
+        if "_vtk_polyhedra_surface_types" not in at.info:
             return
 
         self.polyhedra_actors = []
 
-        try:
-            surface_type = at.info["_vtk_polyhedra_surface_type"]
-        except KeyError:
-            surface_type = "default"
+        for name in at.info["_vtk_polyhedra_surface_types"]:
 
-        for string in at.arrays["_vtk_polyhedra"]:
-            if string == "_NONE_":
-                continue
-            m = re.search('(.*)___(.*)', string)
-            (points_str, polygons_str) = (m.group(1), m.group(2))
-            points_data = np.reshape([float(p) for p in points_str.split("_")],(-1,3))
-            points = vtk.vtkPoints()
-            for p in points_data:
-                points.InsertNextPoint(p)
-            polygons = vtk.vtkCellArray()
-            for m in re.findall('[0-9]+(?:_[0-9]+)+', polygons_str):
-                polygon_data = [int(i) for i in m.split("_")]
-                polygon = vtk.vtkPolygon()
-                polygon.GetPointIds().SetNumberOfIds(len(polygon_data))
-                for (i_vertex, i) in enumerate(polygon_data):
-                    polygon.GetPointIds().SetId(i_vertex, i)
-                polygons.InsertNextCell(polygon)
+            surface_type = at.info["_vtk_polyhedra_surface_types"][name]
 
-            polydata = vtk.vtkPolyData()
-            polydata.SetPoints(points)
-            polydata.SetPolys(polygons)
+            for string in at.arrays["_vtk_polyhedra_"+name]:
+                if string == "_NONE_":
+                    continue
+                m = re.search('(.*)___(.*)', string)
+                (points_str, polygons_str) = (m.group(1), m.group(2))
+                points_data = np.reshape([float(p) for p in points_str.split("_")],(-1,3))
+                points = vtk.vtkPoints()
+                for p in points_data:
+                    points.InsertNextPoint(p)
+                polygons = vtk.vtkCellArray()
+                for m in re.findall('[0-9]+(?:_[0-9]+)+', polygons_str):
+                    polygon_data = [int(i) for i in m.split("_")]
+                    polygon = vtk.vtkPolygon()
+                    polygon.GetPointIds().SetNumberOfIds(len(polygon_data))
+                    for (i_vertex, i) in enumerate(polygon_data):
+                        polygon.GetPointIds().SetId(i_vertex, i)
+                    polygons.InsertNextCell(polygon)
 
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputData(polydata)
+                polydata = vtk.vtkPolyData()
+                polydata.SetPoints(points)
+                polydata.SetPolys(polygons)
 
-            actor = vtk.vtkActor()
-            actor._vtk_type = "polyhedron"
-            actor.SetMapper(mapper)
-            actor.SetProperty(self.settings["surface_types"][surface_type]["prop"])
-            actor.PickableOff()
+                mapper = vtk.vtkPolyDataMapper()
+                mapper.SetInputData(polydata)
 
-            self.renderer.AddActor(actor)
-            self.polyhedra_actors.append(actor)
+                actor = vtk.vtkActor()
+                actor._vtk_type = "polyhedron"
+                actor.SetMapper(mapper)
+                actor.SetProperty(self.settings["surface_types"][surface_type]["prop"])
+                actor.PickableOff()
+
+                self.renderer.AddActor(actor)
+                self.polyhedra_actors.append(actor)

@@ -415,7 +415,8 @@ class DavTKSettings(object):
         args = self.parser_surface_type.parse_args(args)
 
         if args.name not in self.data["surface_types"]:
-            self.data["surface_types"][args.name] = self.data["surface_types"]["default"].copy()
+            self.data["surface_types"][args.name] = { "color" : (0.5, 0.5, 1.0), "opacity" : 0.4, "specular" : 0.7, 
+                                                      "specular_radius" : 0.1, "ambient" : 0.2 }
             self.data["surface_types"][args.name]["index"] = len(self.data["surface_types"])
             self.data["surface_name_of_index"].append(args.name)
             if self.data["surface_name_of_index"][self.data["surface_types"][args.name]["index"]]  != args.name:
@@ -439,7 +440,7 @@ class DavTKSettings(object):
         self.data["cell_box_color"] = (args.color[0], args.color[1], args.color[2], args.opacity)
         self.data["cell_box_prop"].SetColor(self.data["cell_box_color"][0:3])
         self.data["cell_box_prop"].SetOpacity(self.data["cell_box_color"][3])
-        return "settings"
+        return "color_only"
 
     def write_frame_label(self):
         args = 'frame_label'
@@ -529,7 +530,7 @@ class DavTKSettings(object):
         args = self.parser_picked_color.parse_args(args)
         self.data["picked_color"] = [args.color[0], args.color[1], args.color[2]]
         self.data["picked_prop"].SetColor(self.data["picked_color"])
-        return None
+        return "color_only"
 
     def write_background_color(self):
         args = 'background_color {} {} {}'.format(self.data["background_color"][0],
@@ -539,4 +540,4 @@ class DavTKSettings(object):
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)
         self.data["background_color"] = (args.color[0], args.color[1], args.color[2])
-        return "settings"
+        return "color_only"
