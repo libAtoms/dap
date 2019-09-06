@@ -1,4 +1,5 @@
 import sys, ase.io, math
+from warnings import warn
 import numpy as np, scipy
 import vtk
 import ase.neighborlist
@@ -1394,17 +1395,43 @@ class DaVTKState(object):
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()
 
-    def polyhedra(self, at, Z, Zn, rcut):
+    def polyhedra(self, at, Z, Zn, rcut=None, bond_type=None):
+        if rcut is None: # no rcut, use existing bonds
+            if not hasattr(at, "bonds"):
+                warn("coordination polyhedra without rcut require bonds already exist") 
+                return
+            if bond_type is None:
+                bond_type = "default"
+        else: # rcut is specified
+            if bond_type is not None:
+                raise ValueError("polyhedra got both rcut {} and bond_type '{}'".format(rcut,bond_type))
+
         pos = at.get_positions()
+        cell = at.get_cell()
         Zs = at.get_atomic_numbers()
         points = [ [] for i in range(len(at)) ]
         strings = [ "" ] * len(at)
 
-        nn_list = ase.neighborlist.neighbor_list('ijdD', at, rcut, self_interaction=True)
-        for (i,j,d,D) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
-            if Zs[i] != Z or d == 0.0 or (Zn is not None and Zs[j] != Zn):
-                continue
-            points[i].append(pos[i]+D)
+        if rcut is None:
+            for i_at in range(len(at)):
+                if Zs[i_at] != Z:
+                    continue
+                for b in at.bonds[i_at]:
+                    j_at = b["j"]
+                    if Zn is not None and Zs[j_at] != Zn:
+                        continue
+                    if bond_type is not None and b["name"] != bond_type:
+                        continue
+
+                    D = pos[j_at] - pos[i_at] + np.dot(b["S"], cell)
+                    points[i_at].append(pos[i_at]+D)
+        else:
+            nn_list = ase.neighborlist.neighbor_list('ijdD', at, rcut, self_interaction=True)
+            for (i,j,d,D) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
+                if Zs[i] != Z or d == 0.0 or (Zn is not None and Zs[j] != Zn):
+                    continue
+                points[i].append(pos[i]+D)
+
         for i_at in range(len(at)):
             if len(points[i_at]) > 0:
                 hull = scipy.spatial.ConvexHull(np.array(points[i_at]))

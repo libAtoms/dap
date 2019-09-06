@@ -475,7 +475,9 @@ parser_polyhedra = ThrowingArgumentParser(prog="polyhedra",description="draw coo
 parser_polyhedra.add_argument("-all_frames", action="store_true", help="apply to all frames")
 parser_polyhedra.add_argument("-type", help="name of surface_type to use")
 parser_polyhedra.add_argument("-Z", type=int, help="Z for polyhedron center, required",  default=None)
-parser_polyhedra.add_argument("-rcut", type=float, help="center-neighbor cutoff distance, required",  default=None)
+group = parser_polyhedra.add_mutually_exclusive_group()
+group.add_argument("-rcut", type=float, help="center-neighbor cutoff distance, this or -bond_type required",  default=None)
+group.add_argument("-bond_type", help="type of bond to use for neighbors, this or -rcut required",  default=None)
 parser_polyhedra.add_argument("-Zn", type=int, help="Z for polyhedron neighbors",  default=None)
 parser_polyhedra.add_argument("-delete", action='store_true', help="delete existing polyhedra")
 def parse_polyhedra(davtk_state, renderer, args):
@@ -487,12 +489,12 @@ def parse_polyhedra(davtk_state, renderer, args):
         ats = [davtk_state.cur_at()]
 
     if args.delete:
-        if any([args.type, args.Z is not None, args.rcut is not None, args.Zn is not None]): # deleting
-            raise RuntimeError("polyhedra got -delete and some other argument")
+        if any([args.type, args.Z is not None, args.rcut is not None, args.bond_type is not None, args.Zn is not None]): # deleting
+            raise RuntimeError("polyhedra got -delete and also some other argument")
 
-    if any([args.type is not None, args.Z is not None, args.rcut is not None, args.Zn is not None]): # creating new polyhedra
-        if args.Z is None or args.rcut is None:
-            raise RuntimeError("polyhedra requires at least -Z and -rcut")
+    if any([args.type is not None, args.Z is not None, args.rcut is not None, args.bond_type is not None, args.Zn is not None]) or not args.delete: # creating new polyhedra
+        if args.Z is None:
+            raise RuntimeError("polyhedra requires -Z to create new polyhedra")
 
     if args.type is None:
         args.type = "default"
@@ -508,7 +510,7 @@ def parse_polyhedra(davtk_state, renderer, args):
             except KeyError:
                 pass
         else:
-            davtk_state.polyhedra(at, args.Z, args.Zn, args.rcut)
+            davtk_state.polyhedra(at, args.Z, args.Zn, args.rcut, args.bond_type)
             at.info["_vtk_polyhedra_surface_type"] = args.type
 
     return "cur"
