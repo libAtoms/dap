@@ -1411,7 +1411,7 @@ class DaVTKState(object):
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()
 
-    def polyhedra(self, at, name, Z, Zn, rcut=None, bond_type=None, surface_type=None):
+    def polyhedra(self, at, name, center_at_type, neighb_at_type, rcut=None, bond_type=None, surface_type=None):
         if rcut is None: # no rcut, use existing bonds
             if not hasattr(at, "bonds"):
                 warn("coordination polyhedra without rcut require bonds already exist") 
@@ -1424,17 +1424,17 @@ class DaVTKState(object):
 
         pos = at.get_positions()
         cell = at.get_cell()
-        Zs = at.get_atomic_numbers()
         points = [ [] for i in range(len(at)) ]
         strings = [ "" ] * len(at)
+        atom_type_list = get_atom_type_list(self.settings, at)
 
         if rcut is None:
             for i_at in range(len(at)):
-                if Zs[i_at] != Z:
+                if atom_type_list[i_at] != center_at_type:
                     continue
                 for b in at.bonds[i_at]:
                     j_at = b["j"]
-                    if Zn is not None and Zs[j_at] != Zn:
+                    if neighb_at_type is not None and atom_type_list[j_at] != neighb_at_type:
                         continue
                     if bond_type is not None and b["name"] != bond_type:
                         continue
@@ -1444,7 +1444,7 @@ class DaVTKState(object):
         else:
             nn_list = ase.neighborlist.neighbor_list('ijdD', at, rcut, self_interaction=True)
             for (i,j,d,D) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
-                if Zs[i] != Z or d == 0.0 or (Zn is not None and Zs[j] != Zn):
+                if atom_type_list[i] != center_at_type or d == 0.0 or (neighb_at_type is not None and atom_type_list[j] != neighb_at_type):
                     continue
                 points[i].append(pos[i]+D)
 
