@@ -1,10 +1,10 @@
 # create an isosurface from volumetric data, should appear around atom along lattice 0.5, 0.0, 0.0, Fe
-volume example.iso -iso 0.25  1 1 1   0.5
+volume example.iso -iso 0.25  -color 1 1 1   -opacity 0.5
 # enable legend
 legend
 
-# bond by automatic cutoffs, default bond_type (i.e. alt)
-bond
+# bond by automatic cutoffs, bond name "default"
+bond -auto
 
-# bond only Si-C, with cutoff 3.5, bond_type "first"
-bond -type alt -rcut 3.5 -T Si -T2 C
+# bond only Si-C, with cutoff 3.5, bond name "alt"
+bond -name alt -cutoff 3.5 -T Si -T2 C -color 1 0 0 -radius 0.05

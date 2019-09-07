@@ -6,10 +6,20 @@ C  0.0 1.0 5.0     0.2 0.6 -1.0
 C  0.0 1.0 6.0     1.5 1.2 -1.0
 Fe 2.5 0.0 0.0     0.0 0.0 0.5
 6
-Lattice="5.00000000       0.00000000       0.00000000       0.00000000       10.00000000       0.00000000       0.00000000       0.00000000       5.00000000" Properties=species:S:1:pos:R:3:col_val:R:1:rad_val:R:1 _vtk_commands="volume example.iso -iso 0.5  0 0 1   0.5"
+Lattice="5.00000000       0.00000000       0.00000000       0.00000000       10.00000000       0.00000000       0.00000000       0.00000000       5.00000000" Properties=species:S:1:pos:R:3:col_val:R:1:rad_val:R:1 _vtk_commands="volume example.iso -iso 0.5  -color 0 0 1   -opacity 0.5"
 Si 0.2 0.0 1.0     0.0 0.0
 Si -0.2 2.5 1.0     0.0 0.0
 C  0.2 5.0 1.0     0.5 0.6
 C  -0.2 6.5 1.0     2.0 1.2
 Fe 2.3 0.0 0.0     0.0 0.0
 C  1.5 1.5 0.0     0.0 0.8
+8
+Lattice="10 0 0  0 10 0   0 0 10" Properties=species:S:1:pos:R:3
+Ti 0 0 0
+O 2 0 0
+O -2 0 0
+O 0 2 0
+O 0 -2 0
+O 0 0 2
+O 0 0 -2
+Si 1 1 1

@@ -71,6 +71,8 @@ def get_atom_prop(settings, atom_type, i=None, arrays=None):
 def get_atom_radius(settings, atom_type, i, at=None):
     if settings["atom_types"][atom_type]["radius_field"] is not None:
         radius_field = settings["atom_types"][atom_type]["radius_field"][0]
+        if radius_field not in at.arrays:
+            raise RuntimeError("Atom radius field '{}' is not available".format(radius_field))
         factor = settings["atom_types"][atom_type]["radius_field"][1]
         if isinstance(i, list):
             atom_type_list = i
@@ -236,10 +238,12 @@ class DaVTKState(object):
         self.bonds_actors = {}
         self.vector_actors = []
         self.volume_reps_actors = []
+        self.volume_rep_prop = {}
 
         self.legend_sphere_actors = []
         self.legend_label_actors = []
 
+        self.polyhedra_prop = {}
         self.polyhedra_actors = []
 
         self.cell_box_actor = None
@@ -1295,15 +1299,15 @@ class DaVTKState(object):
         img.Update()
         return img
 
-    def delete_volume_rep(self, name):
-        at = self.cur_at()
-        for actor in at.volume_reps[name][2]:
+    def delete_volume_rep(self, at, name):
+        for (actor, _) in at.volume_reps[name][2]:
             self.renderer.RemoveActor(actor)
         del at.volume_reps[name]
 
-    def make_isosurface(self, img, transform, params):
+    def make_isosurface(self, img, transform, params, prop_name):
 
-        (threshold, surface_type) = params
+        (threshold,) = params
+        print("params",params,"threshold",threshold)
 
         isosurface = vtk.vtkMarchingCubes()
         isosurface.SetInputData( img.GetOutput() )
@@ -1325,7 +1329,7 @@ class DaVTKState(object):
         actor = vtk.vtkActor()
         actor._vtk_type = "isosurface"
         actor.SetMapper( mapper )
-        actor.SetProperty(self.settings["surface_types"][surface_type]["prop"])
+        actor.SetProperty(self.volume_rep_prop[prop_name])
         actor.GetProperty().BackfaceCullingOff()
         actor.PickableOff()
 
@@ -1333,7 +1337,7 @@ class DaVTKState(object):
 
     def add_volume_rep(self, name, data, style, params, cmd_string):
         # at.volume_reps[name] is 3-element tuple: image, transform (only one for each data set), 
-        #     and list of actors (could be multiple views of same data).
+        #     and list of (actor, command_string) tuples (could be multiple views of same data).
         at = self.cur_at()
         if not hasattr(at, "volume_reps"):
             at.volume_reps = {}
@@ -1369,7 +1373,7 @@ class DaVTKState(object):
             transform = at.volume_reps[name][1]
 
         if style == "isosurface":
-            at.volume_reps[name][2].append((self.make_isosurface(img, transform, params), cmd_string))
+            at.volume_reps[name][2].append((self.make_isosurface(img, transform, params, name), cmd_string))
         else:
             raise ValueError("add_volume_rep got unsupported style '{}'".format(style))
 
@@ -1412,16 +1416,16 @@ class DaVTKState(object):
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()
 
-    def polyhedra(self, at, name, center_at_type, neighb_at_type, rcut=None, bond_type=None, surface_type=None):
+    def polyhedra(self, at, name, center_at_type, neighb_at_type, rcut=None, bond_name=None):
         if rcut is None: # no rcut, use existing bonds
             if not hasattr(at, "bonds"):
                 warn("coordination polyhedra without rcut require bonds already exist") 
                 return
-            if bond_type is None:
-                bond_type = "default"
+            if bond_name is None:
+                bond_name = "default"
         else: # rcut is specified
-            if bond_type is not None:
-                raise ValueError("polyhedra got both rcut {} and bond_type '{}'".format(rcut,bond_type))
+            if bond_name is not None:
+                raise ValueError("polyhedra got both rcut {} and bond_name '{}'".format(rcut,bond_name))
 
         pos = at.get_positions()
         cell = at.get_cell()
@@ -1437,7 +1441,7 @@ class DaVTKState(object):
                     j_at = b["j"]
                     if neighb_at_type is not None and atom_type_list[j_at] != neighb_at_type:
                         continue
-                    if bond_type is not None and b["name"] != bond_type:
+                    if bond_name is not None and b["name"] != bond_name:
                         continue
 
                     D = bond_vector(cell, pos, i_at, j_at, b["S"])
@@ -1473,27 +1477,22 @@ class DaVTKState(object):
             pass
         at.new_array("_vtk_polyhedra_"+name, np.array(strings))
 
-        # store surface_types
-        if "_vtk_polyhedra_surface_types" not in at.info:
-            at.info["_vtk_polyhedra_surface_types"] = {}
-        if surface_type is None:
-            surface_type = "default"
-        at.info["_vtk_polyhedra_surface_types"][name] = surface_type
-
     def update_polyhedra(self, at, settings_only = False):
         if settings_only: # colors handled by fixed vtkProperty
             return
 
+        # clean up actors, will be re-added later as needed
         for actor in self.polyhedra_actors:
             self.renderer.RemoveActor(actor)
-        if "_vtk_polyhedra_surface_types" not in at.info:
+
+        if len(self.polyhedra_prop) == 0:
             return
 
         self.polyhedra_actors = []
 
-        for name in at.info["_vtk_polyhedra_surface_types"]:
-
-            surface_type = at.info["_vtk_polyhedra_surface_types"][name]
+        for name in self.polyhedra_prop:
+            if "_vtk_polyhedra_"+name not in at.arrays:
+                continue
 
             for string in at.arrays["_vtk_polyhedra_"+name]:
                 if string == "_NONE_":
@@ -1523,7 +1522,7 @@ class DaVTKState(object):
                 actor = vtk.vtkActor()
                 actor._vtk_type = "polyhedron"
                 actor.SetMapper(mapper)
-                actor.SetProperty(self.settings["surface_types"][surface_type]["prop"])
+                actor.SetProperty(self.polyhedra_prop[name])
                 actor.PickableOff()
 
                 self.renderer.AddActor(actor)

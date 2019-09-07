@@ -55,6 +55,7 @@ TODO (in expected order of implementation)
         optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]
 
     NOT EVEN STARTED
+        get rid of bond_type and surface_type, replace with direct color/material/radius arguments to bond, volume, and polyhedra commands
         fix right vs. left-handed coord system (easy - medium)
         measure angle for atoms, not just bonds ? (easy)
         read CHG as well as CHGCAR (easy)

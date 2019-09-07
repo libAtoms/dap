@@ -10,9 +10,4 @@ colormap blue_white_red -P 0.0 0.0 0.0 1.0  -P 1.0 1.0 1.0 1.0   -P 2.0 1.0 0.0 
 #atom type with color and radius set by maps from values
 atom_type C -colormap blue_white_red col_val -radius_field rad_val 0.5 -bonding_radius 1.8
 
-# reset default bon
-bond_type default -color 1 1 1 -rad 0.1
-# define second bond type
-bond_type alt -color 1 0 0 -rad 0.2
-
 atom_label -string $${species}
