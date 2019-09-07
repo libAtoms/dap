@@ -46,7 +46,8 @@ class DavTKAtomTypes(object):
         for name in self.types:
             t = self.types[name]
             data[name] = (t["color"],t["colormap"],t["radius"],t["radius_field"],
-                          t["opacity"],t["bonding_radius"])
+                          {k : t[k] for k in ["opacity","specular","specular_radius","ambient"]},
+                          t["bonding_radius"])
         return data
 
     def set_type(self, name, color=None, colormap=None, radius=None, radius_field=None,
@@ -341,7 +342,7 @@ class DavTKSettings(object):
                                               self.data["frame_label"]["color"][2])
         if self.data["frame_label"]["fontsize"] is not None:
             args += ' -fontsize {}'.format(self.data["frame_label"]["fontsize"])
-        if self.data["frame_label"]["field"] is not None:
+        if self.data["frame_label"]["string"] is not None:
             args += ' -string {}'.format(self.data["frame_label"]["string"])
         if self.data["frame_label"]["show"]:
             args += ' -on'

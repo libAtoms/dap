@@ -355,16 +355,16 @@ def parse_bond(davtk_state, renderer, args):
     if creating_bonds:
         # check for conflicting args
         if args.delete or args.list:
-            raise ValueError("can't create bonds and also -delete or -list")
+            raise RuntimeError("can't create bonds and also -delete or -list")
         if args.cutoff is not None and len(args.cutoff) > 2:
             raise ValueError("bond got -cutoff with {} > 2 values".format(len(args.cutoff)))
 
-        # create new property if needed
-        if args.name not in davtk_state.bond_prop:
-            prop = new_prop( types.SimpleNamespace( color = (1.0, 1.0, 1.0), opacity = 1.0,
-                specular = 0.0, specular_radius = 0.1, ambient = 0.2 ) )
-            prop.radius = 0.2
-            davtk_state.bond_prop[args.name] = prop
+    # create new property if needed (even if not creating bonds)
+    if args.name not in davtk_state.bond_prop:
+        prop = new_prop( types.SimpleNamespace( color = (1.0, 1.0, 1.0), opacity = 1.0,
+            specular = 0.0, specular_radius = 0.1, ambient = 0.2 ) )
+        prop.radius = 0.2
+        davtk_state.bond_prop[args.name] = prop
 
     if not args.delete and not args.list:
         # update property
@@ -377,19 +377,17 @@ def parse_bond(davtk_state, renderer, args):
         for at in ats:
             if args.picked:
                 if args.T != '*' or args.T2 != '*':
-                    raise ValueError("bond by picked can't specify -T or -T2")
+                    raise RuntimeError("bond by picked can't specify -T or -T2")
                 davtk_state.bond(at, args.name, args.T, args.T2, "picked")
             elif args.n:
                 if args.T != '*' or args.T2 != '*':
-                    raise ValueError("bond by n (indices) can't specify -T or -T2")
+                    raise RuntimeError("bond by n (indices) can't specify -T or -T2")
                 davtk_state.bond(at, args.name, args.T, args.T2, ("n", args.n))
             elif args.cutoff:
                 davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", args.cutoff))
             elif args.auto:
                 davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", None))
     else: # not creating, either delete or list or just modifying an existing name
-        if args.T is not None or args.T2 is not None:
-            raise RuntimeError("parse_bond got -T or -T2 without other arguments that create bonds")
         if args.delete:
             davtk_state.delete(atoms=None, bonds=args.name)
         elif args.list:
@@ -554,11 +552,11 @@ def parse_polyhedra(davtk_state, renderer, args):
         if args.T is None:
             raise RuntimeError("polyhedra requires -T to create new polyhedra")
 
-        # create new property if needed
-        if args.name not in davtk_state.polyhedra_prop:
-            prop = new_prop( types.SimpleNamespace( color = (0.5, 0.5, 1.0), opacity = 0.5,
-                specular = 0.7, specular_radius = 0.1, ambient = 0.1 ) )
-            davtk_state.polyhedra_prop[args.name] = prop
+    # create new property if needed
+    if args.name not in davtk_state.polyhedra_prop:
+        prop = new_prop( types.SimpleNamespace( color = (0.5, 0.5, 1.0), opacity = 0.5,
+            specular = 0.7, specular_radius = 0.1, ambient = 0.1 ) )
+        davtk_state.polyhedra_prop[args.name] = prop
 
     if not args.delete is not None and not args.list:
         # update property
@@ -577,6 +575,7 @@ def parse_polyhedra(davtk_state, renderer, args):
             for at in ats:
                 if "_vtk_polyhedra_"+args.delete in at.arrays:
                     del at.arrays["_vtk_polyhedra_"+args.delete]
+            # TODO: look for unused polyhedra names and remove their props ?
         elif args.list:
             if args.name is not None:
                 raise RuntimeError("polyhedra got -list and -name")
@@ -587,8 +586,6 @@ def parse_polyhedra(davtk_state, renderer, args):
                 print("no polyhedra set names defined")
         # else: just modifying existing property
 
-    # TODO
-    # look for unused polyhedra names and remove their props
 
     if creating_polyhedra or args.delete:
         return "cur"

@@ -10,7 +10,7 @@ FUNCTIONALITY
         atom color/radius by fixed value or based on arbitrary scalar Atoms.arrays property
         atomic labels from ID# or other proprty (e.g. Z, species, or arbitrary Atoms.arrays property)
     - create bonds by cutoff or indices (optionally filtered by type)
-        bonds across PBCs show up as two half bonds
+        bonds across PBCs displayed as two half bonds
     - display isosurfaces from volumetric data over the config unit cell (including non-orthorhombic)
         simple ASCII format
         CHGCAR using VaspChargeDensity from ase.calculators.vasp 
@@ -21,7 +21,7 @@ FUNCTIONALITY
     - automated movie creation (requires ffmpeg executable in path)
     - arbitrary ASE commands applied to atomic configurations
     - display legend with each used atom type
-    - save full state of display (settings, atoms, bonds, volumetric data, but not including window size)
+    - save full state of display (settings, atoms, bonds, volumetric data, but not including window size) [incomplete - camera view not saved yet]
     - command history using GNU readline 
 
     GUI
@@ -51,11 +51,15 @@ CLI help is available with 'usage' or, for each command, with 'command -h' in th
 ####################################################################################################
 
 TODO (in expected order of implementation)
+    MAYBE DONE?
+        get rid of bond_type and surface_type, replace with direct color/material/radius arguments to bond, volume, and polyhedra commands
+
     STARTED
         optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]
 
     NOT EVEN STARTED
-        get rid of bond_type and surface_type, replace with direct color/material/radius arguments to bond, volume, and polyhedra commands
+        save/restore view 
+
         fix right vs. left-handed coord system (easy - medium)
         measure angle for atoms, not just bonds ? (easy)
         read CHG as well as CHGCAR (easy)

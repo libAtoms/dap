@@ -89,6 +89,8 @@ class Viewer(object):
         # Start
         self.interactor.Initialize()
 
+        self.davtk_state.update("cur")
+
         self.cmd_queue = queue.Queue(0)
         self.davtk_state.cmd_queue = self.cmd_queue
 

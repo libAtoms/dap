@@ -141,7 +141,7 @@ class DavTKBonds(object):
         for (at_i, b_set) in enumerate(self.bonds):
             bond_l = []
             for b in b_set:
-                v = [ b['j'], b['v'][0], b['v'][1], b['v'][2], b['S'][0], b['S'][1], b['S'][2], b['picked'], b['name'] ]
+                v = [ b['j'], b['S'][0], b['S'][1], b['S'][2], b['picked'], b['name'] ]
                 bond_l.append("_".join([str(vi) for vi in v]))
             bond_set_strs.append(",".join(bond_l) if len(bond_l) > 0 else "_NONE_")
         self.at.arrays[arrays_field] = np.array(bond_set_strs)
@@ -369,21 +369,23 @@ class DaVTKState(object):
         self.cur_frame = self.cur_frame % len(self.at_list)
 
     def update(self, what=None):
-        if not self.active:
-            return
 
         if what is None or what == "cur":
             what = "+0"
         if not re.search('^(rotate|settings|color_only|[+-]?\d+)$', what):
-            raise ValueError("update what='{}', not rotate or settings or number or [+|-]number".format(what))
+            raise ValueError("update what='{}', not 'rotate' or 'settings' or 'color_only' or int or [+|-]int".format(what))
+
+        if what not in ["settings", "color_only", "rotate"]:
+            self.set_frame(what)
+
+        if not self.active:
+            return
 
         if what == "rotate":
             self.update_legend(self.cur_at())
             self.update_atom_labels(self.cur_at())
             return
 
-        if what != "settings" and what != "color_only":
-            self.set_frame(what)
         at = self.cur_at()
 
         self.update_settings()
@@ -1307,7 +1309,6 @@ class DaVTKState(object):
     def make_isosurface(self, img, transform, params, prop_name):
 
         (threshold,) = params
-        print("params",params,"threshold",threshold)
 
         isosurface = vtk.vtkMarchingCubes()
         isosurface.SetInputData( img.GetOutput() )
@@ -1396,16 +1397,29 @@ class DaVTKState(object):
             if bonds:
                 at.bonds.write_to_atoms_arrays()
 
+            if "_vtk_commands" not in at.info:
+                at.info["_vtk_commands"] = ""
+
             # save volume commands
-            if len(at.volume_reps) > 0:
-                if "_vtk_commands" not in at.info:
-                    at.info["_vtk_commands"] = ""
+            if hasattr(at,"volume_reps") and len(at.volume_reps) > 0:
                 for volume_rep in at.volume_reps.values():
                     for (_, cmd) in volume_rep[2]:
                         at.info["_vtk_commands"] += ' '.join(cmd) + " ;"
-                if at.info["_vtk_commands"].endswith(";"):
-                    at.info["_vtk_commands"] = at.info["_vtk_commands"][:-1]
 
+            # save bond, polyhedra, and volume_rep properties
+            for (cmd, prop_dict) in [("bond", self.bond_prop), ("polyhedra", self.polyhedra_prop), ("volume", self.volume_rep_prop)]:
+                for (name, prop) in prop_dict.items():
+                    col = prop.GetColor()
+                    at.info["_vtk_commands"] += "{} -name {} -color {} {} {} -opacity {} -specular {} -specular_radius {} -ambient {}".format(
+                        cmd, name, col[0], col[1], col[2], prop.GetOpacity(), prop.GetSpecular(), 1.0/prop.GetSpecularPower(), prop.GetAmbient())
+                    try:
+                        at.info["_vtk_commands"] += " -r {}".format(prop.radius)
+                    except AttributeError:
+                        pass
+                    at.info["_vtk_commands"] += " ;"
+
+            if at.info["_vtk_commands"].endswith(";"):
+                at.info["_vtk_commands"] = at.info["_vtk_commands"][:-1]
 
     def prep_after_atoms_read(self, ats=None):
         if ats is None:
@@ -1416,16 +1430,16 @@ class DaVTKState(object):
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()
 
-    def polyhedra(self, at, name, center_at_type, neighb_at_type, rcut=None, bond_name=None):
-        if rcut is None: # no rcut, use existing bonds
+    def polyhedra(self, at, name, center_at_type, neighb_at_type, cutoff=None, bond_name=None):
+        if cutoff is None: # no cutoff, use existing bonds
             if not hasattr(at, "bonds"):
-                warn("coordination polyhedra without rcut require bonds already exist") 
+                warn("coordination polyhedra without cutoff require bonds already exist") 
                 return
             if bond_name is None:
                 bond_name = "default"
-        else: # rcut is specified
+        else: # cutoff is specified
             if bond_name is not None:
-                raise ValueError("polyhedra got both rcut {} and bond_name '{}'".format(rcut,bond_name))
+                raise ValueError("polyhedra got both cutoff {} and bond_name '{}'".format(cutoff,bond_name))
 
         pos = at.get_positions()
         cell = at.get_cell()
@@ -1433,7 +1447,7 @@ class DaVTKState(object):
         strings = [ "" ] * len(at)
         atom_type_list = get_atom_type_list(self.settings, at)
 
-        if rcut is None:
+        if cutoff is None:
             for i_at in range(len(at)):
                 if atom_type_list[i_at] != center_at_type:
                     continue
@@ -1447,7 +1461,7 @@ class DaVTKState(object):
                     D = bond_vector(cell, pos, i_at, j_at, b["S"])
                     points[i_at].append(pos[i_at]+D)
         else:
-            nn_list = ase.neighborlist.neighbor_list('ijdD', at, rcut, self_interaction=True)
+            nn_list = ase.neighborlist.neighbor_list('ijdD', at, cutoff, self_interaction=True)
             for (i,j,d,D) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
                 if atom_type_list[i] != center_at_type or d == 0.0 or (neighb_at_type is not None and atom_type_list[j] != neighb_at_type):
                     continue
