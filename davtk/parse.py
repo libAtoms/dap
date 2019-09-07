@@ -615,10 +615,14 @@ def parse_volume(davtk_state, renderer, args):
     elif args.list:
         print("Defined volume names: "+" ".join(davtk_state.cur_at().volume_reps.keys()))
     else:
-        if args.filename is None:
-            raise ValueError("volume got no filename")
+        creating_rep = args.isosurface is not None or args.volumetric is not None
+        if args.filename is None and creating_rep:
+            raise RuntimeError("volume got no filename")
         if args.name is None:
-            args.name = args.filename
+            if creating_rep:
+                args.name = args.filename
+            else:
+                raise RuntimeError("not creating, deleting, or listing, need -name to modify")
 
         # create new property if needed
         if args.name not in davtk_state.volume_rep_prop:
@@ -646,7 +650,7 @@ def parse_volume(davtk_state, renderer, args):
         if args.isosurface is not None:
             davtk_state.add_volume_rep(args.name, data, "isosurface", (args.isosurface,), ["volume"] + args_list)
         if args.volumetric is not None:
-            raise ValueError("volume -volumetric not supported")
+            raise RuntimeError("volume -volumetric not supported")
 
     return "cur"
 parsers["volume"] = (parse_volume, parser_volume.format_usage(), parser_volume.format_help())
