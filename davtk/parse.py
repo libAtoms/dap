@@ -1,11 +1,12 @@
 from __future__ import print_function
 
-import numpy as np, sys, re, tempfile, os
+import sys, re, os, types
+import numpy as np
 import ase.io
 from ase.calculators.vasp import VaspChargeDensity
 import ffmpeg
 
-from davtk.parse_utils import ThrowingArgumentParser
+from davtk.parse_utils import ThrowingArgumentParser, add_material_args_to_parser
 try:
     from davtk.util_global import *
 except ImportError:
@@ -16,6 +17,7 @@ try:
     del sys.path[-1]
 except ImportError:
     pass
+from davtk.vtk_utils import new_prop, update_prop
 
 parsers = {}
 
@@ -228,25 +230,20 @@ parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_he
 parser_delete = ThrowingArgumentParser(prog="delete",description="delete objects (picked by default)")
 parser_delete.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_delete.add_argument("-atoms",type=int,nargs='+',help="delete by these indices ")
-parser_delete.add_argument("-bonds",action="store_true",help="delete all bonds")
 def parse_delete(davtk_state, renderer, args):
     args = parser_delete.parse_args(args)
     if args.all_frames:
-        frame_list=None
+        ats = davtk_state.at_list
     else:
-        frame_list="cur"
+        ats = [davtk_state.cur_at()]
 
-    got_arg = False
-    if args.atoms is not None:
-        davtk_state.delete(atoms=args.atoms, frames=frame_list)
-        got_arg = True
-    if args.bonds:
-        davtk_state.delete(bonds="all", frames=frame_list)
-        got_arg = True
-    if not got_arg:
-        davtk_state.delete(atoms="picked", bonds="picked", frames=frame_list)
+    for at in ats:
+        if args.atoms is not None:
+            davtk_state.delete(at, atoms=args.atoms, frames=frame_list)
+        else:
+            davtk_state.delete(at, atoms="picked", bonds="picked", frames=frame_list)
 
-    return None
+    return "cur"
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 
 parser_dup = ThrowingArgumentParser(prog="dup",description="duplicate cell")
@@ -331,13 +328,20 @@ parsers["vectors"] = (parse_vectors, parser_vectors.format_usage(), parser_vecto
 
 parser_bond = ThrowingArgumentParser(prog="bond",description="Create bonds")
 parser_bond.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_bond.add_argument("-type",type=str,help="name of bond type", default=None)
+parser_bond.add_argument("-name",type=str,help="name of bond set", default="default")
 parser_bond.add_argument("-T",type=str,help="Restrict one member to given atom_type", default="*")
 parser_bond.add_argument("-T2",type=str,help="Restrict other member to given atom_type", default="*")
 grp = parser_bond.add_mutually_exclusive_group()
 grp.add_argument("-picked", action='store_true', help="bond a pair of picked atoms with MIC")
 grp.add_argument("-n", action='store', type=int, nargs=2, help="bond a pair of atoms with given IDs", default=None)
-grp.add_argument("-rcut", dest="cutoff", action='store', type=float, nargs='+', help="bond atoms with max (one argument) or min-max (two arguments) cutoffs", default=None)
+grp.add_argument("-rcut", "-r", dest="cutoff", action='store', type=float, nargs='+', help="bond atoms with max (one argument) or min-max (two arguments) cutoffs", default=None)
+grp.add_argument("-auto", action='store_true', help="bond by previously set per-atom bonding radius")
+parser_bond.add_argument("-radius", type=float, help="radius of bond cylinders", default=None)
+parser_bond.add_argument("-color", nargs=3, type=float, help="color for bonds", default=None)
+add_material_args_to_parser(parser_bond)
+group = parser_bond.add_mutually_exclusive_group()
+group.add_argument("-delete", action='store_true', help="delete existing bond")
+group.add_argument("-list", action='store_true', help="list existing bond")
 def parse_bond(davtk_state, renderer, args):
     args = parser_bond.parse_args(args)
 
@@ -345,19 +349,46 @@ def parse_bond(davtk_state, renderer, args):
         raise ValueError("bond got -rcut with {} > 2 values".format(len(args.cutoff)))
 
     if args.all_frames:
-        frames = None
+        ats = davtk_state.at_list
     else:
-        frames = "cur"
+        ats = [davtk_state.cur_at()]
 
-    if args.picked:
-        davtk_state.bond(args.type, args.T, args.T2, "picked", frames)
-    elif args.n:
-        davtk_state.bond(args.type, args.T, args.T2, ("n", args.n), frames)
-    elif args.cutoff:
-        davtk_state.bond(args.type, args.T, args.T2, ("cutoff", args.cutoff), frames)
+    if args.name not in davtk_state.bond_prop:
+        prop = new_prop( types.SimpleNamespace( color = (1.0, 1.0, 1.0), opacity = 1.0,
+            specular = 0.0, specular_radius = 0.1, ambient = 0.2 ) )
+        prop.radius = 0.2
+        davtk_state.bond_prop[args.name] = prop
+    update_prop(davtk_state.bond_prop[args.name], args)
+    if args.radius is not None:
+        davtk_state.bond_prop[args.name].radius = args.radius
+
+    created_bonds = args.picked or args.n is not None or args.cutoff is not None or args.auto
+    if created_bonds:
+        if args.delete or args.list:
+            raise ValueError("can't create bonds and also list -delete or -list")
+        for at in ats:
+            if args.picked:
+                if args.T != '*' or args.T2 != '*':
+                    raise ValueError("bond by picked can't specify -T or -T2")
+                davtk_state.bond(at, args.name, args.T, args.T2, "picked")
+            elif args.n:
+                if args.T != '*' or args.T2 != '*':
+                    raise ValueError("bond by n (indices) can't specify -T or -T2")
+                davtk_state.bond(at, args.name, args.T, args.T2, ("n", args.n))
+            elif args.cutoff:
+                davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", args.cutoff))
+            elif args.auto:
+                davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", None))
     else:
-        davtk_state.bond(args.type, args.T, args.T2, ("cutoff", None), frames)
-    return None
+        if args.delete:
+            davtk_state.delete(atoms=None, bonds=args.name)
+
+    if created_bonds:
+        return "cur"
+    elif args.radius is None:
+        return "color_only"
+    else:
+        return "settings"
 parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_help())
 
 parser_snapshot = ThrowingArgumentParser(prog="snapshot",description="write snapshot")
@@ -527,8 +558,10 @@ parser_volume.add_argument("-name",type=str, help="name to assign", default=None
 group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
 group.add_argument("-list", action='store_true', help="list existing volume representations")
-group.add_argument("-isosurface",type=float,nargs=2,action='append',metavar=("THRESHOLD","SURFACE_TYPE"), help="isosurface threshold, and surface_type")
-group.add_argument("-volumetric",type=float,nargs=4,action='append',metavar=("SCALE","R","G","B"), help="volumetric value_to_opacity_factor and color")
+group.add_argument("-isosurface",type=float,action='store',metavar="THRESHOLD", help="isosurface threshold")
+group.add_argument("-volumetric",type=float,action='store',metavar="SCALE", help="volumetric value_to_opacity_factor and color")
+parser_volume.add_argument("-color", nargs=3, type=float, help="color for bonds", default=None)
+add_material_args_to_parser(parser_volume)
 def parse_volume(davtk_state, renderer, args):
     args_list = args
     args = parser_volume.parse_args(args)
@@ -557,12 +590,10 @@ def parse_volume(davtk_state, renderer, args):
                     (i0, i1, i2, v) = l.rstrip().split()
                     data[int(i2),int(i1),int(i0)] = float(v)
 
-        if args.isosurface:
-            for params in args.isosurface:
-                davtk_state.add_volume_rep(args.name, data, "isosurface", params, ["volume"] + args_list)
-        if args.volumetric:
-            for params in args.volumetric:
-                raise ValueError("volume -volumetric not supported")
+        if args.isosurface is not None:
+            davtk_state.add_volume_rep(args.name, data, "isosurface", args.isosurface, ["volume"] + args_list)
+        if args.volumetric is not None:
+            raise ValueError("volume -volumetric not supported")
 
     return "cur"
 parsers["volume"] = (parse_volume, parser_volume.format_usage(), parser_volume.format_help())

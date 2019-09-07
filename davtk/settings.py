@@ -1,17 +1,9 @@
 from __future__ import print_function
 import argparse, numpy as np, vtk
 import re, sys
-from davtk.parse_utils import ThrowingArgumentParser
-
-def reset_property(prop_dict):
-    if "prop" not in prop_dict:
-        prop_dict["prop"] = vtk.vtkProperty()
-    if prop_dict["color"] is not None:
-        prop_dict["prop"].SetColor(prop_dict["color"])
-    prop_dict["prop"].SetOpacity(prop_dict["opacity"])
-    prop_dict["prop"].SetSpecular(prop_dict["specular"])
-    prop_dict["prop"].SetSpecularPower(1.0/prop_dict["specular_radius"])
-    prop_dict["prop"].SetAmbient(prop_dict["ambient"])
+from davtk.parse_utils import ThrowingArgumentParser, write_material_args, add_material_args_to_parser
+from davtk.vtk_utils import update_prop
+import types
 
 def piecewise_linear(x, t):
     i = np.searchsorted(t[::4], x)
@@ -71,6 +63,7 @@ class DavTKAtomTypes(object):
             self.types[name]["specular_radius"] = 0.1
             self.types[name]["ambient"] = 0.3
             self.types[name]["bonding_radius"] = None
+            self.types[name]["prop"] = vtk.vtkProperty()
         if color is not None:
             if colormap is not None:
                 raise ValueError("got color and colormap")
@@ -102,47 +95,20 @@ class DavTKAtomTypes(object):
         if bonding_radius is not None:
             self.types[name]["bonding_radius"] = bonding_radius
 
-        reset_property(self.types[name])
+        update_prop(self.types[name]["prop"], types.SimpleNamespace( color=color, specular=specular, 
+                    specular_radius = specular_radius, ambient=ambient, opacity=opacity ) )
 
 class DavTKSettings(object):
-
-    def material_dict_from_args(self, args):
-        d = {}
-        for f in ["opacity", "specular", "specular_radius", "ambient"]:
-            if hasattr(args,f) and getattr(args,f) is not None:
-                d[f] = getattr(args,f)
-        return d
-
-    def write_material_args(self, material_args):
-        string = ''
-        string += ' -opacity {}'.format(material_args["opacity"])
-        string += ' -specular {}'.format(material_args["specular"])
-        string += ' -specular_radius {}'.format(material_args["specular_radius"])
-        string += ' -ambient {}'.format(material_args["ambient"])
-        return string
-
-    def add_material_args_to_parser(self, arg_parser):
-        arg_parser.add_argument("-opacity",type=float,default=None)
-        arg_parser.add_argument("-specular",type=float,default=None)
-        arg_parser.add_argument("-specular_radius",type=float,default=None)
-        arg_parser.add_argument("-ambient",type=float,default=None)
-
     def __init__(self):
         self.data = { "atom_types" : DavTKAtomTypes(), "colormaps" : {},
-            "bond_types" : { "default" : { "color" : (1.0, 1.0, 1.0), "opacity" : 1.0, "specular" : 0.0, "specular_radius" : 0.1, "ambient" : 0.2, "radius" : 0.2, "index" : 1 } },
-            "bond_name_of_index" : [ None, "default" ],
-            "surface_types" : { "default" : { "color" : (0.5, 0.5, 1.0), "opacity" : 0.4, "specular" : 0.7, "specular_radius" : 0.1, "ambient" : 0.2, "index" : 1 } },
             "surface_name_of_index" : [ None, "default" ],
             "cell_box_color" : [1.0, 1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
             "picked_color" : [1.0, 1.0, 0.0],
             "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "string" : "${config_n}", "show" : True },
-            "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "string" : "${ID}", "show" : False},
+            "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "string" : "$${ID}", "show" : False},
             "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0, 'sphere_scale' : 1.0 },
             'atom_type_field' : 'Z'
             }
-
-        reset_property(self.data["bond_types"]["default"])
-        reset_property(self.data["surface_types"]["default"])
 
         self.parsers = {}
 
@@ -185,21 +151,8 @@ class DavTKSettings(object):
         group.add_argument("-radius","-rad","-r",type=float,default=None)
         group.add_argument("-radius_field",type=str,nargs=2,metavar=("RADIUS_FIELD","FACTOR"),default=None)
         self.parser_atom_type.add_argument("-bonding_radius",type=float,default=None)
-        self.add_material_args_to_parser(self.parser_atom_type)
+        add_material_args_to_parser(self.parser_atom_type)
         self.parsers["atom_type"] = (self.parse_atom_type, self.parser_atom_type.format_usage(), self.parser_atom_type.format_help(), self.write_atom_type)
-
-        self.parser_bond_type = ThrowingArgumentParser(prog="bond_type")
-        self.parser_bond_type.add_argument("name",nargs='?',type=str, default="default")
-        self.parser_bond_type.add_argument("-radius",type=float,default=None)
-        self.parser_bond_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.add_material_args_to_parser(self.parser_bond_type)
-        self.parsers["bond_type"] = (self.parse_bond_type, self.parser_bond_type.format_usage(), self.parser_bond_type.format_help(), self.write_bond_type)
-
-        self.parser_surface_type = ThrowingArgumentParser(prog="surface_type")
-        self.parser_surface_type.add_argument("name",nargs='?',type=str, default="default")
-        self.parser_surface_type.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
-        self.add_material_args_to_parser(self.parser_surface_type)
-        self.parsers["surface_type"] = (self.parse_surface_type, self.parser_surface_type.format_usage(), self.parser_surface_type.format_help(), self.write_surface_type)
 
         self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
         self.parser_cell_box_color.add_argument("color",nargs=3,type=float,metavar=['R','G','B'])
@@ -356,7 +309,7 @@ class DavTKSettings(object):
                 args_str += ' -radius_field {} {}'.format(radius_field[0], radius_field[1])
             if bonding_radius is not None:
                 args_str += ' -bonding_radius {}'.format(bonding_radius)
-            args_str += ' '+self.write_material_args(material_args)
+            args_str += ' '+write_material_args(material_args)
             args_str += '\n'
         return args_str
     def parse_atom_type(self, args):
@@ -367,67 +320,6 @@ class DavTKSettings(object):
                                          specular=args.specular, specular_radius=args.specular_radius, ambient=args.ambient, opacity=args.opacity,
                                          bonding_radius=args.bonding_radius)
         return "settings"
-
-    def write_bond_type (self):
-        args_str = ''
-        for bond_type, data in self.data["bond_types"].items():
-            args_str += 'bond_type {}'.format(bond_type)
-            c = data["color"]
-            args_str += ' -color {} {} {}'.format(c[0],c[1],c[2])
-            if data["radius"] is not None:
-                args_str += ' -radius {}'.format(data["radius"])
-            args_str += ' '+write_material_args(data)
-            args_str += '\n'
-        return args_str
-    def parse_bond_type(self, args):
-        args = self.parser_bond_type.parse_args(args)
-
-        if args.name not in self.data["bond_types"]:
-            self.data["bond_types"][args.name] = self.data["bond_types"]["default"].copy()
-            self.data["bond_types"][args.name]["index"] = len(self.data["bond_types"])
-            self.data["bond_name_of_index"].append(args.name)
-            if self.data["bond_name_of_index"][self.data["bond_types"][args.name]["index"]]  != args.name:
-                raise ValueError("mismatched bond name and index")
-        if args.color is not None:
-            self.data["bond_types"][args.name]["color"] = args.color
-        self.data["bond_types"][args.name].update(self.material_dict_from_args(args))
-
-        if args.radius is not None:
-            self.data["bond_types"][args.name]["radius"] = args.radius
-
-        reset_property(self.data["bond_types"][args.name])
-
-        if args.radius is not None:
-            return "settings"
-        else:
-            return "color_only"
-
-    def write_surface_type (self):
-        args_str = ''
-        for surface_type, data in self.data["surface_types"].items():
-            args_str += 'surface_type {}'.format(surface_type)
-            c = data["color"]
-            args_str += ' -color {} {} {}'.format(c[0],c[1],c[2])
-            args_str += ' '+write_material_args(data)
-            args_str += '\n'
-        return args_str
-    def parse_surface_type(self, args):
-        args = self.parser_surface_type.parse_args(args)
-
-        if args.name not in self.data["surface_types"]:
-            self.data["surface_types"][args.name] = { "color" : (0.5, 0.5, 1.0), "opacity" : 0.4, "specular" : 0.7, 
-                                                      "specular_radius" : 0.1, "ambient" : 0.2 }
-            self.data["surface_types"][args.name]["index"] = len(self.data["surface_types"])
-            self.data["surface_name_of_index"].append(args.name)
-            if self.data["surface_name_of_index"][self.data["surface_types"][args.name]["index"]]  != args.name:
-                raise ValueError("mismatched surface name and index")
-        if args.color is not None:
-            self.data["surface_types"][args.name]["color"] = args.color
-        self.data["surface_types"][args.name].update(self.material_dict_from_args(args))
-
-        reset_property(self.data["surface_types"][args.name])
-
-        return "color_only"
 
     def write_cell_box_color(self):
         args = 'cell_box_color {} {} {}'.format(self.data["cell_box_color"][0],

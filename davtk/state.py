@@ -8,6 +8,16 @@ from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
 
+def reset_dict_property(prop_dict):
+    if "prop" not in prop_dict:
+        prop_dict["prop"] = vtk.vtkProperty()
+    if prop_dict["color"] is not None:
+        prop_dict["prop"].SetColor(prop_dict["color"])
+    prop_dict["prop"].SetOpacity(prop_dict["opacity"])
+    prop_dict["prop"].SetSpecular(prop_dict["specular"])
+    prop_dict["prop"].SetSpecularPower(1.0/prop_dict["specular_radius"])
+    prop_dict["prop"].SetAmbient(prop_dict["ambient"])
+
 def bond_vector(cell, pos, i_at, j_at, S, dist=True):
     D = pos[j_at] - pos[i_at] + np.dot(S, cell)
     if dist:
@@ -154,9 +164,6 @@ class DavTKBonds(object):
                 if m:
                     (j, S, picked, name) = ( int(m.group(1)), [int(m.group(i)) for i in range(2,5)], 
                                              str_to_bool(m.group(5)), m.group(6) )
-                    if name not in self.settings["bond_types"]:
-                        raise ValueError("Unknown bond_type '{}' reading from Atoms object, known types: {}\n".format(name, list(self.settings["bond_types"].keys()))+
-                                         "            Perhaps you forgot to restore saved settings?")
                     self.bonds[at_i].append( {"j" : j, "S" : np.array(S), "name" : name, "picked" : picked } )
 
     def pair_mic(self, name, ind1, ind2):
@@ -175,16 +182,17 @@ class DavTKBonds(object):
                     return
         raise ValueError("set_picked failed to find opposite for {} {}".format(i_at, j_at))
 
-    def delete_one(self, i_at, j_ind):
+    def delete_one(self, i_at, j_ind, do_opposite=True):
         b = self.bonds[i_at][j_ind]
         del self.bonds[i_at][j_ind]
-        j_at = b["j"]
-        if j_at != i_at:
-            for (bb_i, bb) in enumerate(self.bonds[j_at]):
-                if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
-                    del self.bonds[b["j"]][bb_i]
-                    return
-        raise ValueError("delete_one failed to find opposite for {} {}".format(i_at, j_at))
+        if do_opposite:
+            j_at = b["j"]
+            if j_at != i_at:
+                for (bb_i, bb) in enumerate(self.bonds[j_at]):
+                    if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
+                        del self.bonds[b["j"]][bb_i]
+                        return
+            raise ValueError("delete_one failed to find opposite for {} {}".format(i_at, j_at))
 
     def delete_atoms(self, at_inds):
         orig_n = len(self.bonds)
@@ -218,17 +226,16 @@ class DaVTKState(object):
         self.atom_label_actor_pool = []
         self.cur_n_atom_label_actors = 0
 
-        self.bonds_points_data = vtk.vtkPoints()
+        self.bond_prop = {}
+        self.bonds_points_data = {}
         self.vectors_points_data = vtk.vtkPoints()
         self.atoms_points_data = {}
 
         self.atoms_actors = []
         self.image_atom_actors = []
-        self.bonds_actor = None
+        self.bonds_actors = {}
         self.vector_actors = []
         self.volume_reps_actors = []
-
-        self.bond_lut = None
 
         self.legend_sphere_actors = []
         self.legend_label_actors = []
@@ -315,41 +322,39 @@ class DaVTKState(object):
         else:
             return frames
 
-    def delete(self, atoms=None, bonds=None, frames="cur"):
-        for frame_i in self.frame_list(frames):
-
-            # delete atoms and their bonds
-            at = self.at_list[frame_i]
-            at.arrays["_vtk_orig_indices"] = np.array(range(len(at)))
-            if atoms is not None:
-                if atoms == "picked":
-                    if "_vtk_picked" in at.arrays:
-                        at_inds = np.where(at.arrays["_vtk_picked"])[0]
-                    else:
-                        at_inds = []
-                elif isinstance(atoms,int):
-                    at_inds = np.array([atoms])
+    def delete(self, at, atoms=None, bonds=None):
+        # delete atoms and their bonds
+        if "_vtk_orig_indices" not in at.arrays:
+            at.new_array("_vtk_orig_indices", np.array(range(len(at))))
+        if atoms is not None:
+            if atoms == "picked":
+                if "_vtk_picked" in at.arrays:
+                    at_inds = np.where(at.arrays["_vtk_picked"])[0]
                 else:
-                    at_inds = np.array(atoms)
-                del at[at_inds]
-                if hasattr(at, "bonds"):
-                    at.bonds.delete_atoms(at_inds)
+                    at_inds = []
+            elif isinstance(atoms,int):
+                at_inds = np.array([atoms])
+            else:
+                at_inds = np.array(atoms)
+            del at[at_inds]
+            if hasattr(at, "bonds"):
+                at.bonds.delete_atoms(at_inds)
 
-            # delete requested bonds
-            if bonds is not None and hasattr(at, "bonds"):
-                if bonds == "picked":
-                    for i_at in range(len(at)):
-                        for j_ind in [jj for jj in range(len(at.bonds[i_at])) if at.bonds[i_at][jj]["picked"]]:
-                            at.bonds.delete_one(i_at, j_ind)
-                elif bonds == "all":
-                    at.bonds.reinit()
-                else:
-                    raise ValueError("delete bonds only accepts 'picked' or 'all' or 'all'")
+        # delete requested bonds
+        if bonds is not None and hasattr(at, "bonds"):
+            if bonds == "picked":
+                for i_at in range(len(at)):
+                    for j_ind in [jj for jj in range(len(at.bonds[i_at])) if at.bonds[i_at][jj]["picked"]]:
+                        at.bonds.delete_one(i_at, j_ind, do_opposite=False) # dangerous
+            elif bonds == "all":
+                at.bonds.reinit()
+            else:
+                for i_at in range(len(at)):
+                    for j_ind in [jj for jj in range(len(at.bonds[i_at])) if at.bonds[i_at][jj]["name"] == bonds]:
+                        at.bonds.delete_one(i_at, j_ind, do_opposite=False) # dangerous
 
-        self.update(frames)
 
     def update_settings(self):
-        self.create_bond_lut()
         self.create_atom_type_luts()
 
     def set_frame(self, frame):
@@ -663,44 +668,47 @@ class DaVTKState(object):
 
     # need to see what can be optimized if settings_only is True
     def update_bonds(self, at, color_only):
-        if color_only: # colors are handled by self.bond_lut and a fixed vtkProperty
+        if color_only: # colors are handled by fixed vtkProperty, no need to update here
             return
 
         if not hasattr(at, "bonds"):
-            if self.bonds_actor is not None:
-                self.bonds_actor.VisibilityOff()
-                self.bonds_actor.PickableOff()
-                self.renderer.RemoveActor(self.bonds_actor)
+            for actor in self.bonds_actors.values():
+                actor.VisibilityOff()
+                self.renderer.RemoveActor(actor)
             return
 
-        if self.bonds_actor is None:
-            self.bonds_actor = vtk.vtkActor()
-            self.bonds_actor._vtk_type = "bonds_glyphs"
-            self.bonds_actor.point_to_input_point = self.shapes["sources"]["cylinder_y"][1]
-
-        actor = self.bonds_actor
-
+        cell = at.get_cell()
         pos = at.get_positions()
 
-        i_at_bond = []
+        points_lists = {}
+        axes_lists = {}
+        angles_lists = {}
+        scales_lists = {}
+        i_at_bonds = {}
+        glyphs = {}
+        for name in self.bond_prop:
+            points_lists[name] = []
+            axes_lists[name] = []
+            angles_lists[name] = []
+            scales_lists[name] = []
+            i_at_bonds[name] = []
+            points_lists[name+"_picked"] = []
+            axes_lists[name+"_picked"] = []
+            angles_lists[name+"_picked"] = []
+            scales_lists[name+"_picked"] = []
+            i_at_bonds[name+"_picked"] = []
 
-        points_list = []
-        axes_list = []
-        angles_list = []
-        scales_list = []
-        color_indices_list = []
-
-        cell = at.get_cell()
         for i_at in range(len(at)):
             for (i_bond, b) in enumerate(at.bonds[i_at]):
                 j_at = b["j"]
                 if i_at < j_at:
                     continue
                 (dr, dr_norm) = bond_vector(cell, pos, i_at, j_at, b["S"], dist=True)
-                dr_norm = np.linalg.norm(dr)
-                picked = b["picked"]
                 name = b["name"]
-                rad = self.settings["bond_types"][name]["radius"]
+                rad = self.bond_prop[name].radius
+
+                if b["picked"]:
+                    name += "_picked"
 
                 axis = np.cross(dr, [0.0, 1.0, 0.0])
                 if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to \hat{y}
@@ -712,89 +720,102 @@ class DaVTKState(object):
                     # angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
                     angle = -np.arccos(dr_hat[1])*180.0/np.pi
 
-                color_index = 0 if picked else self.settings["bond_types"][name]["index"]
+                points_lists[name].append(pos[i_at]+dr/4.0)
+                axes_lists[name].append(axis)
+                angles_lists[name].append(angle)
+                scales_lists[name].append((rad, dr_norm/2.0, rad))
+                i_at_bonds[name].append((i_at, i_bond))
 
-                points_list.append(pos[i_at]+dr/4.0)
-                axes_list.append(axis)
-                angles_list.append(angle)
-                scales_list.append((rad, dr_norm/2.0, rad))
-                color_indices_list.append((color_index,))
-                i_at_bond.append((i_at, i_bond))
+                points_lists[name].append(pos[j_at]-dr/4.0)
+                axes_lists[name].append(axis)
+                angles_lists[name].append(angle)
+                scales_lists[name].append((rad, dr_norm/2.0, rad))
+                i_at_bonds[name].append((i_at, i_bond))
 
-                points_list.append(pos[j_at]-dr/4.0)
-                axes_list.append(axis)
-                angles_list.append(angle)
-                scales_list.append((rad, dr_norm/2.0, rad))
-                color_indices_list.append((color_index,))
-                i_at_bond.append((i_at, i_bond))
+        # remove unused
+        for name in self.bonds_actors:
+            if name not in points_lists or len(points_lists[name]) == 0:
+                self.bonds_actors[name].VisibilityOff()
+                self.renderer.RemoveActor(self.bonds_actors[name])
 
-        if len(points_list) == 0:
-            self.bonds_actor.VisibilityOff()
-            self.bonds_actor.PickableOff()
-            self.renderer.RemoveActor(self.bonds_actor)
-            return
+        for name in points_lists:
+            points_list = points_lists[name]
+            if len(points_list) == 0:
+                continue
+            axes_list = axes_lists[name]
+            angles_list = angles_lists[name]
+            scales_list = scales_lists[name]
+            i_at_bond = i_at_bonds[name]
+            if name not in self.bonds_points_data:
+                self.bonds_points_data[name] = vtk.vtkPoints()
+            points = self.bonds_points_data[name]
 
-        # data needed to place, rotate, and scale glyphs
-        points = self.bonds_points_data
-        points.Reset()
-        points.SetNumberOfPoints(len(points_list))
-        for pt_i in range(len(points_list)):
-            points.SetPoint(pt_i, points_list[pt_i])
-        axes = numpy_to_vtk(np.array(axes_list))
-        angles = numpy_to_vtk(np.array(angles_list))
-        scales = numpy_to_vtk(np.array(scales_list))
-        color_indices = numpy_to_vtk(np.array(color_indices_list, dtype=int))
-        color_indices.SetName("color_indices")
+            if name not in self.bonds_actors:
+                self.bonds_actors[name] = vtk.vtkActor()
+                actor = self.bonds_actors[name]
+                actor._vtk_type = "bonds_glyphs"
+                actor.point_to_input_point = self.shapes["sources"]["cylinder_y"][1]
+                actor.PickableOn()
+            else:
+                actor = self.bonds_actors[name]
 
-        glyphs_data = vtk.vtkPolyData()
-        glyphs_data.SetPoints(points)
-        glyphs_data.GetPointData().AddArray(axes)
-        glyphs_data.GetPointData().AddArray(angles)
-        glyphs_data.GetPointData().AddArray(scales)
-        glyphs_data.GetPointData().SetScalars(color_indices)
+            # data needed to place, rotate, and scale glyphs
+            points.Reset()
+            points.SetNumberOfPoints(len(points_list))
+            for pt_i in range(len(points_list)):
+                points.SetPoint(pt_i, points_list[pt_i])
+            axes = numpy_to_vtk(np.array(axes_list))
+            angles = numpy_to_vtk(np.array(angles_list))
+            scales = numpy_to_vtk(np.array(scales_list))
 
-        def place_glyph(__vtk__temp0=0,__vtk__temp1=0):
-            point = glyphs.GetPoint()
-            point_id = glyphs.GetPointId()
-            d = glyphs.GetPointData()
-            axis =  d.GetAbstractArray(0).GetTuple(point_id)
-            angle = d.GetAbstractArray(1).GetTuple(point_id)
-            scale = d.GetAbstractArray(2).GetTuple(point_id)
+            glyphs_data = vtk.vtkPolyData()
+            glyphs_data.SetPoints(points)
+            glyphs_data.GetPointData().AddArray(axes)
+            glyphs_data.GetPointData().AddArray(angles)
+            glyphs_data.GetPointData().AddArray(scales)
 
-            trans = vtk.vtkTransform()
-            trans.Translate(point)
-            trans.RotateWXYZ(angle[0], axis)
-            trans.Scale(scale[0], scale[1], scale[2])
+            glyphs = vtk.vtkProgrammableGlyphFilter()
+            glyphs.SetSourceConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
+            glyphs.SetInputData(glyphs_data)
 
-            trans_cyl = vtk.vtkTransformPolyDataFilter()
-            trans_cyl.SetInputConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
-            trans_cyl.SetTransform(trans)
-            glyphs.SetSourceConnection(trans_cyl.GetOutputPort())
+            def place_glyph(glyphs=glyphs): # avoid late binding
+                point = glyphs.GetPoint()
+                point_id = glyphs.GetPointId()
+                d = glyphs.GetPointData()
+                axis =  d.GetAbstractArray(0).GetTuple(point_id)
+                angle = d.GetAbstractArray(1).GetTuple(point_id)
+                scale = d.GetAbstractArray(2).GetTuple(point_id)
 
-        glyphs = vtk.vtkProgrammableGlyphFilter()
-        glyphs.SetSourceConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
-        glyphs.SetInputData(glyphs_data)
-        glyphs.SetGlyphMethod(place_glyph)
-        glyphs.SetColorModeToColorByInput()
+                trans = vtk.vtkTransform()
+                trans.Translate(point)
+                trans.RotateWXYZ(angle[0], axis)
+                trans.Scale(scale[0], scale[1], scale[2])
 
-        id_glyphs = vtk.vtkIdFilter()
-        id_glyphs.SetInputConnection(glyphs.GetOutputPort())
-        id_glyphs.SetIdsArrayName("IDs")
-        id_glyphs.FieldDataOn() # check Off?
+                trans_cyl = vtk.vtkTransformPolyDataFilter()
+                trans_cyl.SetInputConnection(self.shapes["sources"]["cylinder_y"][0].GetOutputPort())
+                trans_cyl.SetTransform(trans)
+                glyphs.SetSourceConnection(trans_cyl.GetOutputPort())
 
-        glyphs_mapper = vtk.vtkPolyDataMapper()
-        glyphs_mapper.SetInputConnection(id_glyphs.GetOutputPort())
+            glyphs.SetGlyphMethod(place_glyph)
 
-        glyphs_mapper.SetLookupTable(self.bond_lut)
+            id_glyphs = vtk.vtkIdFilter()
+            id_glyphs.SetInputConnection(glyphs.GetOutputPort())
+            id_glyphs.SetIdsArrayName("IDs")
+            id_glyphs.FieldDataOn()
 
-        actor.SetMapper(glyphs_mapper)
-        actor.i_at_bond = i_at_bond
+            glyphs_mapper = vtk.vtkPolyDataMapper()
+            glyphs_mapper.SetInputConnection(id_glyphs.GetOutputPort())
 
-        actor.SetProperty(self.settings["bond_types"][name]["prop"])
+            actor.SetMapper(glyphs_mapper)
+            actor.i_at_bond = i_at_bond
 
-        actor.VisibilityOn()
-        actor.PickableOn()
-        self.renderer.AddActor(actor)
+            if name.endswith("_picked"):
+                actor.SetProperty(self.settings["picked_prop"])
+            else:
+                actor.SetProperty(self.bond_prop[name])
+
+            actor.VisibilityOn()
+            self.renderer.AddActor(actor)
 
     def update_image_atoms(self, at):
         if "_vtk_images" not in at.info:
@@ -1026,21 +1047,6 @@ class DaVTKState(object):
             vector_lut.AddRGBPoint(float(i), c[0], c[1], c[2])
         return vector_lut
 
-    def create_bond_lut(self):
-        # look up table for bond colors
-        if self.bond_lut is None:
-            self.bond_lut = vtk.vtkColorTransferFunction()
-        else:
-            self.bond_lut.RemoveAllPoints()
-        n_types = len(self.settings["bond_types"])
-        self.bond_lut.SetRange(0, n_types)
-        self.bond_lut.AddRGBPoint(0.0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
-        for i in range(1, n_types+1):
-            name = self.settings["bond_name_of_index"][i]
-            self.bond_lut.AddRGBPoint(float(i), self.settings["bond_types"][name]["color"][0],
-                                      self.settings["bond_types"][name]["color"][1],
-                                      self.settings["bond_types"][name]["color"][2])
-
     def create_atom_type_luts(self):
         # make sure every atom type exists, autogenerating if needed
         for at_type in sorted(list(set(get_atom_type_list(self.settings, self.cur_at())))):
@@ -1220,36 +1226,31 @@ class DaVTKState(object):
 
         self.update(frames)
 
-    def bond(self, name, at_type1, at_type2, criterion, frames=None):
+    def bond(self, at, name, at_type1, at_type2, criterion):
         if name is None:
             name = "default"
 
-        for frame_i in self.frame_list(frames):
-            at = self.at_list[frame_i]
+        if not hasattr(at, "bonds"):
+            at.bonds = DavTKBonds(at, self.settings)
 
-            if not hasattr(at, "bonds"):
-                at.bonds = DavTKBonds(at, self.settings)
-
-            if criterion == "picked":
-                if "_vtk_picked" in at.arrays:
-                    indices = np.where(self.cur_at().arrays["_vtk_picked"])[0]
-                else:
-                    indices = []
-                if len(indices) != 2:
-                    raise ValueError("tried to bond picked, but number of atoms picked {} != 2".format(len(indices)))
-                at.bonds.pair_mic(name, indices[0], indices[1])
-                at.arrays["_vtk_picked"][indices] = False
-            elif criterion[0] == "n":
-                indices = criterion[1]
-                if len(indices) != 2:
-                    raise ValueError("tried to bond pair, but number of indices passed {} != 2".format(len(indices)))
-                at.bonds.pair_mic(name, indices[0], indices[1])
-            elif criterion[0] == "cutoff":
-                at.bonds.cutoff(name, criterion[1], at_type1, at_type2)
+        if criterion == "picked":
+            if "_vtk_picked" in at.arrays:
+                indices = np.where(self.cur_at().arrays["_vtk_picked"])[0]
             else:
-                raise ValueError("Unknown bonding criterion type '{}'".format(criterion[0]))
-
-        self.update(frames)
+                indices = []
+            if len(indices) != 2:
+                raise ValueError("tried to bond picked, but number of atoms picked {} != 2".format(len(indices)))
+            at.bonds.pair_mic(name, indices[0], indices[1])
+            at.arrays["_vtk_picked"][indices] = False
+        elif criterion[0] == "n":
+            indices = criterion[1]
+            if len(indices) != 2:
+                raise ValueError("tried to bond pair, but number of indices passed {} != 2".format(len(indices)))
+            at.bonds.pair_mic(name, indices[0], indices[1])
+        elif criterion[0] == "cutoff":
+            at.bonds.cutoff(name, criterion[1], at_type1, at_type2)
+        else:
+            raise ValueError("Unknown bonding criterion type '{}'".format(criterion[0]))
 
     def snapshot(self, filename=None, mag=1):
         renderLarge = vtk.vtkRenderLargeImage()
