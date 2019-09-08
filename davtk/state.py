@@ -1543,20 +1543,27 @@ class DaVTKState(object):
                 self.renderer.AddActor(actor)
                 self.polyhedra_actors.append(actor)
 
-    def set_view(self, along, up, lattice):
+    def set_view(self, along_up, lattice, scale):
         cam = self.renderer.GetActiveCamera()
 
-        if lattice:
-            cell = self.cur_at().get_cell()
-            along = np.dot(along, cell)
-            up = np.dot(up, cell)
-        along /= np.linalg.norm(along)
-        up /= np.linalg.norm(up)
+        if along_up is not None:
+            along = along_up[0:3]
+            up = along_up[3:6]
 
-        focal_point = np.array(cam.GetFocalPoint())
-        pos = np.array(cam.GetPosition())
-        dist = np.linalg.norm(pos-focal_point)
-        new_pos = focal_point - dist * along
+            if lattice:
+                cell = self.cur_at().get_cell()
+                along = np.dot(along, cell)
+                up = np.dot(up, cell)
+            along /= np.linalg.norm(along)
+            up /= np.linalg.norm(up)
 
-        cam.SetPosition(new_pos)
-        cam.SetViewUp(up)
+            focal_point = np.array(cam.GetFocalPoint())
+            pos = np.array(cam.GetPosition())
+            dist = np.linalg.norm(pos-focal_point)
+            new_pos = focal_point - dist * along
+
+            cam.SetPosition(new_pos)
+            cam.SetViewUp(up)
+
+        if scale is not None:
+            cam.SetParallelScale(cam.GetParallelScale()/scale)
