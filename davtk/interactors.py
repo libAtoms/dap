@@ -4,6 +4,7 @@ import sys, queue
 import numpy as np
 import vtk
 from davtk.parse import parse_line
+from davtk.parse_utils import ArgumentParserHelp
 
 def pick_actors(at, actors, point_sets):
     new_bond_pick_statuses = {}
@@ -116,12 +117,12 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
                 sys.exit(0)
             else:
                 self.davtk_state.update(what=refresh)
+        except ArgumentParserHelp:
+            pass
         except Exception as e:
-            ####
             ## import traceback
             ## traceback.print_exc()
-            ####
-            print("error parsing line",e)
+            print("error parsing line: ",e)
 
         if self.GetInteractor() is not None:
             self.GetInteractor().Render()

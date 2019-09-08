@@ -7,7 +7,6 @@ import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
-
 def reset_dict_property(prop_dict):
     if "prop" not in prop_dict:
         prop_dict["prop"] = vtk.vtkProperty()
@@ -998,6 +997,7 @@ class DaVTKState(object):
                                    "magmom" : magmoms,
                                    "initial_magmoms" : init_magmoms
                                  }
+        # substitute $${} from at.arrays
         for substr in re.findall('\$\${([^}]*)}', string):
             if i_at is None:
                 raise ValueError("found $${{}} substitution for '{}' but i_at is None".format(substr))
@@ -1007,6 +1007,7 @@ class DaVTKState(object):
                 string = re.sub('\$\${'+substr+'}',str(dict_atom[substr][i_at]),string,count=1)
             else:
                 raise ValueError("Tried to do $${{}} substitution on undefined field '{}'".format(substr))
+        # substitute ${} from at.info
         for substr in re.findall('(?:^|[^$])\${([^}]*)}', string):
             if dict_frame_special_case is not None and substr in dict_frame_special_case:
                 string = re.sub('\${'+substr+'}',str(dict_frame_special_case[substr]),string,count=1)
@@ -1014,6 +1015,23 @@ class DaVTKState(object):
                 string = re.sub('\${'+substr+'}',str(dict_frame[substr]),string,count=1)
             else:
                 raise ValueError("Tried to do ${{}} substitution on undefined field '{}'".format(substr))
+
+        # eval $()
+        while '$(' in string:
+            p0 = string.index('$(')
+            depth = 0
+            for char_i in range(p0+2, len(string)):
+                if string[char_i] == '(':
+                    depth += 1
+                elif string[char_i] == ')':
+                    if depth > 0:
+                        depth -= 1
+                    else: # depth == 0
+                        break
+            if char_i == len(string)-1 and depth > 1:
+                raise RuntimeError("Failed to find closing of '$(' in '{}'".format(string))
+            substring = string[p0+2:char_i]
+            string = string.replace('$('+substring+')',str(eval(substring)))
 
         return string
 

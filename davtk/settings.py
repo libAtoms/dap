@@ -171,8 +171,8 @@ class DavTKSettings(object):
                                             self.write_background_color)
 
         self.parser_frame_label = ThrowingArgumentParser(prog="frame_label")
-        self.parser_frame_label.add_argument("-string","-s", type=str,
-            help="string, substituting ${STRING} with fields in atoms.info (or 'config_n'), or _NONE_", default=None)
+        self.parser_frame_label.add_argument("-string","-s", type=str,nargs='+',
+            help="string, evaluating $( EXPRESSION ) and substituting ${STRING} with fields in atoms.info (or 'config_n'), or _NONE_", default=None)
         self.parser_frame_label.add_argument("-color","-c", nargs=3,type=float,default=None, metavar=("R","G","B"))
         self.parser_frame_label.add_argument("-fontsize",type=int,default=None)
         group = self.parser_frame_label.add_mutually_exclusive_group()
@@ -182,7 +182,7 @@ class DavTKSettings(object):
                                        self.write_frame_label)
 
         self.parser_atom_label = ThrowingArgumentParser(prog="atom_label")
-        self.parser_atom_label.add_argument("-string",type=str,help="string to use for label, substituting $${STRING} with fields in atoms.arrays "+
+        self.parser_atom_label.add_argument("-string",type=str,help="string to use for label, evaluating $( EXPRESSION ) and substituting $${STRING} with fields in atoms.arrays "+
                                                                    "(or 'ID' for number of atom, 'Z' for atomic number, 'species' for chemical symbol), "+
                                                                    "or '_NONE_'", default=None)
         self.parser_atom_label.add_argument("-color","-c",nargs=3,type=float,default=None, metavar=("R","G","B"))
@@ -360,7 +360,7 @@ class DavTKSettings(object):
             self.data["frame_label"]["fontsize"] = args.fontsize
             got_setting = True
         if args.string is not None:
-            self.data["frame_label"]["string"] = args.string
+            self.data["frame_label"]["string"] = " ".join(args.string)
             got_setting = True
 
         if args.on:
