@@ -8,7 +8,7 @@ and vtk
 FUNCTIONALITY
     - display atoms from any ase.io.read compatible format
         atom color/radius by fixed value or based on arbitrary scalar Atoms.arrays property
-        atomic labels from ID# or other proprty (e.g. Z, species, or arbitrary Atoms.arrays property)
+        atomic labels from ID# or other property (e.g. Z, species, or arbitrary Atoms.arrays property)
     - create bonds by cutoff or indices (optionally filtered by type)
         bonds across PBCs displayed as two half bonds
     - display isosurfaces from volumetric data over the config unit cell (including non-orthorhombic)
@@ -17,12 +17,15 @@ FUNCTIONALITY
     - display vectors associated with each atom (like magnetic moments), either from real 3-vector field, or from scalar field
     - display coordination polyhedra given atom type of center and bonds or cutoff to neighbors
     - multiple configurations interpreted as trajectories (i.e. identical camera view)
+    - frame label from arbitrary Atoms.info field
     - snapshots by rendering at arbitrary integer multiples of display resolution
     - automated movie creation (requires ffmpeg executable in path)
     - arbitrary ASE commands applied to atomic configurations
     - display legend with each used atom type
-    - save full state of display (settings, atoms, bonds, volumetric data, but not including window size) [incomplete - camera view not saved yet]
+    - save full state of display (settings, atoms, bonds, etc., as well as view orientation, but not window size)
     - command history using GNU readline 
+    - labels (frame and atom) do python evaluation of expressions in $(EXPR) and substitute
+        Atoms.info for ${INFO} and Atoms.arrays for $${ARRAY}
 
     GUI
         rotate, zoom, translate
