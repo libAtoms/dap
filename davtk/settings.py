@@ -129,7 +129,7 @@ class DavTKSettings(object):
         group.add_argument("-position",type=int,nargs=2,help="position relative to bottom left corner of display"+
                                                              " (negative values relative to top right)", default=None)
         group.add_argument("-offset",type=int,nargs=2,help="offset relative to current position", default=None)
-        self.parser_legend.add_argument("-spacing",type=int,help="spacing between rows", default=None)
+        self.parser_legend.add_argument("-spacing",type=float,help="multiplier for spacing between rows", default=None)
         self.parser_legend.add_argument("-sphere_scale",action='store',type=float,help="scaling factor for sphere radius", default=None)
         self.parsers["legend"] = (self.parse_legend, self.parser_legend.format_usage(), self.parser_legend.format_help(), self.write_legend)
 
@@ -166,7 +166,7 @@ class DavTKSettings(object):
                                         self.write_picked_color)
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
-        self.parser_picked_color.add_argument("color",nargs=3,type=float,metavar=['R','G','B'])
+        self.parser_background_color.add_argument("color",nargs=3,type=float,metavar=['R','G','B'])
         self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help(),
                                             self.write_background_color)
 

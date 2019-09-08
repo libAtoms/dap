@@ -53,7 +53,7 @@ class Viewer(object):
         camera.SetPosition([(max_pos[0]+min_pos[0])/2.0, -1000.0 + extent/2.0, (max_pos[2]+min_pos[2])/2.0])
         camera.SetViewUp(0.0, 0.0, 1.0)
         camera.SetFocalPoint((max_pos+min_pos)/2.0)
-        camera.SetClippingRange(1000-extent/2.0, 1000+3*extent/2.0)
+        camera.SetClippingRange(1000-2*extent, 1000+2*extent)
 
         l = vtk.vtkLight()
         l.SetPosition(100,70,200)

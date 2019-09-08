@@ -629,29 +629,42 @@ def parse_volume(davtk_state, renderer, args):
 
         update_prop(davtk_state.volume_rep_prop[args.name], args)
 
-        if args.filename.endswith("CHGCAR"):
-            chgcar = VaspChargeDensity(args.filename)
-            data = chgcar.chg[0]
-        else:
-            with open(args.filename) as fin:
-                extents = [int(i) for i in fin.readline().rstrip().split()]
-                if len(extents) != 3:
-                    raise ValueError("Got bad number of extents {} != 3 on first line of '{}'".format(len(full_extents), filename))
+        if creating_rep:
+            if args.filename.endswith("CHGCAR"):
+                chgcar = VaspChargeDensity(args.filename)
+                data = chgcar.chg[0]
+            else:
+                with open(args.filename) as fin:
+                    extents = [int(i) for i in fin.readline().rstrip().split()]
+                    if len(extents) != 3:
+                        raise ValueError("Got bad number of extents {} != 3 on first line of '{}'".format(len(full_extents), filename))
 
-                # order of indices in data is being reversed
-                data = np.zeros(extents[::-1])
-                for l in fin:
-                    (i0, i1, i2, v) = l.rstrip().split()
-                    data[int(i2),int(i1),int(i0)] = float(v)
+                    # order of indices in data is being reversed
+                    data = np.zeros(extents[::-1])
+                    for l in fin:
+                        (i0, i1, i2, v) = l.rstrip().split()
+                        data[int(i2),int(i1),int(i0)] = float(v)
 
-        if args.isosurface is not None:
-            davtk_state.add_volume_rep(args.name, data, "isosurface", (args.isosurface,), ["volume"] + args_list)
-        if args.volumetric is not None:
-            raise RuntimeError("volume -volumetric not supported")
+            if args.isosurface is not None:
+                davtk_state.add_volume_rep(args.name, data, "isosurface", (args.isosurface,), ["volume"] + args_list)
+            if args.volumetric is not None:
+                raise RuntimeError("volume -volumetric not supported")
+        # else: just modifying property
 
     return "cur"
 parsers["volume"] = (parse_volume, parser_volume.format_usage(), parser_volume.format_help())
 
+parser_view = ThrowingArgumentParser(prog="view",description="set view position and orientation")
+parser_view.add_argument("-lattice",action='store_true',help="use lattice A1 A2 A3 instead of cartesian X Y Z directions")
+parser_view.add_argument("-along",nargs=3,type=float,metavar=("X","Y","Z"),help="view direction", required=True)
+parser_view.add_argument("-up",nargs=3,type=float,metavar=("X","Y","Z"),help="view up direction", required=True)
+def parse_view(davtk_state, renderer, args):
+    args = parser_view.parse_args(args)
+
+    davtk_state.set_view(args.along, args.up, args.lattice)
+
+    return "settings"
+parsers["view"] = (parse_view, parser_view.format_usage(), parser_view.format_help())
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):

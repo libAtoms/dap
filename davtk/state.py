@@ -1404,7 +1404,7 @@ class DaVTKState(object):
             if hasattr(at,"volume_reps") and len(at.volume_reps) > 0:
                 for volume_rep in at.volume_reps.values():
                     for (_, cmd) in volume_rep[2]:
-                        at.info["_vtk_commands"] += ' '.join(cmd) + " ;"
+                        at.info["_vtk_commands"] += ' '.join(cmd) + " ; "
 
             # save bond, polyhedra, and volume_rep properties
             for (cmd, prop_dict) in [("bond", self.bond_prop), ("polyhedra", self.polyhedra_prop), ("volume", self.volume_rep_prop)]:
@@ -1416,10 +1416,11 @@ class DaVTKState(object):
                         at.info["_vtk_commands"] += " -r {}".format(prop.radius)
                     except AttributeError:
                         pass
-                    at.info["_vtk_commands"] += " ;"
+                    at.info["_vtk_commands"] += " ; "
 
-            if at.info["_vtk_commands"].endswith(";"):
-                at.info["_vtk_commands"] = at.info["_vtk_commands"][:-1]
+        for at in ats:
+            if at.info["_vtk_commands"].endswith("; "):
+                at.info["_vtk_commands"] = at.info["_vtk_commands"][:-2]
 
     def prep_after_atoms_read(self, ats=None):
         if ats is None:
@@ -1541,3 +1542,21 @@ class DaVTKState(object):
 
                 self.renderer.AddActor(actor)
                 self.polyhedra_actors.append(actor)
+
+    def set_view(self, along, up, lattice):
+        cam = self.renderer.GetActiveCamera()
+
+        if lattice:
+            cell = self.cur_at().get_cell()
+            along = np.dot(along, cell)
+            up = np.dot(up, cell)
+        along /= np.linalg.norm(along)
+        up /= np.linalg.norm(up)
+
+        focal_point = np.array(cam.GetFocalPoint())
+        pos = np.array(cam.GetPosition())
+        dist = np.linalg.norm(pos-focal_point)
+        new_pos = focal_point - dist * along
+
+        cam.SetPosition(new_pos)
+        cam.SetViewUp(up)
