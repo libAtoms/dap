@@ -288,26 +288,32 @@ parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.f
 parser_vectors = ThrowingArgumentParser(prog="vectors",description="Draw vectors")
 parser_vectors.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_vectors.add_argument("-field",type=str,help="atom field to use for vectors (scalar or 3-vector)", default=None)
-parser_vectors.add_argument("-color",type=str,nargs='+',help="R G B, or string atom (by atom) or string sign (by sign of scalars only)", default=None)
-parser_vectors.add_argument("-sign_colors",type=float,nargs=6,metavar=('RU','GU','BU','RD','GD','BD'), help="colors for -name sign", default=None)
+parser_vectors.add_argument("-color",type=str,metavar=["COLOR_SCHEME"],nargs='+',help="The string 'atom' (color by atom), or one color: R G B, two colors : RUP GUP BUP RDOWN GDOWN BDOWN", default=None)
 parser_vectors.add_argument("-radius",type=float,help="cylinder radius", default=None)
 parser_vectors.add_argument("-scale",type=float,help="scaling factor from field value to cylinder length", default=None)
 parser_vectors.add_argument("-delete",action='store_true',help="disable")
 def parse_vectors(davtk_state, renderer, args):
     args = parser_vectors.parse_args(args)
 
+    args.sign_colors = None
     if args.color is not None:
-        if len(args.color) == 1:
-            if args.color[0] != "atom" and args.color[0] != "sign":
-                raise ValueError("Got single word -color argument '{}', not 'atom' or 'sign'".format(args.color))
-            args.color = args.color[0]
-        elif len(args.color) == 3:
+        if len(args.color) == 1: # color by atom
+            if args.color[0] != "atom":
+                raise ValueError("Got single word -color argument '{}', not 'atom'".format(args.color))
+            args.color = "atom"
+        elif len(args.color) == 3: # single color
             try:
                 args.color = [float(v) for v in args.color]
             except:
                 raise ValueError("Got 3-word args.color '{}' not convertible to float".format(args.color))
+        elif len(args.color) == 6: # color by sign
+            try:
+                args.sign_colors = [float(v) for v in args.color]
+            except:
+                raise ValueError("Got 3-word args.color '{}' not convertible to float".format(args.color))
+            args.color = "sign"
         else:
-            raise ValueError("Got args.color '{}' length not 1 or 3".format(args.color))
+            raise ValueError("Got args.color '{}' length not 1 or 3 or 6".format(args.color))
 
     if args.all_frames:
         ats = davtk_state.at_list
