@@ -1282,6 +1282,8 @@ class DaVTKState(object):
         renderLarge.SetMagnification(mag)
 
         if filename is not None:
+            if not filename.endswith(".png"):
+                warn("creating PNG file with suffix that is not .png") 
             writer = vtk.vtkPNGWriter()
             writer.SetInputConnection(renderLarge.GetOutputPort())
             writer.SetFileName(filename)

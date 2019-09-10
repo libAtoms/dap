@@ -3,7 +3,9 @@ from __future__ import print_function
 import sys, re, os, types
 import numpy as np
 import ase.io
+from ase.calculators.vasp import VaspChargeDensity
 import ffmpeg
+import argparse
 
 from davtk.parse_utils import ThrowingArgumentParser, add_material_args_to_parser
 try:
@@ -416,7 +418,7 @@ parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_he
 
 parser_snapshot = ThrowingArgumentParser(prog="snapshot",description="write snapshot")
 parser_snapshot.add_argument("-mag",type=int,help="magnification", default=1)
-parser_snapshot.add_argument("file",type=str,help="filename")
+parser_snapshot.add_argument("file",type=str,help="filename (png format)")
 def parse_snapshot(davtk_state, renderer, args):
     args = parser_snapshot.parse_args(args)
     davtk_state.snapshot(args.file, args.mag)
@@ -601,15 +603,29 @@ parsers["polyhedra"] = (parse_polyhedra, parser_polyhedra.format_usage(), parser
 
 parser_volume = ThrowingArgumentParser(prog="volume",description="read volumetric data from file")
 parser_volume.add_argument("filename",nargs='?',help="File to read from. Text dap internal format, *.CHGCAR, or *.WAVECAR")
-parser_volume.add_argument("-name",type=str, help="name to assign", default=None)
+parser_volume.add_argument("-name",type=str, help="name to assign (default to filename)", default=None)
 group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
 group.add_argument("-list", action='store_true', help="list existing volume representations")
 group.add_argument("-isosurface",type=float,action='store',metavar="THRESHOLD", help="isosurface threshold")
 group.add_argument("-volumetric",type=float,action='store',metavar="SCALE", help="volumetric value_to_opacity_factor and color")
-parser_volume.add_argument("-file_args", nargs='+', type=str, help="Additional arguments for selecting within filename. *.WAVECAR: nk nband [1-based]", default=[])
+#
 parser_volume.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for volumetric representation", default=None)
 add_material_args_to_parser(parser_volume)
+parser_volume.add_argument("-file_args", nargs=argparse.REMAINDER, help="file-type specific arguments (use '-file_args -h' for file-type specific help)", default=[])
+#
+volume_subparsers = {}
+#
+volume_subparsers["WAVECAR"] = ThrowingArgumentParser(prog="WAVECAR", description="WAVECAR specific arguments")
+volume_subparsers["WAVECAR"].add_argument("-nk",type=int,help="number of k-point (1-based)", required=True)
+volume_subparsers["WAVECAR"].add_argument("-nband",type=int,help="number of band (1-based)", required=True)
+volume_subparsers["WAVECAR"].add_argument("-gamma",action='store_true',help="from gamma-point only executable")
+volume_subparsers["WAVECAR"].add_argument("-real_part",action='store_true',help="use real-part of wavefunction rather than squared modulus")
+volume_subparsers["WAVECAR"].add_argument("-component",choices=["total","spin","up","down"], help="spin component to plot", default="total")
+#
+volume_subparsers["CHGCAR"] = ThrowingArgumentParser(prog="file.CHGCAR -file_args", description="CHGCAR specific arguments")
+volume_subparsers["CHGCAR"].add_argument("-component",choices=["total","spin","up","down"], help="spin component to plot", default="total")
+
 def parse_volume(davtk_state, renderer, args):
     args_list = args
     args = parser_volume.parse_args(args)
@@ -638,26 +654,83 @@ def parse_volume(davtk_state, renderer, args):
 
         if creating_rep:
             if args.filename.endswith("CHGCAR"):
-                if len(args.file_args) != 0:
-                    raise ValueError("CHGCAR does not use any -file_args")
+                sub_args = volume_subparsers["CHGCAR"].parse_args(args.file_args)
 
-                from ase.calculators.vasp import VaspChargeDensity
                 chgcar = VaspChargeDensity(args.filename)
-                data = chgcar.chg[0]
+                if sub_args.component == "total":
+                    data = chgcar.chg[0]
+                else:
+                    if not chgcar.is_spin_polarized():
+                        raise RuntimeError("no spin-density available for non-spin_polarized calculation")
+                    if sub_args.component == "spin":
+                        data = chgcar.chgdiff[0]
+                    elif sub_args.component == "up":
+                        data = 0.5*(chgcar.chg[0] + chgcar.chgdiff[0])
+                    elif sub_args.component == "down":
+                        data = 0.5*(chgcar.chg[0] - chgcar.chgdiff[0])
+                    else:
+                        raise RuntimeError("volume CHGCAR should never get here")
                 data = np.ascontiguousarray(data.T)
             elif args.filename.endswith("WAVECAR"):
-                if len(args.file_args) != 2:
-                    raise ValueError("WAVECAR requires two -file_args, nk and nband [1-based]")
-                try:
-                    (nk, nband) = (int(args.file_args[0]), int(args.file_args[1]))
-                except:
-                    raise ValueError("Failed to convert WAVECAR -file_args to two integers")
+                sub_args = volume_subparsers["WAVECAR"].parse_args(args.file_args)
 
-                from pymatgen.io.vasp.outputs import Wavecar
-                wf = Wavecar(args.filename,verbose=True)
-                mesh = wf.fft_mesh(nk-1, nband-1)
-                wavecar = np.fft.ifftn(mesh)
-                data = np.ascontiguousarray(np.abs(wavecar).T)
+                if len(args.file_args) == 3:
+                    gamma = args.file_args[2].lower() in ["t","true","1"]
+                else:
+                    gamma = None
+
+                def normalize(w, to_sqrt=False):
+                    norm_factor = np.product(w.shape)/davtk_state.cur_at().get_volume()
+                    if to_sqrt:
+                        w *= np.sqrt(norm_factor)/np.linalg.norm(w)
+                    else:
+                        w *= norm_factor/np.sum(w)
+
+                ## from pymatgen.io.vasp.outputs import Wavecar
+                from davtk.Wavecar import Wavecar # patched to real from gamma-only runs
+                ##
+                wf = Wavecar(args.filename, verbose=True, gamma=sub_args.gamma)
+                is_spin_polarized = wf.spin == 2
+                is_sq_modulus = False
+                if sub_args.component == "total":
+                    if is_spin_polarized:
+                        wavecar_0 = np.abs(np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1, spin=0)))**2
+                        normalize(wavecar_0)
+                        wavecar_1 = np.abs(np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1, spin=1)))**2
+                        normalize(wavecar_1)
+                        wavecar = wavecar_0 + wavecar_1
+                    else:
+                        wavecar = np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1))
+                        normalize(wavecar, True)
+                        is_sq_modulus = False
+                else:
+                    if not is_spin_polarized:
+                        raise RuntimeError("no spin-density available for non-spin_polarized calculation")
+                    if sub_args.component == "spin":
+                        wavecar_0 = np.abs(np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1, spin=0)))**2
+                        normalize(wavecar_0)
+                        wavecar_1 = np.abs(np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1, spin=1)))**2
+                        normalize(wavecar_1)
+                        wavecar = wavecar_0 - wavecar_1
+                    elif sub_args.component == "up":
+                        wavecar_0 = np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1, spin=0))
+                        normalize(wavecar_0, True)
+                        is_sq_modulus = False
+                    elif sub_args.component == "down":
+                        wavecar_1 = np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1, spin=1))
+                        normalize(wavecar_1, True)
+                        is_sq_modulus = False
+                    else:
+                        raise RuntimeError("volume WAVECAR should never get here")
+
+                if sub_args.real_part:
+                    if is_sq_modulus:
+                        raise RuntimeError("Can't do real part of component {} for spin-polarized status {}".format(sub_args.component, is_spin_polarized))
+                    data = np.ascontiguousarray(np.real(wavecar).T)
+                else: # squared modulus
+                    if not is_sq_modulus:
+                        wavecar = np.abs(wavecar)**2
+                    data = np.ascontiguousarray(wavecar.T)
             else:
                 with open(args.filename) as fin:
                     extents = [int(i) for i in fin.readline().rstrip().split()]
