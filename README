@@ -12,8 +12,9 @@ FUNCTIONALITY
     - create bonds by cutoff or indices (optionally filtered by type)
         bonds across PBCs displayed as two half bonds
     - display isosurfaces from volumetric data over the config unit cell (including non-orthorhombic)
-        simple ASCII format
+        a simple native ASCII format
         CHGCAR using VaspChargeDensity from ase.calculators.vasp 
+        WAVECAR using Wavecar from pymatgen.io.vasp.outputs
     - display vectors associated with each atom (like magnetic moments), either from real 3-vector field, or from scalar field
     - display coordination polyhedra given atom type of center and bonds or cutoff to neighbors
     - multiple configurations interpreted as trajectories (i.e. identical camera view)

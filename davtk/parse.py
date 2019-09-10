@@ -3,7 +3,6 @@ from __future__ import print_function
 import sys, re, os, types
 import numpy as np
 import ase.io
-from ase.calculators.vasp import VaspChargeDensity
 import ffmpeg
 
 from davtk.parse_utils import ThrowingArgumentParser, add_material_args_to_parser
@@ -594,13 +593,14 @@ def parse_polyhedra(davtk_state, renderer, args):
 parsers["polyhedra"] = (parse_polyhedra, parser_polyhedra.format_usage(), parser_polyhedra.format_help())
 
 parser_volume = ThrowingArgumentParser(prog="volume",description="read volumetric data from file")
-parser_volume.add_argument("filename",nargs='?',help="file to read from")
+parser_volume.add_argument("filename",nargs='?',help="File to read from. Text dap internal format, *.CHGCAR, or *.WAVECAR")
 parser_volume.add_argument("-name",type=str, help="name to assign", default=None)
 group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
 group.add_argument("-list", action='store_true', help="list existing volume representations")
 group.add_argument("-isosurface",type=float,action='store',metavar="THRESHOLD", help="isosurface threshold")
 group.add_argument("-volumetric",type=float,action='store',metavar="SCALE", help="volumetric value_to_opacity_factor and color")
+parser_volume.add_argument("-file_args", nargs='+', type=str, help="Additional arguments for selecting within filename. *.WAVECAR: nk nband [1-based]", default=[])
 parser_volume.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for volumetric representation", default=None)
 add_material_args_to_parser(parser_volume)
 def parse_volume(davtk_state, renderer, args):
@@ -631,8 +631,26 @@ def parse_volume(davtk_state, renderer, args):
 
         if creating_rep:
             if args.filename.endswith("CHGCAR"):
+                if len(args.file_args) != 0:
+                    raise ValueError("CHGCAR does not use any -file_args")
+
+                from ase.calculators.vasp import VaspChargeDensity
                 chgcar = VaspChargeDensity(args.filename)
                 data = chgcar.chg[0]
+                data = np.ascontiguousarray(data.T)
+            elif args.filename.endswith("WAVECAR"):
+                if len(args.file_args) != 2:
+                    raise ValueError("WAVECAR requires two -file_args, nk and nband [1-based]")
+                try:
+                    (nk, nband) = (int(args.file_args[0]), int(args.file_args[1]))
+                except:
+                    raise ValueError("Failed to convert WAVECAR -file_args to two integers")
+
+                from pymatgen.io.vasp.outputs import Wavecar
+                wf = Wavecar(args.filename,verbose=True)
+                mesh = wf.fft_mesh(nk-1, nband-1)
+                wavecar = np.fft.ifftn(mesh)
+                data = np.ascontiguousarray(np.abs(wavecar).T)
             else:
                 with open(args.filename) as fin:
                     extents = [int(i) for i in fin.readline().rstrip().split()]
