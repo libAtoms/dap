@@ -102,8 +102,8 @@ class DavTKAtomTypes(object):
 class DavTKSettings(object):
     def __init__(self):
         self.data = { "atom_types" : DavTKAtomTypes(), "colormaps" : {},
-            "cell_box_color" : [1.0, 1.0, 1.0, 1.0], "background_color" : [0.0, 0.0, 0.0],
-            "picked_color" : [1.0, 1.0, 0.0],
+            "cell_box" : { "color" : [1.0, 1.0, 1.0], "opacity" : 1.0, "line_width" : 2.0, "prop" : None }, "background_color" : [0.0, 0.0, 0.0],
+            "picked" : { "color" : [1.0, 1.0, 0.0], "opacity" : 1.0,  "prop" : None },
             "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "string" : "${config_n}", "show" : True },
             "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "string" : "$${ID}", "show" : False},
             "frame_step" : 1, "legend" : { 'show' : False, 'position' : np.array([-10,-10]), 'spacing' : 1.0, 'sphere_scale' : 1.0 },
@@ -154,16 +154,17 @@ class DavTKSettings(object):
         add_material_args_to_parser(self.parser_atom_type)
         self.parsers["atom_type"] = (self.parse_atom_type, self.parser_atom_type.format_usage(), self.parser_atom_type.format_help(), self.write_atom_type)
 
-        self.parser_cell_box_color = ThrowingArgumentParser(prog="cell_box_color")
-        self.parser_cell_box_color.add_argument("color",nargs=3,type=float,metavar=['R','G','B'])
-        self.parser_cell_box_color.add_argument("-opacity",type=float,default=1.0)
-        self.parsers["cell_box_color"] = (self.parse_cell_box_color, self.parser_cell_box_color.format_usage(), self.parser_cell_box_color.format_help(),
-                                          self.write_cell_box_color)
+        self.parser_cell_box = ThrowingArgumentParser(prog="cell_box")
+        self.parser_cell_box.add_argument("-color",nargs=3,type=float,metavar=['R','G','B'], default=None)
+        self.parser_cell_box.add_argument("-opacity",type=float,default=None)
+        self.parser_cell_box.add_argument("-width",type=float,default=None)
+        self.parsers["cell_box"] = (self.parse_cell_box, self.parser_cell_box.format_usage(), self.parser_cell_box.format_help(),
+                                          self.write_cell_box)
 
-        self.parser_picked_color = ThrowingArgumentParser(prog="picked_color")
-        self.parser_picked_color.add_argument("color",nargs=3,type=float,metavar=['R','G','B'])
-        self.parsers["picked_color"] = (self.parse_picked_color, self.parser_picked_color.format_usage(), self.parser_picked_color.format_help(),
-                                        self.write_picked_color)
+        self.parser_picked = ThrowingArgumentParser(prog="picked")
+        self.parser_picked.add_argument("-color",nargs=3,type=float,metavar=['R','G','B'])
+        self.parsers["picked"] = (self.parse_picked, self.parser_picked.format_usage(), self.parser_picked.format_help(),
+                                        self.write_picked)
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
         self.parser_background_color.add_argument("color",nargs=3,type=float,metavar=['R','G','B'])
@@ -197,13 +198,15 @@ class DavTKSettings(object):
         # 3D Actor properties
         for f in ["cell_box","picked"]:
             prop = vtk.vtkProperty()
-            prop.SetOpacity(1.0)
-            prop.SetColor(self.data[f+"_color"][0:3])
-            self.data[f+"_prop"] = prop
+            prop.SetColor(self.data[f]["color"])
+            prop.SetOpacity(self.data[f]["opacity"])
+            if "line_width" in self.data[f]:
+                prop.SetLineWidth(self.data[f]["line_width"])
+            self.data[f]["prop"] = prop
 
         # make picked very flat
-        self.data["picked_prop"].SetAmbient(0.6)
-        self.data["picked_prop"].SetDiffuse(0.4)
+        self.data["picked"]["prop"].SetAmbient(0.6)
+        self.data["picked"]["prop"].SetDiffuse(0.4)
 
         # text properties
         for f in ["frame_label", "atom_label"]:
@@ -321,17 +324,25 @@ class DavTKSettings(object):
                                          bonding_radius=args.bonding_radius)
         return "settings"
 
-    def write_cell_box_color(self):
-        args = 'cell_box_color {} {} {}'.format(self.data["cell_box_color"][0],
-                                                self.data["cell_box_color"][1],
-                                                self.data["cell_box_color"][2])
-        args += ' -opacity {}'.format(self.data["cell_box_color"][3])
+    def write_cell_box(self):
+        args = 'cell_box {} {} {}'.format(self.data["cell_box"]["color"][0],
+                                          self.data["cell_box"]["color"][1],
+                                          self.data["cell_box"]["color"][2])
+        args += ' -opacity {}'.format(self.data["cell_box"]["opacity"])
+        args += ' -width {}'.format(self.data["cell_box"]["line_width"])
         return args+'\n'
-    def parse_cell_box_color(self, args):
-        args = self.parser_cell_box_color.parse_args(args)
-        self.data["cell_box_color"] = (args.color[0], args.color[1], args.color[2], args.opacity)
-        self.data["cell_box_prop"].SetColor(self.data["cell_box_color"][0:3])
-        self.data["cell_box_prop"].SetOpacity(self.data["cell_box_color"][3])
+    def parse_cell_box(self, args):
+        args = self.parser_cell_box.parse_args(args)
+
+        if args.color is not None:
+            self.data["cell_box"]["color"] = (args.color[0], args.color[1], args.color[2])
+            self.data["cell_box"]["prop"].SetColor(self.data["cell_box"]["color"])
+        if args.opacity is not None:
+            self.data["cell_box"]["opacity"] = args.opacity
+            self.data["cell_box"]["prop"].SetOpacity(self.data["cell_box"]["opacity"])
+        if args.width is not None:
+            self.data["cell_box"]["line_width"] = args.width
+            self.data["cell_box"]["prop"].SetLineWidth(self.data["cell_box"]["line_width"])
         return "color_only"
 
     def write_frame_label(self):
@@ -413,15 +424,15 @@ class DavTKSettings(object):
         self.data["atom_label"]["prop"].SetFontSize(self.data["atom_label"]["fontsize"])
         return "settings"
 
-    def write_picked_color(self):
-        args = 'picked_color {} {} {}'.format(self.data["picked_color"][0],
-                                              self.data["picked_color"][1],
-                                              self.data["picked_color"][2])
+    def write_picked(self):
+        args = 'picked {} {} {}'.format(self.data["picked"][0],
+                                        self.data["picked"][1],
+                                        self.data["picked"][2])
         return args+'\n'
-    def parse_picked_color(self, args):
-        args = self.parser_picked_color.parse_args(args)
-        self.data["picked_color"] = [args.color[0], args.color[1], args.color[2]]
-        self.data["picked_prop"].SetColor(self.data["picked_color"])
+    def parse_picked(self, args):
+        args = self.parser_picked.parse_args(args)
+        self.data["picked"]["color"] = (args.color[0], args.color[1], args.color[2])
+        self.data["picked"]["prop"].SetColor(self.data["picked"]["color"])
         return "color_only"
 
     def write_background_color(self):

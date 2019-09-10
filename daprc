@@ -1,7 +1,7 @@
 colormap cmap -P 0.0   1.0 0.0 0.0   -P 1.0    1.0 1.0 1.0
 atom_type 14 -color 1.0 1.0 1.0 -opacity 1.0 -radius 0.4
 
-cell_box_color 0.0 1.0 1.0
+cell_box -color 0.0 1.0 1.0
 
 frame_label -fontsize 48
 atom_label -fontsize 48

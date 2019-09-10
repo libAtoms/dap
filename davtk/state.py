@@ -423,13 +423,13 @@ class DaVTKState(object):
 
     def update_cell_box(self, cell, settings_only=False):
         if self.cell_box_actor is None:
-            self.cell_box_actor = vtk.vtkActor()
-            self.cell_box_actor._vtk_type = "cell_box"
+            actor = vtk.vtkActor()
+            actor._vtk_type = "cell_box"
+            actor.PickableOff()
+            actor.SetProperty(self.settings["cell_box"]["prop"])
+            self.cell_box_actor = actor
 
         actor = self.cell_box_actor
-        actor.GetProperty().SetColor(self.settings["cell_box_color"][0:3])
-        actor.GetProperty().SetOpacity(self.settings["cell_box_color"][3])
-        actor.PickableOff()
 
         if settings_only:
             return
@@ -491,7 +491,7 @@ class DaVTKState(object):
                     colormap_val = (0.0, 0.0, 0.0)
             else:
                 (colormap_name, colormap_field) = colormap
-                if picked: # every colormap has picked_color at max range + 1.0
+                if picked: # every colormap has picked color at max range + 1.0
                     colormap_val = (self.settings["colormaps"][colormap_name][-1][0]+1.0, 0.0, 0.0)
                 else:
                     colormap_val = (np.linalg.norm(at.arrays[colormap_field]), 0.0, 0.0)
@@ -815,7 +815,7 @@ class DaVTKState(object):
             actor.i_at_bond = i_at_bond
 
             if name.endswith("_picked"):
-                actor.SetProperty(self.settings["picked_prop"])
+                actor.SetProperty(self.settings["picked"]["prop"])
             else:
                 actor.SetProperty(self.bond_prop[name])
 
@@ -1083,7 +1083,7 @@ class DaVTKState(object):
             lut.SetRange(data[0][0], data[-1][0])
             for pt in data:
                 lut.AddRGBPoint(pt[0], pt[1], pt[2], pt[3])
-            lut.AddRGBPoint(data[-1][0]+1.0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
+            lut.AddRGBPoint(data[-1][0]+1.0, self.settings["picked"]["color"][0], self.settings["picked"]["color"][1], self.settings["picked"]["color"][2])
             self.luts[name] = lut
 
         self.atom_type_luts = {}
@@ -1094,7 +1094,7 @@ class DaVTKState(object):
                 lut = vtk.vtkColorTransferFunction()
                 lut.SetRange(0,0)
                 lut.AddRGBPoint(0.0, color[0], color[1], color[2])
-                lut.AddRGBPoint(1.0, self.settings["picked_color"][0], self.settings["picked_color"][1], self.settings["picked_color"][2])
+                lut.AddRGBPoint(1.0, self.settings["picked"]["color"][0], self.settings["picked"]["color"][1], self.settings["picked"]["color"][2])
                 self.atom_type_luts[name] = lut
             elif self.settings["atom_types"][name]["colormap"] is not None:
                 self.atom_type_luts[name] = self.luts[self.settings["atom_types"][name]["colormap"][0]]
