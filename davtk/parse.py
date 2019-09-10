@@ -264,20 +264,20 @@ parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help()
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
 parser_images.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_images.add_argument("n",type=float,nargs='+', help="number of images to set (scalar or 3-vector)")
+parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of periodic images outside of initial cell to display (scalar or 3-vector)")
 def parse_images(davtk_state, renderer, args):
     args = parser_images.parse_args(args)
 
-    if len(args.n) == 1:
-        args.n *= 3
-    elif len(args.n) != 3:
-        raise ValueError("'"+str(args.n)+" not scalar or 3-vector")
+    if len(args.r) == 1:
+        args.r *= 3
+    elif len(args.r) != 3:
+        raise ValueError("'"+str(args.r)+" not scalar or 3-vector")
 
     if args.all_frames:
         for at in davtk_state.at_list:
-            at.info["_vtk_images"] = args.n
+            at.info["_vtk_images"] = args.r
     else:
-        davtk_state.cur_at().info["_vtk_images"] = args.n
+        davtk_state.cur_at().info["_vtk_images"] = args.r
 
     davtk_state.update()
 
@@ -287,26 +287,32 @@ parsers["images"] = (parse_images, parser_images.format_usage(), parser_images.f
 parser_vectors = ThrowingArgumentParser(prog="vectors",description="Draw vectors")
 parser_vectors.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_vectors.add_argument("-field",type=str,help="atom field to use for vectors (scalar or 3-vector)", default=None)
-parser_vectors.add_argument("-color",type=str,nargs='+',help="R G B, or string atom (by atom) or string sign (by sign of scalars only)", default=None)
-parser_vectors.add_argument("-sign_colors",type=float,nargs=6,metavar=('RU','GU','BU','RD','GD','BD'), help="colors for -name sign", default=None)
+parser_vectors.add_argument("-color",type=str,metavar=["COLOR_SCHEME"],nargs='+',help="The string 'atom' (color by atom), or one color: R G B, two colors : RUP GUP BUP RDOWN GDOWN BDOWN", default=None)
 parser_vectors.add_argument("-radius",type=float,help="cylinder radius", default=None)
 parser_vectors.add_argument("-scale",type=float,help="scaling factor from field value to cylinder length", default=None)
 parser_vectors.add_argument("-delete",action='store_true',help="disable")
 def parse_vectors(davtk_state, renderer, args):
     args = parser_vectors.parse_args(args)
 
+    args.sign_colors = None
     if args.color is not None:
-        if len(args.color) == 1:
-            if args.color[0] != "atom" and args.color[0] != "sign":
-                raise ValueError("Got single word -color argument '{}', not 'atom' or 'sign'".format(args.color))
-            args.color = args.color[0]
-        elif len(args.color) == 3:
+        if len(args.color) == 1: # color by atom
+            if args.color[0] != "atom":
+                raise ValueError("Got single word -color argument '{}', not 'atom'".format(args.color))
+            args.color = "atom"
+        elif len(args.color) == 3: # single color
             try:
                 args.color = [float(v) for v in args.color]
             except:
                 raise ValueError("Got 3-word args.color '{}' not convertible to float".format(args.color))
+        elif len(args.color) == 6: # color by sign
+            try:
+                args.sign_colors = [float(v) for v in args.color]
+            except:
+                raise ValueError("Got 3-word args.color '{}' not convertible to float".format(args.color))
+            args.color = "sign"
         else:
-            raise ValueError("Got args.color '{}' length not 1 or 3".format(args.color))
+            raise ValueError("Got args.color '{}' length not 1 or 3 or 6".format(args.color))
 
     if args.all_frames:
         ats = davtk_state.at_list
@@ -388,10 +394,11 @@ def parse_bond(davtk_state, renderer, args):
                 davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", None))
     else: # not creating, either delete or list or just modifying an existing name
         if args.delete:
-            davtk_state.delete(atoms=None, bonds=args.name)
+            for at in ats:
+                davtk_state.delete(at, atoms=None, bonds=args.name)
         elif args.list:
             if len(davtk_state.bond_prop) > 0:
-                print("bond names: ",list(davtk_state.bond_prop.keys()))
+                print("defined (not necessarily used) bond names: ",list(davtk_state.bond_prop.keys()))
             else:
                 print("no bond names defined")
         # else: just modifying existing proprerty
