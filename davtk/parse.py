@@ -626,7 +626,6 @@ volume_subparsers = {}
 volume_subparsers["WAVECAR"] = ThrowingArgumentParser(prog="WAVECAR", description="WAVECAR specific arguments")
 volume_subparsers["WAVECAR"].add_argument("-nk",type=int,help="number of k-point (1-based)", required=True)
 volume_subparsers["WAVECAR"].add_argument("-nband",type=int,help="number of band (1-based)", required=True)
-volume_subparsers["WAVECAR"].add_argument("-gamma",action='store_true',help="from gamma-point only executable")
 volume_subparsers["WAVECAR"].add_argument("-real_part",action='store_true',help="use real-part of wavefunction rather than squared modulus")
 volume_subparsers["WAVECAR"].add_argument("-component",choices=["total","spin","up","down"], help="spin component to plot", default="total")
 #
