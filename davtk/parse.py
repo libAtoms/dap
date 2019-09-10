@@ -389,10 +389,11 @@ def parse_bond(davtk_state, renderer, args):
                 davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", None))
     else: # not creating, either delete or list or just modifying an existing name
         if args.delete:
-            davtk_state.delete(atoms=None, bonds=args.name)
+            for at in ats:
+                davtk_state.delete(at, atoms=None, bonds=args.name)
         elif args.list:
             if len(davtk_state.bond_prop) > 0:
-                print("bond names: ",list(davtk_state.bond_prop.keys()))
+                print("defined (not necessarily used) bond names: ",list(davtk_state.bond_prop.keys()))
             else:
                 print("no bond names defined")
         # else: just modifying existing proprerty
