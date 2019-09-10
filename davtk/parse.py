@@ -686,10 +686,11 @@ def parse_volume(davtk_state, renderer, args):
                     else:
                         w *= norm_factor/np.sum(w)
 
+                ##
                 ## from pymatgen.io.vasp.outputs import Wavecar
                 from davtk.Wavecar import Wavecar # patched to real from gamma-only runs
                 ##
-                wf = Wavecar(args.filename, verbose=True, gamma=sub_args.gamma)
+                wf = Wavecar(args.filename, gamma=sub_args.gamma)
                 is_spin_polarized = wf.spin == 2
                 is_sq_modulus = False
                 if sub_args.component == "total":

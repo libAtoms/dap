@@ -102,6 +102,7 @@ class Wavecar:
                              accurate), only the first letter matters
         """
         self.filename = filename
+        self.gamma = gamma
 
         # c = 0.26246582250210965422
         # 2m/hbar^2 in agreement with VASP
@@ -295,7 +296,7 @@ class Wavecar:
                 j2 = j - 2 * self._nbmax[1] - 1 if j > self._nbmax[1] else j
                 for k in range(kmax):
                     k1 = k - 2 * self._nbmax[0] - 1 if k > self._nbmax[0] else k
-                    if gamma and (k1 == 0 and j2 < 0) or (k1 == 0 and j2 == 0 and i3 < 0):
+                    if gamma and ((k1 == 0 and j2 < 0) or (k1 == 0 and j2 == 0 and i3 < 0)):
                         continue
                     G = np.array([k1, j2, i3])
                     v = kpoint + G
@@ -369,7 +370,7 @@ class Wavecar:
         for gp, coeff in zip(self.Gpoints[kpoint], tcoeffs):
             t = tuple(gp.astype(np.int) + (self.ng / 2).astype(np.int))
             mesh[t] = coeff
-            if tuple(gp.astype(int)) != (0,0,0):
+            if self.gamma and tuple(gp.astype(int)) != (0,0,0): # reconstruct missing complex conj coeff
                 t = tuple(-gp.astype(np.int) + (self.ng / 2).astype(np.int))
                 mesh[t] = np.conj(coeff)
         if shift:
