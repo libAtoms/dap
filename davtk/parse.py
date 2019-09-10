@@ -230,7 +230,8 @@ parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_he
 
 parser_delete = ThrowingArgumentParser(prog="delete",description="delete objects (picked by default)")
 parser_delete.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_delete.add_argument("-atoms",type=int,nargs='+',help="delete by these indices ")
+parser_delete.add_argument("-atom_index",type=int,nargs='+',help="delete atoms by these indices ", default=None)
+parser_delete.add_argument("-bond_name",nargs='+',help="delete bonds with these names ", default=None)
 def parse_delete(davtk_state, renderer, args):
     args = parser_delete.parse_args(args)
     if args.all_frames:
@@ -239,10 +240,16 @@ def parse_delete(davtk_state, renderer, args):
         ats = [davtk_state.cur_at()]
 
     for at in ats:
-        if args.atoms is not None:
-            davtk_state.delete(at, atoms=args.atoms, frames=frame_list)
-        else:
-            davtk_state.delete(at, atoms="picked", bonds="picked", frames=frame_list)
+        did_something = False
+        if args.atom_index is not None:
+            davtk_state.delete(at, atom_selection=args.atom_index)
+            did_something = True
+        if args.bond_name is not None:
+            for name in args.bond_name:
+                davtk_state.delete(at, bond_selection=name)
+            did_something = True
+        if not did_something:
+            davtk_state.delete(at, atom_selection="picked", bond_selection="picked")
 
     return "cur"
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
@@ -397,7 +404,7 @@ def parse_bond(davtk_state, renderer, args):
     else: # not creating, either delete or list or just modifying an existing name
         if args.delete:
             for at in ats:
-                davtk_state.delete(at, atoms=None, bonds=args.name)
+                davtk_state.delete(at, atom_selection=None, bond_selection=args.name)
         elif args.list:
             if len(davtk_state.bond_prop) > 0:
                 print("defined (not necessarily used) bond names: ",list(davtk_state.bond_prop.keys()))

@@ -102,7 +102,7 @@ class DavTKBonds(object):
         def none_zero(x):
             return x if x is not None else 0.0
 
-        def pair_match(at_type_a, i, j, at_type, at_type2):
+        def pair_type_match(at_type_a, i, j, at_type, at_type2):
             return ( ((at_type == '*' or str(at_type_a[i]) == at_type) and (at_type2 == '*' or str(at_type_a[j]) == at_type2)) or
                      ((at_type == '*' or str(at_type_a[j]) == at_type) and (at_type2 == '*' or str(at_type_a[i]) == at_type2)) )
 
@@ -125,10 +125,12 @@ class DavTKBonds(object):
         if max_cutoff <= 0.0:
             return
 
-        nn_list = ase.neighborlist.neighbor_list('ijDdS', self.at, max_cutoff, self_interaction=True)
-        for (i, j, v, d, S) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3], nn_list[4]):
+        nn_list = ase.neighborlist.neighbor_list('ijdS', self.at, max_cutoff, self_interaction=True)
+        for (i, j, d, S) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
             try:
-                if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_match(atom_type_list, i, j, at_type, at_type2):
+                if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_type_match(atom_type_list, i, j, at_type, at_type2):
+                    if i == j and S in (b["S"] for b in self.bonds[i]): # don't create opposite bonds for i-i (periodic image)
+                        continue
                     self.bonds[i].append({ "j" : j, "S" : np.array(S), "name" : name, "picked" : False})
             except: # failed, presumably due to bonding_radius None
                 pass
@@ -168,6 +170,8 @@ class DavTKBonds(object):
                     self.bonds[at_i].append( {"j" : j, "S" : np.array(S), "name" : name, "picked" : picked } )
 
     def pair_mic(self, name, ind1, ind2):
+        if ind1 == ind2:
+            raise ValueError("Can't minimum-image-convention bond atom to itself")
         v = self.at.get_distance(ind1, ind2, mic=True, vector=True)
         self.bonds[ind1].append( {"j" : ind2, "S" : np.array([0,0,0]), "name" : name, "picked" : False } )
         self.bonds[ind2].append( {"j" : ind1, "S" : np.array([0,0,0]), "name" : name, "picked" : False } )
@@ -176,23 +180,22 @@ class DavTKBonds(object):
         b = self.bonds[i_at][j_ind]
         b["picked"] = stat
         j_at = b["j"]
-        if j_at != i_at:
+        if j_at != i_at: # find opposite
             for (bb_i, bb) in enumerate(self.bonds[j_at]):
                 if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
                     self.bonds[b["j"]][bb_i]["picked"] = stat
                     return
-        raise ValueError("set_picked failed to find opposite for {} {}".format(i_at, j_at))
+            raise ValueError("set_picked failed to find opposite for {} {}".format(i_at, j_at))
 
-    def delete_one(self, i_at, j_ind, do_opposite=True):
+    def delete_one(self, i_at, j_ind):
         b = self.bonds[i_at][j_ind]
         del self.bonds[i_at][j_ind]
-        if do_opposite:
-            j_at = b["j"]
-            if j_at != i_at:
-                for (bb_i, bb) in enumerate(self.bonds[j_at]):
-                    if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
-                        del self.bonds[b["j"]][bb_i]
-                        return
+        j_at = b["j"]
+        if i_at != j_at: # remove opposite
+            for (bb_i, bb) in enumerate(self.bonds[j_at]):
+                if bb["j"] == i_at and np.all(b["S"] == -bb["S"]):
+                    del self.bonds[b["j"]][bb_i]
+                    return
             raise ValueError("delete_one failed to find opposite for {} {}".format(i_at, j_at))
 
     def delete_atoms(self, at_inds):
@@ -325,37 +328,46 @@ class DaVTKState(object):
         else:
             return frames
 
-    def delete(self, at, atoms=None, bonds=None):
+    def delete(self, at, atom_selection=None, bond_selection=None):
         # delete atoms and their bonds
         if "_vtk_orig_indices" not in at.arrays:
             at.new_array("_vtk_orig_indices", np.array(range(len(at))))
-        if atoms is not None:
-            if atoms == "picked":
+        if atom_selection is not None:
+            if atom_selection == "picked":
                 if "_vtk_picked" in at.arrays:
                     at_inds = np.where(at.arrays["_vtk_picked"])[0]
                 else:
                     at_inds = []
-            elif isinstance(atoms,int):
-                at_inds = np.array([atoms])
+            elif isinstance(atom_selection,int):
+                at_inds = np.array([atom_selection])
             else:
-                at_inds = np.array(atoms)
+                at_inds = np.array(atom_selection)
             del at[at_inds]
             if hasattr(at, "bonds"):
                 at.bonds.delete_atoms(at_inds)
 
         # delete requested bonds
-        if bonds is not None and hasattr(at, "bonds"):
-            if bonds == "picked":
+        if bond_selection is not None and hasattr(at, "bonds"):
+            if bond_selection == "picked":
                 for i_at in range(len(at)):
-                    for j_ind in [jj for jj in range(len(at.bonds[i_at])) if at.bonds[i_at][jj]["picked"]]:
-                        at.bonds.delete_one(i_at, j_ind, do_opposite=False) # dangerous
-            elif bonds == "all":
+                    while True:
+                        b_row = at.bonds[i_at]
+                        try:
+                            j_ind = next(jj for jj in range(len(b_row)) if b_row[jj]["picked"])
+                        except StopIteration: # no more matching neighbors
+                            break
+                        at.bonds.delete_one(i_at, j_ind)
+            elif bond_selection == "all":
                 at.bonds.reinit()
             else:
                 for i_at in range(len(at)):
-                    for j_ind in [jj for jj in range(len(at.bonds[i_at])) if at.bonds[i_at][jj]["name"] == bonds]:
-                        at.bonds.delete_one(i_at, j_ind, do_opposite=False) # dangerous
-
+                    while True:
+                        b_row = at.bonds[i_at]
+                        try:
+                            j_ind = next(jj for jj in range(len(b_row)) if b_row[jj]["name"] == bond_selection)
+                        except StopIteration: # no more matching neighbors
+                            break
+                        at.bonds.delete_one(i_at, j_ind)
 
     def update_settings(self):
         self.create_atom_type_luts()
