@@ -265,20 +265,20 @@ parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help()
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
 parser_images.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_images.add_argument("n",type=float,nargs='+', help="number of images to set (scalar or 3-vector)")
+parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of periodic images outside of initial cell to display (scalar or 3-vector)")
 def parse_images(davtk_state, renderer, args):
     args = parser_images.parse_args(args)
 
-    if len(args.n) == 1:
-        args.n *= 3
-    elif len(args.n) != 3:
-        raise ValueError("'"+str(args.n)+" not scalar or 3-vector")
+    if len(args.r) == 1:
+        args.r *= 3
+    elif len(args.r) != 3:
+        raise ValueError("'"+str(args.r)+" not scalar or 3-vector")
 
     if args.all_frames:
         for at in davtk_state.at_list:
-            at.info["_vtk_images"] = args.n
+            at.info["_vtk_images"] = args.r
     else:
-        davtk_state.cur_at().info["_vtk_images"] = args.n
+        davtk_state.cur_at().info["_vtk_images"] = args.r
 
     davtk_state.update()
 
