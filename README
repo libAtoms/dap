@@ -14,14 +14,14 @@ FUNCTIONALITY
     - display isosurfaces from volumetric data over the config unit cell (including non-orthorhombic)
         a simple native ASCII format
         CHGCAR using VaspChargeDensity from ase.calculators.vasp 
-        WAVECAR using Wavecar from pymatgen.io.vasp.outputs
+        WAVECAR using Wavecar from pymatgen.io.vasp.outputs (patched to read gamma-point only runs)
     - display vectors associated with each atom (like magnetic moments), either from real 3-vector field, or from scalar field
     - display coordination polyhedra given atom type of center and bonds or cutoff to neighbors
     - multiple configurations interpreted as trajectories (i.e. identical camera view)
     - frame label from arbitrary Atoms.info field
     - snapshots by rendering at arbitrary integer multiples of display resolution
     - automated movie creation (requires ffmpeg executable in path)
-    - arbitrary ASE commands applied to atomic configurations
+    - arbitrary ASE functions applied to atomic configurations
     - display legend with each used atom type
     - save full state of display (settings, atoms, bonds, etc., as well as view orientation, but not window size)
     - command history using GNU readline 
@@ -57,6 +57,7 @@ CLI help is available with 'usage' or, for each command, with 'command -h' in th
 TODO (in expected order of implementation)
     MAYBE DONE?
         get rid of bond_type and surface_type, replace with direct color/material/radius arguments to bond, volume, and polyhedra commands
+        read WAVECAR (medium - graphics easy, but need to read binary and do FFT)
 
     STARTED
         optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]
@@ -65,7 +66,6 @@ TODO (in expected order of implementation)
 
         measure angle for atoms, not just bonds ? (easy)
         read CHG as well as CHGCAR (easy)
-        read WAVECAR (medium - graphics easy, but need to read binary and do FFT)
         display measurements in GUI ? (medium)
         better examples (easy)
         slices through volumetric data (maybe also voxel visualization) (depends on vtk support)
