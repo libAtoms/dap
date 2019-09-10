@@ -91,7 +91,7 @@ class Wavecar:
     Author: Mark Turiansky
     """
 
-    def __init__(self, filename='WAVECAR', verbose=False, precision='normal', gamma=False):
+    def __init__(self, filename='WAVECAR', verbose=False, precision='normal', gamma=None):
         """
         Information is extracted from the given WAVECAR
 
@@ -102,7 +102,6 @@ class Wavecar:
                              accurate), only the first letter matters
         """
         self.filename = filename
-        self.gamma = gamma
 
         # c = 0.26246582250210965422
         # 2m/hbar^2 in agreement with VASP
@@ -208,10 +207,20 @@ class Wavecar:
                     np.fromfile(f, dtype=np.float64, count=(recl8 - 4 - 3 * self.nb))
 
                     # generate G integers
-                    self.Gpoints[ink] = self._generate_G_points(kpoint, gamma)
+                    if gamma is not None: # use it
+                        self.gamma = gamma
+                        self.Gpoints[ink] = self._generate_G_points(kpoint, gamma)
+                    else: # try assuming a conventional (non-gamma) calculation
+                        self.gamma = False
+                        self.Gpoints[ink] = self._generate_G_points(kpoint, False)
+                    if gamma is None and len(self.Gpoints[ink]) != nplane: # failed with conventional, retry with gamma-only format
+                        self.gamma = True
+                        self.Gpoints[ink] = self._generate_G_points(kpoint, True)
                     if len(self.Gpoints[ink]) != nplane:
                         raise ValueError('failed to generate the correct '
                                          'number of G points {} {}'.format(len(self.Gpoints[ink]), nplane))
+                    if verbose:
+                        print("gamma-only input",gamma,"final",self.gamma)
 
                     # extract coefficients
                     for inb in range(self.nb):

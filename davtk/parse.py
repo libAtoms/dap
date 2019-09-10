@@ -681,11 +681,6 @@ def parse_volume(davtk_state, renderer, args):
             elif args.filename.endswith("WAVECAR"):
                 sub_args = volume_subparsers["WAVECAR"].parse_args(args.file_args)
 
-                if len(args.file_args) == 3:
-                    gamma = args.file_args[2].lower() in ["t","true","1"]
-                else:
-                    gamma = None
-
                 def normalize(w, to_sqrt=False):
                     norm_factor = np.product(w.shape)/davtk_state.cur_at().get_volume()
                     if to_sqrt:
@@ -697,7 +692,7 @@ def parse_volume(davtk_state, renderer, args):
                 ## from pymatgen.io.vasp.outputs import Wavecar
                 from davtk.Wavecar import Wavecar # patched to real from gamma-only runs
                 ##
-                wf = Wavecar(args.filename, gamma=sub_args.gamma)
+                wf = Wavecar(args.filename, verbose=True)
                 is_spin_polarized = wf.spin == 2
                 is_sq_modulus = False
                 if sub_args.component == "total":
