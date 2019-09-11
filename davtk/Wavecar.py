@@ -102,6 +102,7 @@ class Wavecar:
                              accurate), only the first letter matters
         """
         self.filename = filename
+        self.extra_coeff_inds = []
 
         # c = 0.26246582250210965422
         # 2m/hbar^2 in agreement with VASP
@@ -207,18 +208,22 @@ class Wavecar:
                     np.fromfile(f, dtype=np.float64, count=(recl8 - 4 - 3 * self.nb))
 
                     # generate G integers
-                    if gamma is not None: # use it
+                    if gamma is not None:
+                        # use it
                         self.gamma = gamma
                         self.Gpoints[ink] = self._generate_G_points(kpoint, gamma)
-                    else: # try assuming a conventional (non-gamma) calculation
+                    else:
+                        # try assuming a conventional (non-gamma) calculation
                         self.gamma = False
                         self.Gpoints[ink] = self._generate_G_points(kpoint, False)
-                    if gamma is None and len(self.Gpoints[ink]) != nplane: # failed with conventional, retry with gamma-only format
+                    if gamma is None and len(self.Gpoints[ink]) != nplane:
+                        # failed with conventional, retry with gamma-only format
                         self.gamma = True
                         self.Gpoints[ink] = self._generate_G_points(kpoint, True)
                     if len(self.Gpoints[ink]) != nplane:
                         raise ValueError('failed to generate the correct '
-                                         'number of G points {} {}'.format(len(self.Gpoints[ink]), nplane))
+                                         'number of G points generated {} read in {}'.format(
+                                             len(self.Gpoints[ink]), nplane))
                     if verbose:
                         print("gamma-only input",gamma,"final",self.gamma)
 
@@ -233,10 +238,14 @@ class Wavecar:
                             data = np.fromfile(f, dtype=np.complex128, count=nplane)
                             np.fromfile(f, dtype=np.float64, count=recl8 - 2 * nplane)
 
+                        extra_coeffs = []
+                        if len(self.extra_coeff_inds) > 0:
+                            for G_ind in self.extra_coeff_inds:
+                                extra_coeffs.append(self.conj(data[G_ind]))
                         if spin == 2:
-                            self.coeffs[ispin][ink][inb] = data
+                            self.coeffs[ispin][ink][inb] = np.array(list(data)+extra_coeffs, dtype=np.complex64)
                         else:
-                            self.coeffs[ink][inb] = data
+                            self.coeffs[ink][inb] = np.array(list(data) + extra_coeffs, dtype=np.complex128)
 
     def _generate_nbmax(self):
         """
@@ -292,13 +301,16 @@ class Wavecar:
         Returns:
             a list containing valid G-points
         """
-        gpoints = []
 
         if gamma:
             kmax = self._nbmax[0] + 1
         else:
             kmax = 2 * self._nbmax[0] + 1
 
+        gpoints = []
+        extra_gpoints = []
+        self.extra_coeff_inds = []
+        G_ind = 0
         for i in range(2 * self._nbmax[2] + 1):
             i3 = i - 2 * self._nbmax[2] - 1 if i > self._nbmax[2] else i
             for j in range(2 * self._nbmax[1] + 1):
@@ -313,7 +325,11 @@ class Wavecar:
                     E = g ** 2 / self._C
                     if E < self.encut:
                         gpoints.append(G)
-        return np.array(gpoints, dtype=np.float64)
+                        if gamma and (k1,j2,i3) != (0,0,0):
+                            extra_gpoints.append(-G)
+                            self.extra_coeff_inds.append(G_ind)
+                        G_ind += 1
+        return np.array(gpoints+extra_gpoints, dtype=np.float64)
 
     def evaluate_wavefunc(self, kpoint, band, r, spin=0):
         r"""
@@ -379,9 +395,6 @@ class Wavecar:
         for gp, coeff in zip(self.Gpoints[kpoint], tcoeffs):
             t = tuple(gp.astype(np.int) + (self.ng / 2).astype(np.int))
             mesh[t] = coeff
-            if self.gamma and tuple(gp.astype(int)) != (0,0,0): # reconstruct missing complex conj coeff
-                t = tuple(-gp.astype(np.int) + (self.ng / 2).astype(np.int))
-                mesh[t] = np.conj(coeff)
         if shift:
             return np.fft.ifftshift(mesh)
         else:

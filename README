@@ -64,10 +64,10 @@ TODO (in expected order of implementation)
 
     NOT EVEN STARTED
 
+        color isosurfaces by a scalar (medium)
         measure angle for atoms, not just bonds ? (easy)
-        read CHG as well as CHGCAR (easy)
         display measurements in GUI ? (medium)
         better examples (easy)
         slices through volumetric data (maybe also voxel visualization) (depends on vtk support)
-        color isosurfaces by a scalar (medium)
         better integration with ASE data structures (varies)
+        read CHG as well as CHGCAR (easy)

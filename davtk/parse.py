@@ -348,7 +348,7 @@ parser_bond.add_argument("-T2",type=str,help="Restrict other member to given ato
 grp = parser_bond.add_mutually_exclusive_group()
 grp.add_argument("-picked", action='store_true', help="bond a pair of picked atoms with MIC")
 grp.add_argument("-n", action='store', type=int, nargs=2, help="bond a pair of atoms with given IDs", default=None)
-grp.add_argument("-cutoff", "-c", action='store', type=float, nargs='+', help="bond atoms with max (one argument) or min-max (two arguments) cutoffs", default=None)
+grp.add_argument("-cutoff", "-cut", "-c", action='store', type=float, nargs='+', help="bond atoms with max (one argument) or min-max (two arguments) cutoffs", default=None)
 grp.add_argument("-auto", action='store_true', help="bond by previously set per-atom bonding radius")
 parser_bond.add_argument("-radius", type=float, help="radius of bond cylinders", default=None)
 parser_bond.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for bonds", default=None)
@@ -691,7 +691,7 @@ def parse_volume(davtk_state, renderer, args):
                 ## from pymatgen.io.vasp.outputs import Wavecar
                 from davtk.Wavecar import Wavecar # patched to real from gamma-only runs
                 ##
-                wf = Wavecar(args.filename, verbose=True)
+                wf = Wavecar(args.filename) # , verbose=True)
                 is_spin_polarized = wf.spin == 2
                 is_sq_modulus = False
                 if sub_args.component == "total":
