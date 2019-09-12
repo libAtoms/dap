@@ -609,7 +609,7 @@ def parse_polyhedra(davtk_state, renderer, args):
 parsers["polyhedra"] = (parse_polyhedra, parser_polyhedra.format_usage(), parser_polyhedra.format_help())
 
 parser_volume = ThrowingArgumentParser(prog="volume",description="read volumetric data from file")
-parser_volume.add_argument("filename",nargs='?',help="File to read from. Text dap internal format, *.CHGCAR, or *.WAVECAR")
+parser_volume.add_argument("filename",nargs='?',help="File to read from. Text dap internal format, *.CHGCAR, *.PARCHG, or *.WAVECAR")
 parser_volume.add_argument("-name",type=str, help="name to assign (default to filename)", default=None)
 group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
@@ -658,8 +658,15 @@ def parse_volume(davtk_state, renderer, args):
 
         update_prop(davtk_state.volume_rep_prop[args.name], args)
 
+        def normalize(w, to_sqrt=False):
+            norm_factor = np.product(w.shape)/davtk_state.cur_at().get_volume()
+            if to_sqrt:
+                w *= np.sqrt(norm_factor)/np.linalg.norm(w)
+            else:
+                w *= norm_factor/np.sum(w)
+
         if creating_rep:
-            if args.filename.endswith("CHGCAR"):
+            if args.filename.endswith("CHGCAR") or args.filename.endswith("PARCHG"):
                 sub_args = volume_subparsers["CHGCAR"].parse_args(args.file_args)
 
                 chgcar = VaspChargeDensity(args.filename)
@@ -676,16 +683,10 @@ def parse_volume(davtk_state, renderer, args):
                         data = 0.5*(chgcar.chg[0] - chgcar.chgdiff[0])
                     else:
                         raise RuntimeError("volume CHGCAR should never get here")
+                # normalize(data)
                 data = np.ascontiguousarray(data.T)
             elif args.filename.endswith("WAVECAR"):
                 sub_args = volume_subparsers["WAVECAR"].parse_args(args.file_args)
-
-                def normalize(w, to_sqrt=False):
-                    norm_factor = np.product(w.shape)/davtk_state.cur_at().get_volume()
-                    if to_sqrt:
-                        w *= np.sqrt(norm_factor)/np.linalg.norm(w)
-                    else:
-                        w *= norm_factor/np.sum(w)
 
                 ##
                 ## from pymatgen.io.vasp.outputs import Wavecar
@@ -703,14 +704,14 @@ def parse_volume(davtk_state, renderer, args):
                         wavecar = wavecar_0 + wavecar_1
                     else:
                         wavecar = np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1))
-                        # # for testing purposes:
-                        # wavecar = np.zeros((20,20,20))
-                        # c = davtk_state.cur_at().get_cell()
-                        # for i in range(20):
-                            # for j in range(20):
-                                # for k in range(20):
-                                    # p = np.dot((float(i)/20.0, float(j)/20.0, float(k)/20.0),c)
-                                    # wavecar[i,j,k] = wf.evaluate_wavefunc(sub_args.nk-1, sub_args.nband-1, p, 0)
+                        ## # for testing purposes:
+                        ## wavecar = np.zeros((20,20,20))
+                        ## c = davtk_state.cur_at().get_cell()
+                        ## for i in range(20):
+                            ## for j in range(20):
+                                ## for k in range(20):
+                                    ## p = np.dot((float(i)/20.0, float(j)/20.0, float(k)/20.0),c)
+                                    ## wavecar[i,j,k] = wf.evaluate_wavefunc(sub_args.nk-1, sub_args.nband-1, p, 0)
                         normalize(wavecar, True)
                         is_sq_modulus = False
                 else:
