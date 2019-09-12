@@ -711,7 +711,7 @@ def parse_volume(davtk_state, renderer, args):
                             ## for j in range(20):
                                 ## for k in range(20):
                                     ## p = np.dot((float(i)/20.0, float(j)/20.0, float(k)/20.0),c)
-                                    ## wavecar[i,j,k] = wf.evaluate_wavefunc(sub_args.nk-1, sub_args.nband-1, p, 0)
+                                    ## wavecar[i,j,k] = np.real(wf.evaluate_wavefunc(sub_args.nk-1, sub_args.nband-1, p, 0))
                         normalize(wavecar, True)
                         is_sq_modulus = False
                 else:

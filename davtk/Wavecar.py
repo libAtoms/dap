@@ -102,7 +102,6 @@ class Wavecar:
                              accurate), only the first letter matters
         """
         self.filename = filename
-        self.extra_coeff_inds = []
 
         # c = 0.26246582250210965422
         # 2m/hbar^2 in agreement with VASP
@@ -216,16 +215,16 @@ class Wavecar:
                     if gamma is not None:
                         # use it
                         self.gamma = gamma
-                        (self.Gpoints[ink], extra_gpoints) = self._generate_G_points(kpoint, gamma)
+                        (self.Gpoints[ink], extra_gpoints, extra_coeff_inds) = self._generate_G_points(kpoint, gamma)
                     else:
                         # try assuming a conventional (non-gamma) calculation
                         self.gamma = False
-                        (self.Gpoints[ink], extra_gpoints) = self._generate_G_points(kpoint, False)
+                        (self.Gpoints[ink], extra_gpoints, extra_coeff_inds) = self._generate_G_points(kpoint, False)
                         initial_generated = len(self.Gpoints[ink])
                     if gamma is None and len(self.Gpoints[ink]) != nplane:
                         # failed with conventional, retry with gamma-only format
                         self.gamma = True
-                        (self.Gpoints[ink], extra_gpoints) = self._generate_G_points(kpoint, True)
+                        (self.Gpoints[ink], extra_gpoints, extra_coeff_inds) = self._generate_G_points(kpoint, True)
                     if len(self.Gpoints[ink]) != nplane:
                         # failed to match number of plane waves for either gamma or non-gamma
                         if gamma is None:
@@ -253,9 +252,9 @@ class Wavecar:
                             np.fromfile(f, dtype=np.float64, count=recl8 - 2 * nplane)
 
                         extra_coeffs = []
-                        if len(self.extra_coeff_inds) > 0:
+                        if len(extra_coeff_inds) > 0:
                             # reconstruct extra coefficients missing from gamma-only executable WAVECAR
-                            for G_ind in self.extra_coeff_inds:
+                            for G_ind in extra_coeff_inds:
                                 # no idea where this factor of sqrt(2) comes from, but empirically
                                 # it appears to be necessary
                                 data[G_ind] /= np.sqrt(2)
@@ -327,7 +326,7 @@ class Wavecar:
 
         gpoints = []
         extra_gpoints = []
-        self.extra_coeff_inds = []
+        extra_coeff_inds = []
         G_ind = 0
         for i in range(2 * self._nbmax[2] + 1):
             i3 = i - 2 * self._nbmax[2] - 1 if i > self._nbmax[2] else i
@@ -345,9 +344,9 @@ class Wavecar:
                         gpoints.append(G)
                         if gamma and (k1,j2,i3) != (0,0,0):
                             extra_gpoints.append(-G)
-                            self.extra_coeff_inds.append(G_ind)
+                            extra_coeff_inds.append(G_ind)
                         G_ind += 1
-        return (gpoints, extra_gpoints)
+        return (gpoints, extra_gpoints, extra_coeff_inds)
 
     def evaluate_wavefunc(self, kpoint, band, r, spin=0):
         r"""
