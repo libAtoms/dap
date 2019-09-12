@@ -703,6 +703,14 @@ def parse_volume(davtk_state, renderer, args):
                         wavecar = wavecar_0 + wavecar_1
                     else:
                         wavecar = np.fft.ifftn(wf.fft_mesh(sub_args.nk-1, sub_args.nband-1))
+                        # # for testing purposes:
+                        # wavecar = np.zeros((20,20,20))
+                        # c = davtk_state.cur_at().get_cell()
+                        # for i in range(20):
+                            # for j in range(20):
+                                # for k in range(20):
+                                    # p = np.dot((float(i)/20.0, float(j)/20.0, float(k)/20.0),c)
+                                    # wavecar[i,j,k] = wf.evaluate_wavefunc(sub_args.nk-1, sub_args.nband-1, p, 0)
                         normalize(wavecar, True)
                         is_sq_modulus = False
                 else:
