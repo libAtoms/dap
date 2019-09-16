@@ -256,7 +256,7 @@ parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.f
 
 parser_dup = ThrowingArgumentParser(prog="dup",description="duplicate cell")
 parser_dup.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_dup.add_argument("n",type=int,nargs='+', help="number of images to set (scalar or 3-vector)")
+parser_dup.add_argument("n",type=int,nargs='+', help="number of periodic images of cell to create (scalar or 3-vector)")
 def parse_dup(davtk_state, renderer, args):
     args = parser_dup.parse_args(args)
     if args.all_frames:
@@ -273,13 +273,15 @@ parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help()
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
 parser_images.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of periodic images outside of initial cell to display (scalar or 3-vector)")
+parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of images to display.  If scalar or 3-vector, padding in addition to original cell (i.e. -R -- 1+R).  If 6-vector, r0_min -- r0_max, r1_min -- r1_max, r2_min -- r2_max")
 def parse_images(davtk_state, renderer, args):
     args = parser_images.parse_args(args)
 
     if len(args.r) == 1:
-        args.r *= 3
-    elif len(args.r) != 3:
+        args.r = [-args.r[0], 1.0+args.r[0]] * 3
+    elif len(args.r) == 3:
+        args.r = [-args.r[0], 1.0+args.r[0], -args.r[1], 1.0+args.r[1], -args.r[2], 1.0+args.r[2]]
+    elif len(args.r) != 6:
         raise ValueError("'"+str(args.r)+" not scalar or 3-vector")
 
     if args.all_frames:

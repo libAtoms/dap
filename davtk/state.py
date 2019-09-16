@@ -408,7 +408,6 @@ class DaVTKState(object):
         self.update_atom_labels(at)
         self.update_bonds(at, what == "color_only")
         self.update_vectors(at)
-        self.update_image_atoms(at)
         self.update_volume_reps(at, what == "settings" or what == "color_only")
         self.update_legend(at)
         self.update_frame_label(at)
@@ -473,6 +472,13 @@ class DaVTKState(object):
     def atoms_plotting_info(self, at):
         atom_type_list = get_atom_type_list(self.settings, at)
         pos = at.positions
+        cell = at.get_cell()
+        cell_inv = at.get_reciprocal_cell().T
+
+        rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
+        (r0_min, r0_max) = (rv[0], rv[1])
+        (r1_min, r1_max) = (rv[2], rv[3])
+        (r2_min, r2_max) = (rv[4], rv[5])
 
         # create structures for each atom type
         points_lists = {}
@@ -508,10 +514,18 @@ class DaVTKState(object):
                 else:
                     colormap_val = (np.linalg.norm(at.arrays[colormap_field]), 0.0, 0.0)
 
-            points_lists[at_type].append(pos[i_at])
-            radius_lists[at_type].append(r)
-            colormap_vals_lists[at_type].append(colormap_val)
-            i_at_lists[at_type].append(i_at)
+            for s0 in range(int(math.floor(r0_min)), int(math.ceil(r0_max))):
+                for s1 in range(int(math.floor(r1_min)), int(math.ceil(r1_max))):
+                    for s2 in range(int(math.floor(r2_min)), int(math.ceil(r2_max))):
+                        p = pos[i_at] + np.dot([s0, s1, s2], cell)
+                        p_scaled = np.dot(p, cell_inv)
+                        if (p_scaled[0] >= r0_min and p_scaled[0] < r0_max and
+                            p_scaled[1] >= r1_min and p_scaled[1] < r1_max and
+                            p_scaled[2] >= r2_min and p_scaled[2] < r2_max):
+                            points_lists[at_type].append(p)
+                            radius_lists[at_type].append(r)
+                            colormap_vals_lists[at_type].append(colormap_val)
+                            i_at_lists[at_type].append(i_at)
 
         return (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists)
 
@@ -833,60 +847,6 @@ class DaVTKState(object):
 
             actor.VisibilityOn()
             self.renderer.AddActor(actor)
-
-    def update_image_atoms(self, at):
-        if "_vtk_images" not in at.info:
-            return
-
-        (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists) = self.atoms_plotting_info(at)
-
-        n_images = 0
-        pos = at.get_positions()
-        cell = at.get_cell()
-        cell_inv = at.get_reciprocal_cell().T
-        for at_type in unique_types:
-            for (point, r, colormap_val, i_at) in zip(points_lists[at_type], radius_lists[at_type], colormap_vals_lists[at_type], i_at_lists[at_type]):
-                n0 = int(math.ceil(at.info["_vtk_images"][0]))
-                n1 = int(math.ceil(at.info["_vtk_images"][1]))
-                n2 = int(math.ceil(at.info["_vtk_images"][2]))
-                for i0 in range(-n0, n0+1):
-                    for i1 in range(-n1, n1+1):
-                        for i2 in range(-n2, n2+1):
-                            if (i0,i1,i2) == (0,0,0):
-                                continue
-                            image_pos = pos[i_at] + np.dot([i0, i1, i2], cell)
-                            image_pos_scaled = np.dot(image_pos, cell_inv)
-                            if (image_pos_scaled[0] >= -at.info["_vtk_images"][0] and
-                                image_pos_scaled[0] <= 1+at.info["_vtk_images"][0] and
-                                image_pos_scaled[1] >= -at.info["_vtk_images"][1] and
-                                image_pos_scaled[1] <= 1+at.info["_vtk_images"][1] and
-                                image_pos_scaled[2] >= -at.info["_vtk_images"][2] and
-                                image_pos_scaled[2] <= 1+at.info["_vtk_images"][2]):
-                                n_images += 1
-                                if n_images > len(self.image_atom_actors):
-                                    image_actor = vtk.vtkActor()
-                                    self.image_atom_actors.append(image_actor)
-                                    self.renderer.AddActor(image_actor)
-                                    image_actor.VisibilityOn()
-                                    image_actor.PickableOn()
-                                    image_actor._vtk_type = "image_atom"
-                                    image_actor.SetMapper(self.shapes["mappers"]["sphere"])
-                                else:
-                                    image_actor = self.image_atom_actors[n_images-1]
-
-                                color = self.atom_type_luts[at_type].GetColor(np.linalg.norm(colormap_val))
-                                image_actor.SetProperty(self.settings["atom_types"][at_type]["prop"])
-                                # image_actor.GetProperty().SetColor(color)
-                                image_actor.SetPosition(image_pos)
-                                image_actor.SetScale(r,r,r)
-                                image_actor.i_at = i_at
-                                image_actor.VisibilityOn()
-
-        if len(self.image_atom_actors) > n_images:
-            for actor in self.image_atom_actors[n_images:]:
-                actor.VisibilityOff()
-                actor.PickableOff()
-                actor.i_at = -1
 
     def update_legend(self, at):
 
