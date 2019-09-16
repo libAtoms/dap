@@ -273,22 +273,33 @@ parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help()
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
 parser_images.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of images to display.  If scalar or 3-vector, padding in addition to original cell (i.e. -R -- 1+R).  If 6-vector, r0_min -- r0_max, r1_min -- r1_max, r2_min -- r2_max")
+parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of images to display.  If scalar or 3-vector, padding in addition to original cell (i.e. -R -- 1+R).  If 6-vector, r0_min -- r0_max, r1_min -- r1_max, r2_min -- r2_max.  If scalar < 0, reset")
 def parse_images(davtk_state, renderer, args):
     args = parser_images.parse_args(args)
 
     if len(args.r) == 1:
-        args.r = [-args.r[0], 1.0+args.r[0]] * 3
+        if args.r[0] < 0:
+            args.r = None
+        else:
+            args.r = [-args.r[0], 1.0+args.r[0]] * 3
     elif len(args.r) == 3:
         args.r = [-args.r[0], 1.0+args.r[0], -args.r[1], 1.0+args.r[1], -args.r[2], 1.0+args.r[2]]
     elif len(args.r) != 6:
         raise ValueError("'"+str(args.r)+" not scalar or 3-vector")
 
     if args.all_frames:
-        for at in davtk_state.at_list:
-            at.info["_vtk_images"] = args.r
+        ats = davtk_state.at_list
     else:
-        davtk_state.cur_at().info["_vtk_images"] = args.r
+        ats = [ davtk_state.cur_at() ]
+
+    for at in ats:
+        if args.r is None:
+            try:
+                del at.info["_vtk_images"]
+            except KeyError:
+                pass
+        else:
+            at.info["_vtk_images"] = args.r
 
     davtk_state.update()
 

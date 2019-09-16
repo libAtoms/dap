@@ -227,8 +227,7 @@ class DaVTKState(object):
         self.renderer = renderer
         self.iRen = iRen
 
-        self.atom_label_actor_pool = []
-        self.cur_n_atom_label_actors = 0
+        self.atom_label_actors = []
 
         self.bond_prop = {}
         self.bonds_points_data = {}
@@ -404,7 +403,7 @@ class DaVTKState(object):
         self.renderer.SetBackground(self.settings["background_color"])
 
         self.update_cell_box(at.get_cell(), what == "settings" or what == "color_only")
-        self.update_atoms(at)
+        self.update_atom_spheres(at)
         self.update_atom_labels(at)
         self.update_bonds(at, what == "color_only")
         self.update_vectors(at)
@@ -469,16 +468,41 @@ class DaVTKState(object):
         actor.SetMapper(mapper)
         self.renderer.AddActor(actor)
 
+    def visible_images(self, at):
+        pos = at.positions
+        cell = at.get_cell()
+        cell_inv = at.get_reciprocal_cell().T
+
+        vis_images = []
+        if "_vtk_images" in at.info:
+            rv = at.info["_vtk_images"]
+            for i_at in range(len(at)):
+                p_list = []
+                vis_images.append(p_list)
+
+                for s0 in range(int(math.floor(rv[0])), int(math.ceil(rv[1]))):
+                    for s1 in range(int(math.floor(rv[2])), int(math.ceil(rv[3]))):
+                        for s2 in range(int(math.floor(rv[4])), int(math.ceil(rv[5]))):
+
+                            s = (s0, s1, s2)
+                            p = pos[i_at] + np.dot(s, cell)
+                            p_scaled = np.dot(p, cell_inv)
+                            if (p_scaled[0] >= rv[0] and p_scaled[0] < rv[1] and
+                                p_scaled[1] >= rv[2] and p_scaled[1] < rv[3] and
+                                p_scaled[2] >= rv[4] and p_scaled[2] < rv[5]):
+                                p_list.append((p, s))
+        else:
+            for i_at in range(len(at)):
+                vis_images.append([(pos[i_at], (0,0,0))])
+
+        return vis_images
+
     def atoms_plotting_info(self, at):
         atom_type_list = get_atom_type_list(self.settings, at)
         pos = at.positions
         cell = at.get_cell()
         cell_inv = at.get_reciprocal_cell().T
-
         rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
-        (r0_min, r0_max) = (rv[0], rv[1])
-        (r1_min, r1_max) = (rv[2], rv[3])
-        (r2_min, r2_max) = (rv[4], rv[5])
 
         # create structures for each atom type
         points_lists = {}
@@ -491,6 +515,8 @@ class DaVTKState(object):
             radius_lists[at_type] = []
             colormap_vals_lists[at_type] = []
             i_at_lists[at_type] = []
+
+        vis_images = self.visible_images(at)
 
         # create position, radius, and colormap value lists, separately for each atom type
         for i_at in range(len(at)):
@@ -514,23 +540,16 @@ class DaVTKState(object):
                 else:
                     colormap_val = (np.linalg.norm(at.arrays[colormap_field]), 0.0, 0.0)
 
-            for s0 in range(int(math.floor(r0_min)), int(math.ceil(r0_max))):
-                for s1 in range(int(math.floor(r1_min)), int(math.ceil(r1_max))):
-                    for s2 in range(int(math.floor(r2_min)), int(math.ceil(r2_max))):
-                        p = pos[i_at] + np.dot([s0, s1, s2], cell)
-                        p_scaled = np.dot(p, cell_inv)
-                        if (p_scaled[0] >= r0_min and p_scaled[0] < r0_max and
-                            p_scaled[1] >= r1_min and p_scaled[1] < r1_max and
-                            p_scaled[2] >= r2_min and p_scaled[2] < r2_max):
-                            points_lists[at_type].append(p)
-                            radius_lists[at_type].append(r)
-                            colormap_vals_lists[at_type].append(colormap_val)
-                            i_at_lists[at_type].append(i_at)
+            for (p, s) in vis_images[i_at]:
+                points_lists[at_type].append(p)
+                radius_lists[at_type].append(r)
+                colormap_vals_lists[at_type].append(colormap_val)
+                i_at_lists[at_type].append(i_at)
 
         return (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists)
 
     # need to see what can be optimized if settings_only is True
-    def update_atoms(self, at):
+    def update_atom_spheres(self, at):
 
         # get structures 
         (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists) = self.atoms_plotting_info(at)
@@ -587,6 +606,7 @@ class DaVTKState(object):
             actor.SetProperty(self.settings["atom_types"][at_type]["prop"])
 
     # need to see what can be optimized if settings_only is True
+    # improve speed by using vtkProgrammableGlyphs like bonds?
     def update_vectors(self, at):
         for actor in self.vector_actors:
             self.renderer.RemoveActor(actor)
@@ -596,6 +616,9 @@ class DaVTKState(object):
             return
 
         pos = at.get_positions()
+        cell = at.get_cell()
+        cell_inv = at.get_reciprocal_cell().T
+        rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
 
         rad = at.info["_vtk_vectors"]["radius"]
         vector_color = at.info["_vtk_vectors"]["color"]
@@ -634,6 +657,8 @@ class DaVTKState(object):
         cone_x_source = self.shapes["sources"]["cone_x"][0]
         source_orient = [1.0, 0.0, 0.0]
 
+        vis_images = self.visible_images(at)
+
         for i_at in range(len(at)):
 
             axis = np.cross(vectors_hat[i_at], source_orient)
@@ -655,47 +680,48 @@ class DaVTKState(object):
             else:
                 color = at.info["_vtk_vectors"]["color"]
 
-            if orientation is not None:
-                actors = [vtk.vtkFollower(),vtk.vtkFollower(),vtk.vtkFollower()]
-                for actor in actors:
-                    actor.SetCamera(self.renderer.GetActiveCamera())
-                    actor.SetPosition(pos[i_at])
+            for (p, s) in vis_images[i_at]:
+                if orientation is not None:
+                    actors = [vtk.vtkFollower(),vtk.vtkFollower(),vtk.vtkFollower()]
+                    for actor in actors:
+                        actor.SetCamera(self.renderer.GetActiveCamera())
+                        actor.SetPosition(p)
+                        # assumes source_orient = \hat{x}
+
+                    # 0 gets arrowhead
+                    actors[0].SetMapper(cyl_x_mapper)
+                    actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                    actors[0].SetScale(vector_norms[i_at]/2.0-3.0*rad, rad, rad)
+                    actors[1].SetMapper(cyl_x_mapper)
+                    actors[1].RotateWXYZ(angle+180.0, axis[0], axis[1], axis[2])
+                    actors[1].SetScale(vector_norms[i_at]/2.0, rad, rad)
+
+                    cone = vtk.vtkTransformPolyDataFilter()
+                    t = vtk.vtkTransform()
+                    t.Translate((vector_norms[i_at]/2.0-1.5*rad) / (3.0*rad), 0.0, 0.0)
+                    cone.SetTransform(t)
+                    cone.SetInputConnection(cone_x_source.GetOutputPort())
+                    cone_mapper = vtk.vtkPolyDataMapper()
+                    cone_mapper.SetInputConnection(cone.GetOutputPort())
+                    actors[2].SetMapper(cone_mapper)
+                    actors[2].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                    actors[2].SetScale(rad*3.0, rad*2.5, rad*2.5)
+
+                else:
+                    actors = [vtk.vtkActor()]
+                    actors[0].SetMapper(arrow_x_mapper)
                     # assumes source_orient = \hat{x}
+                    actors[0].SetScale(vector_norms[i_at], rad, rad)
+                    actors[0].SetPosition(pos[i_at]-vector_norms[i_at]/2.0*vectors_hat[i_at])
+                    actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
 
-                # 0 gets arrowhead
-                actors[0].SetMapper(cyl_x_mapper)
-                actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
-                actors[0].SetScale(vector_norms[i_at]/2.0-3.0*rad, rad, rad)
-                actors[1].SetMapper(cyl_x_mapper)
-                actors[1].RotateWXYZ(angle+180.0, axis[0], axis[1], axis[2])
-                actors[1].SetScale(vector_norms[i_at]/2.0, rad, rad)
-
-                cone = vtk.vtkTransformPolyDataFilter()
-                t = vtk.vtkTransform()
-                t.Translate((vector_norms[i_at]/2.0-1.5*rad) / (3.0*rad), 0.0, 0.0)
-                cone.SetTransform(t)
-                cone.SetInputConnection(cone_x_source.GetOutputPort())
-                cone_mapper = vtk.vtkPolyDataMapper()
-                cone_mapper.SetInputConnection(cone.GetOutputPort())
-                actors[2].SetMapper(cone_mapper)
-                actors[2].RotateWXYZ(angle, axis[0], axis[1], axis[2])
-                actors[2].SetScale(rad*3.0, rad*2.5, rad*2.5)
-
-            else:
-                actors = [vtk.vtkActor()]
-                actors[0].SetMapper(arrow_x_mapper)
-                # assumes source_orient = \hat{x}
-                actors[0].SetScale(vector_norms[i_at], rad, rad)
-                actors[0].SetPosition(pos[i_at]-vector_norms[i_at]/2.0*vectors_hat[i_at])
-                actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
-
-            for actor in actors:
-                actor._vtk_type = "vector"
-                actor.VisibilityOn()
-                actor.PickableOff()
-                actor.GetProperty().SetColor(color)
-                self.renderer.AddActor(actor)
-                self.vector_actors.append(actor)
+                for actor in actors:
+                    actor._vtk_type = "vector"
+                    actor.VisibilityOn()
+                    actor.PickableOff()
+                    actor.GetProperty().SetColor(color)
+                    self.renderer.AddActor(actor)
+                    self.vector_actors.append(actor)
 
     # need to see what can be optimized if settings_only is True
     def update_bonds(self, at, color_only):
@@ -710,6 +736,17 @@ class DaVTKState(object):
 
         cell = at.get_cell()
         pos = at.get_positions()
+        cell_inv = at.get_reciprocal_cell().T
+        rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
+
+        vis_images = self.visible_images(at)
+
+        vis_images_p = [ [] for i in range(len(at)) ]
+        vis_images_s = [ [] for i in range(len(at)) ]
+        for i_at in range(len(at)):
+            for (p, s) in vis_images[i_at]:
+                vis_images_p[i_at].append(p)
+                vis_images_s[i_at].append(s)
 
         points_lists = {}
         axes_lists = {}
@@ -732,8 +769,6 @@ class DaVTKState(object):
         for i_at in range(len(at)):
             for (i_bond, b) in enumerate(at.bonds[i_at]):
                 j_at = b["j"]
-                if i_at < j_at:
-                    continue
                 (dr, dr_norm) = bond_vector(cell, pos, i_at, j_at, b["S"], dist=True)
                 name = b["name"]
                 rad = self.bond_prop[name].radius
@@ -751,17 +786,21 @@ class DaVTKState(object):
                     # angle = -np.arccos(np.dot(dr_hat, [0.0, 1.0, 0.0]))*180.0/np.pi
                     angle = -np.arccos(dr_hat[1])*180.0/np.pi
 
-                points_lists[name].append(pos[i_at]+dr/4.0)
-                axes_lists[name].append(axis)
-                angles_lists[name].append(angle)
-                scales_lists[name].append((rad, dr_norm/2.0, rad))
-                i_at_bonds[name].append((i_at, i_bond))
+                for (pi, si) in zip(vis_images_p[i_at], vis_images_s[i_at]):
+                    if i_at <= j_at or tuple(si+b["S"]) not in vis_images_s[j_at]:
+                        points_lists[name].append(pi+dr/4.0)
+                        axes_lists[name].append(axis)
+                        angles_lists[name].append(angle)
+                        scales_lists[name].append((rad, dr_norm/2.0, rad))
+                        i_at_bonds[name].append((i_at, i_bond))
 
-                points_lists[name].append(pos[j_at]-dr/4.0)
-                axes_lists[name].append(axis)
-                angles_lists[name].append(angle)
-                scales_lists[name].append((rad, dr_norm/2.0, rad))
-                i_at_bonds[name].append((i_at, i_bond))
+                for (pj, sj) in zip(vis_images_p[j_at], vis_images_s[j_at]):
+                    if i_at <= j_at or tuple(sj-b["S"]) not in vis_images_s[i_at]:
+                        points_lists[name].append(pj-dr/4.0)
+                        axes_lists[name].append(axis)
+                        angles_lists[name].append(angle)
+                        scales_lists[name].append((rad, dr_norm/2.0, rad))
+                        i_at_bonds[name].append((i_at, i_bond))
 
         # remove unused
         for name in self.bonds_actors:
@@ -1090,28 +1129,21 @@ class DaVTKState(object):
     # need to see what can be optimized if settings_only is True
     # can/should this be done with some sort of GlyphMapper?
     def update_atom_labels(self, at):
+        for actor in self.vector_actors:
+            self.renderer.RemoveActor(actor)
+        self.vector_actors = []
+
         if "_vtk_atom_label_show" in at.info and at.info["_vtk_atom_label_show"] is not None:
             show_labels = at.info["_vtk_atom_label_show"]
         else:
             show_labels = self.settings["atom_label"]["show"]
         if show_labels is False:
-            for actor in self.atom_label_actor_pool:
-                actor.SetVisibility(False)
             return
 
-        if len(at) > len(self.atom_label_actor_pool):
-            prev_pool_size = len(self.atom_label_actor_pool)
-            new_actors = [vtk.vtkBillboardTextActor3D() for i in range(len(at)-prev_pool_size)]
-            for actor in new_actors:
-                actor._vtk_type="atom_label"
-                self.renderer.AddActor(actor)
-                actor.PickableOff()
-            self.atom_label_actor_pool.extend(new_actors)
-
         atom_type_list = get_atom_type_list(self.settings, at)
-        pos = at.get_positions()
+        vis_images = self.visible_images(at)
 
-        dp_world = self.label_offset_world(pos[0])
+        dp_world = self.label_offset_world(at.positions[0])
 
         IDs = list(range(len(at)))
         Zs = at.get_atomic_numbers()
@@ -1131,22 +1163,25 @@ class DaVTKState(object):
                 label_str = ""
             else:
                 label_str = self.string_dollar_sub(label_raw_string, at, i_at)
-
-            label_actor = self.atom_label_actor_pool[i_at]
-            label_actor.SetInput(label_str)
-            label_actor.SetPosition(pos[i_at])
+            
             r = get_atom_radius(self.settings, atom_type_list[i_at], i_at, at)
             if dp_world > 0:
                 dp_disp = 3+0.7*r/dp_world
             else:
                 dp_disp = 0
-            label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
-            label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
-            label_actor.SetVisibility(True)
 
-        for actor in self.atom_label_actor_pool[len(at):]:
-            actor.SetVisibility(False)
-        self.cur_n_atom_label_actors = len(at)
+            for (p, s) in vis_images[i_at]:
+                label_actor = vtk.vtkBillboardTextActor3D()
+                label_actor._vtk_type="atom_label"
+                label_actor.PickableOff()
+                label_actor.SetVisibility(True)
+
+                label_actor.SetInput(label_str)
+                label_actor.SetPosition(p)
+                label_actor.SetDisplayOffset(int(dp_disp), int(dp_disp))
+                label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
+
+                self.renderer.AddActor(label_actor)
 
     def measure(self, n=None, frame_i=None):
         if frame_i is None:
@@ -1452,13 +1487,13 @@ class DaVTKState(object):
                         continue
 
                     D = bond_vector(cell, pos, i_at, j_at, b["S"])
-                    points[i_at].append(pos[i_at]+D)
+                    points[i_at].append(D)
         else:
             nn_list = ase.neighborlist.neighbor_list('ijdD', at, cutoff, self_interaction=True)
             for (i,j,d,D) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
                 if atom_type_list[i] != center_at_type or d == 0.0 or (neighb_at_type is not None and atom_type_list[j] != neighb_at_type):
                     continue
-                points[i].append(pos[i]+D)
+                points[i].append(D)
 
         for i_at in range(len(at)):
             if len(points[i_at]) > 0:
@@ -1497,43 +1532,48 @@ class DaVTKState(object):
 
         self.polyhedra_actors = []
 
+        vis_images = self.visible_images(at)
+        pos = at.positions
+
         for name in self.polyhedra_prop:
             if "_vtk_polyhedra_"+name not in at.arrays:
                 continue
 
-            for string in at.arrays["_vtk_polyhedra_"+name]:
+            for (i_at, string) in enumerate(at.arrays["_vtk_polyhedra_"+name]):
                 if string == "_NONE_":
                     continue
                 m = re.search('(.*)___(.*)', string)
                 (points_str, polygons_str) = (m.group(1), m.group(2))
                 points_data = np.reshape([float(p) for p in points_str.split("_")],(-1,3))
-                points = vtk.vtkPoints()
-                for p in points_data:
-                    points.InsertNextPoint(p)
-                polygons = vtk.vtkCellArray()
-                for m in re.findall('[0-9]+(?:_[0-9]+)+', polygons_str):
-                    polygon_data = [int(i) for i in m.split("_")]
-                    polygon = vtk.vtkPolygon()
-                    polygon.GetPointIds().SetNumberOfIds(len(polygon_data))
-                    for (i_vertex, i) in enumerate(polygon_data):
-                        polygon.GetPointIds().SetId(i_vertex, i)
-                    polygons.InsertNextCell(polygon)
 
-                polydata = vtk.vtkPolyData()
-                polydata.SetPoints(points)
-                polydata.SetPolys(polygons)
+                for (p, s) in vis_images[i_at]:
+                    points = vtk.vtkPoints()
+                    for D in points_data:
+                        points.InsertNextPoint(p+D)
+                    polygons = vtk.vtkCellArray()
+                    for m in re.findall('[0-9]+(?:_[0-9]+)+', polygons_str):
+                        polygon_data = [int(i) for i in m.split("_")]
+                        polygon = vtk.vtkPolygon()
+                        polygon.GetPointIds().SetNumberOfIds(len(polygon_data))
+                        for (i_vertex, i) in enumerate(polygon_data):
+                            polygon.GetPointIds().SetId(i_vertex, i)
+                        polygons.InsertNextCell(polygon)
 
-                mapper = vtk.vtkPolyDataMapper()
-                mapper.SetInputData(polydata)
+                    polydata = vtk.vtkPolyData()
+                    polydata.SetPoints(points)
+                    polydata.SetPolys(polygons)
 
-                actor = vtk.vtkActor()
-                actor._vtk_type = "polyhedron"
-                actor.SetMapper(mapper)
-                actor.SetProperty(self.polyhedra_prop[name])
-                actor.PickableOff()
+                    mapper = vtk.vtkPolyDataMapper()
+                    mapper.SetInputData(polydata)
 
-                self.renderer.AddActor(actor)
-                self.polyhedra_actors.append(actor)
+                    actor = vtk.vtkActor()
+                    actor._vtk_type = "polyhedron"
+                    actor.SetMapper(mapper)
+                    actor.SetProperty(self.polyhedra_prop[name])
+                    actor.PickableOff()
+
+                    self.renderer.AddActor(actor)
+                    self.polyhedra_actors.append(actor)
 
     def set_view(self, along_up, lattice, scale):
         cam = self.renderer.GetActiveCamera()
