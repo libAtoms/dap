@@ -238,7 +238,6 @@ class DaVTKState(object):
         self.image_atom_actors = []
         self.bonds_actors = {}
         self.vector_actors = []
-        self.label_actors = []
         self.volume_reps_actors = []
         self.volume_rep_prop = {}
 
@@ -1129,9 +1128,9 @@ class DaVTKState(object):
     # need to see what can be optimized if settings_only is True
     # can/should this be done with some sort of GlyphMapper?
     def update_atom_labels(self, at):
-        for actor in self.label_actors:
+        for actor in self.atom_label_actors:
             self.renderer.RemoveActor(actor)
-        self.label_actors = []
+        self.atom_label_actors = []
 
         if "_vtk_atom_label_show" in at.info and at.info["_vtk_atom_label_show"] is not None:
             show_labels = at.info["_vtk_atom_label_show"]
@@ -1182,7 +1181,7 @@ class DaVTKState(object):
                 label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
 
                 self.renderer.AddActor(label_actor)
-                self.label_actors.append(label_actor)
+                self.atom_label_actors.append(label_actor)
 
     def measure(self, n=None, frame_i=None):
         if frame_i is None:
