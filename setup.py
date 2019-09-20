@@ -19,5 +19,5 @@ print("Don't forget to check out README in this directory")
 print("See daprc for some example settings, and make your own in ~/.daprc")
 print("")
 print("More examples at example.* in this directory, view with")
-print('     dap -e "read example.settings" -e "read example.commands" example.xyz')
+print('     dap -e "read example.settings example.commands" example.xyz')
 
