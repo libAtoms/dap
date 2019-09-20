@@ -238,6 +238,7 @@ class DaVTKState(object):
         self.image_atom_actors = []
         self.bonds_actors = {}
         self.vector_actors = []
+        self.label_actors = []
         self.volume_reps_actors = []
         self.volume_rep_prop = {}
 
@@ -688,7 +689,6 @@ class DaVTKState(object):
                         actor.SetPosition(p)
                         # assumes source_orient = \hat{x}
 
-                    # 0 gets arrowhead
                     actors[0].SetMapper(cyl_x_mapper)
                     actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
                     actors[0].SetScale(vector_norms[i_at]/2.0-3.0*rad, rad, rad)
@@ -1011,13 +1011,13 @@ class DaVTKState(object):
         # substitute $${} from at.arrays
         for substr in re.findall('\$\${([^}]*)}', string):
             if i_at is None:
-                raise ValueError("found $${{}} substitution for '{}' but i_at is None".format(substr))
+                raise ValueError("found $${{}} substitution for '{}' but i_at is None. Perhaps incorrectly set a per-atom property ($${...}) in a per-frame context?".format(substr))
             if dict_atom_special_case is not None and substr in dict_atom_special_case:
                 string = re.sub('\$\${'+substr+'}',str(dict_atom_special_case[substr][i_at]),string,count=1)
             elif dict_atom is not None and substr in dict_atom:
                 string = re.sub('\$\${'+substr+'}',str(dict_atom[substr][i_at]),string,count=1)
             else:
-                raise ValueError("Tried to do $${{}} substitution on undefined field '{}'".format(substr))
+                raise ValueError("Tried to do $${{}} substitution on undefined per-atom field '{}'".format(substr))
         # substitute ${} from at.info
         for substr in re.findall('(?:^|[^$])\${([^}]*)}', string):
             if dict_frame_special_case is not None and substr in dict_frame_special_case:
@@ -1025,7 +1025,7 @@ class DaVTKState(object):
             elif dict_frame is not None and substr in dict_frame:
                 string = re.sub('\${'+substr+'}',str(dict_frame[substr]),string,count=1)
             else:
-                raise ValueError("Tried to do ${{}} substitution on undefined field '{}'".format(substr))
+                raise ValueError("Tried to do ${{}} substitution on undefined per-frame field '{}'".format(substr))
 
         # eval $()
         while '$(' in string:
@@ -1129,9 +1129,9 @@ class DaVTKState(object):
     # need to see what can be optimized if settings_only is True
     # can/should this be done with some sort of GlyphMapper?
     def update_atom_labels(self, at):
-        for actor in self.vector_actors:
+        for actor in self.label_actors:
             self.renderer.RemoveActor(actor)
-        self.vector_actors = []
+        self.label_actors = []
 
         if "_vtk_atom_label_show" in at.info and at.info["_vtk_atom_label_show"] is not None:
             show_labels = at.info["_vtk_atom_label_show"]
@@ -1182,6 +1182,7 @@ class DaVTKState(object):
                 label_actor.SetTextProperty(self.settings["atom_label"]["prop"])
 
                 self.renderer.AddActor(label_actor)
+                self.label_actors.append(label_actor)
 
     def measure(self, n=None, frame_i=None):
         if frame_i is None:
