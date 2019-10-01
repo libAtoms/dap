@@ -223,7 +223,7 @@ def parse_pick(davtk_state, renderer, args):
 
     for at in ats:
         if "_vtk_picked" not in at.arrays:
-            at.new_arrays("_vtk_picked",np.array([False]*len(at)))
+            at.new_array("_vtk_picked",np.array([False]*len(at)))
         at.arrays["_vtk_picked"][args.n] = True
     return "cur"
 parsers["pick"] = (parse_pick, parser_pick.format_usage(), parser_pick.format_help())
