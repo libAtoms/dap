@@ -120,8 +120,8 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         except ArgumentParserHelp:
             pass
         except Exception as e:
-            ## import traceback
-            ## traceback.print_exc()
+            import traceback
+            traceback.print_exc()
             print("error parsing line: ",e)
 
         if self.GetInteractor() is not None:

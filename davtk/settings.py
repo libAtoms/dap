@@ -167,7 +167,7 @@ class DavTKSettings(object):
                                         self.write_picked)
 
         self.parser_background_color = ThrowingArgumentParser(prog="background_color")
-        self.parser_background_color.add_argument("color",nargs=3,type=float,metavar=['R','G','B'])
+        self.parser_background_color.add_argument("-color",nargs=3,type=float,metavar=['R','G','B'])
         self.parsers["background_color"] = (self.parse_background_color, self.parser_background_color.format_usage(), self.parser_background_color.format_help(),
                                             self.write_background_color)
 
@@ -325,9 +325,9 @@ class DavTKSettings(object):
         return "settings"
 
     def write_cell_box(self):
-        args = 'cell_box {} {} {}'.format(self.data["cell_box"]["color"][0],
-                                          self.data["cell_box"]["color"][1],
-                                          self.data["cell_box"]["color"][2])
+        args = 'cell_box -color {} {} {}'.format(self.data["cell_box"]["color"][0],
+                                                 self.data["cell_box"]["color"][1],
+                                                 self.data["cell_box"]["color"][2])
         args += ' -opacity {}'.format(self.data["cell_box"]["opacity"])
         args += ' -width {}'.format(self.data["cell_box"]["line_width"])
         return args+'\n'
@@ -425,9 +425,9 @@ class DavTKSettings(object):
         return "settings"
 
     def write_picked(self):
-        args = 'picked {} {} {}'.format(self.data["picked"][0],
-                                        self.data["picked"][1],
-                                        self.data["picked"][2])
+        args = 'picked -color {} {} {}'.format(self.data["picked"]["color"][0],
+                                               self.data["picked"]["color"][1],
+                                               self.data["picked"]["color"][2])
         return args+'\n'
     def parse_picked(self, args):
         args = self.parser_picked.parse_args(args)
@@ -436,9 +436,9 @@ class DavTKSettings(object):
         return "color_only"
 
     def write_background_color(self):
-        args = 'background_color {} {} {}'.format(self.data["background_color"][0],
-                                                  self.data["background_color"][1],
-                                                  self.data["background_color"][2])
+        args = 'background_color -color {} {} {}'.format(self.data["background_color"][0],
+                                                         self.data["background_color"][1],
+                                                         self.data["background_color"][2])
         return args+'\n'
     def parse_background_color(self, args):
         args = self.parser_background_color.parse_args(args)
