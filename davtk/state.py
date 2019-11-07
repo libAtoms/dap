@@ -1424,6 +1424,12 @@ class DaVTKState(object):
             if bonds:
                 at.bonds.write_to_atoms_arrays()
 
+            # save vectors
+            if "_vtk_vectors" in at.info:
+                at.info["__vtk_vectors_INFO"] = True
+                for (k,v) in at.info["_vtk_vectors"].items():
+                    at.info["_vtk_vectors_"+k] = v
+
             if "_vtk_commands" not in at.info:
                 at.info["_vtk_commands"] = ""
 
@@ -1456,9 +1462,17 @@ class DaVTKState(object):
             ats = self.at_list
 
         for at in ats:
+            # reconstruct bonds from arrays
             if "_vtk_bonds" in at.arrays:
                 at.bonds = DavTKBonds(at, self.settings)
                 at.bonds.read_from_atoms_arrays()
+            # reconstruct vectors from info
+            if at.info.get("__vtk_vectors_INFO",False):
+                at.info["_vtk_vectors"] = {}
+                for (k,v) in at.info.items():
+                    if k.startswith("_vtk_vectors_"):
+                        at.info["_vtk_vectors"][k.replace("_vtk_vectors_","")] = v
+                del at.info["__vtk_vectors_INFO"]
 
     def polyhedra(self, at, name, center_at_type, neighb_at_type, cutoff=None, bond_name=None):
         if cutoff is None: # no cutoff, use existing bonds
