@@ -66,6 +66,8 @@ class Viewer(object):
         # read commands from atomic config headers
         for frame_i in range(len(self.davtk_state)):
             if "_vtk_commands" in at_list[frame_i].info:
+                if not isinstance(at_list[frame_i].info["_vtk_commands"],str):
+                    raise RuntimeError("Got _vtk_commands info field that is not a string")
                 self.davtk_state.set_frame(str(frame_i))
                 for cmd in at_list[frame_i].info["_vtk_commands"].split(";"):
                     parse_line(cmd, settings=settings, state=self.davtk_state)
