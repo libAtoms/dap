@@ -1448,6 +1448,8 @@ class DaVTKState(object):
         for at in ats:
             if at.info["_vtk_commands"].endswith("; "):
                 at.info["_vtk_commands"] = at.info["_vtk_commands"][:-2]
+            if re.search('^[\s;]*$', at.info["_vtk_commands"]):
+                del at.info["_vtk_commands"]
 
     def prep_after_atoms_read(self, ats=None):
         if ats is None:

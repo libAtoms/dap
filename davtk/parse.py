@@ -67,9 +67,6 @@ def parse_write_state(davtk_state, renderer, args):
 
         davtk_state.prep_for_atoms_write(ats)
 
-        for at in ats:
-            if "_vtk_commands" in at.info and re.search('^[\s;]*$', at.info["_vtk_commands"]):
-                del at.info["_vtk_commands"]
         ase.io.write(fout, ats, format=os.path.splitext(args.filename)[1].replace(".",""))
     print("Settings written to '{0}.settings', read back with\n    dap -e \"read {0}.settings\" {0}".format(args.filename))
     return None
