@@ -6,6 +6,7 @@ import ase.neighborlist
 import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+from ase.build.supercells import make_supercell
 
 def reset_dict_property(prop_dict):
     if "prop" not in prop_dict:
@@ -1227,7 +1228,7 @@ class DaVTKState(object):
                                 ang = 180.0/np.pi * np.arccos(np.dot(v1,v2)/(v1_dist*v2_dist))
                                 print("bond-angle {} {} {} angle {}".format(i_at, j_at, k_at, ang))
 
-    def duplicate(self, n_dup, frames=None):
+    def supercell(self, n_dup, frames=None):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
             # store original info if this is first duplicate
@@ -1238,22 +1239,31 @@ class DaVTKState(object):
             if "dup_orig_index" not in at.arrays:
                 at.new_array("dup_orig_index",np.array(range(len(at))))
             # store current info and duplicate atoms
-            prev_n = len(at)
-            prev_cell = at.get_cell()
-            prev_pos = at.get_positions()
-            p = list(prev_pos)
-            for i0 in range(n_dup[0]):
-                for i1 in range(n_dup[1]):
-                    for i2 in range(n_dup[2]):
-                        if (i0, i1, i2) == (0, 0, 0):
-                            continue
-                        at.extend(at[0:prev_n])
-                        p.extend(prev_pos + np.dot([i0,i1,i2], prev_cell))
-            at.set_positions(p)
-            at.set_cell(np.dot(np.diagflat([n_dup[0], n_dup[1], n_dup[2]]), prev_cell), False)
-            # need to duplicate bonds
-            if hasattr(at, "bonds"):
-                at.bonds.reinit()
+            if len(n_dup) == 3:
+                P = np.diag(n_dup)
+            else:
+                P = n_dup
+            new_at = make_supercell(at, P)
+            ase.io.write(sys.stdout, at, format="extxyz")
+            ase.io.write(sys.stdout, new_at, format="extxyz")
+            sys.exit(1)
+
+            # prev_n = len(at)
+            # prev_cell = at.get_cell()
+            # prev_pos = at.get_positions()
+            # p = list(prev_pos)
+            # for i0 in range(n_dup[0]):
+                # for i1 in range(n_dup[1]):
+                    # for i2 in range(n_dup[2]):
+                        # if (i0, i1, i2) == (0, 0, 0):
+                            # continue
+                        # at.extend(at[0:prev_n])
+                        # p.extend(prev_pos + np.dot([i0,i1,i2], prev_cell))
+            # at.set_positions(p)
+            # at.set_cell(np.dot(np.diagflat([n_dup[0], n_dup[1], n_dup[2]]), prev_cell), False)
+            # # need to duplicate bonds
+            # if hasattr(at, "bonds"):
+                # at.bonds.reinit()
 
         self.update(frames)
 

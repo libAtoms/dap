@@ -257,22 +257,22 @@ def parse_delete(davtk_state, renderer, args):
     return "cur"
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 
-parser_dup = ThrowingArgumentParser(prog="dup",description="duplicate cell")
-parser_dup.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_dup.add_argument("n",type=int,nargs='+', help="number of periodic images of cell to create (scalar or 3-vector)")
-def parse_dup(davtk_state, renderer, args):
-    args = parser_dup.parse_args(args)
+parser_supercell = ThrowingArgumentParser(prog="supercell",description="create supercell cell")
+parser_supercell.add_argument("-all_frames",action="store_true",help="apply to all frames")
+parser_supercell.add_argument("n",type=int,nargs='+', help="number of periodic images of cell to create (scalar (factor in 3 dir) or 3-vector (factor in each dir) or 9-vector (arb supercell in lattice coords))")
+def parse_supercell(davtk_state, renderer, args):
+    args = parser_supercell.parse_args(args)
     if args.all_frames:
         frame_list=None
     else:
         frame_list="cur"
     if len(args.n) == 1:
         args.n *= 3
-    elif len(args.n) != 3:
-        raise ValueError("wrong number of elements (not 1 or 3) in n "+str(args.n))
-    davtk_state.duplicate(args.n, frames=frame_list)
+    elif len(args.n) != 3 and len(args.n) != 9:
+        raise ValueError("wrong number of elements (not 1 or 3 or 9) in n "+str(args.n))
+    davtk_state.supercell(args.n, frames=frame_list)
     return None
-parsers["dup"] = (parse_dup, parser_dup.format_usage(), parser_dup.format_help())
+parsers["supercell"] = (parse_supercell, parser_supercell.format_usage(), parser_supercell.format_help())
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
 parser_images.add_argument("-all_frames",action="store_true",help="apply to all frames")
