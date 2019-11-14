@@ -257,20 +257,37 @@ def parse_delete(davtk_state, renderer, args):
     return "cur"
 parsers["delete"] = (parse_delete, parser_delete.format_usage(), parser_delete.format_help())
 
-parser_supercell = ThrowingArgumentParser(prog="supercell",description="create supercell cell")
+parser_supercell = ThrowingArgumentParser(prog="supercell",description="create supercell of current cell")
 parser_supercell.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_supercell.add_argument("n",type=int,nargs='+', help="number of periodic images of cell to create (scalar (factor in 3 dir) or 3-vector (factor in each dir) or 9-vector (arb supercell in lattice coords))")
+grp = parser_supercell.add_mutually_exclusive_group()
+grp.add_argument("-n",type=int,nargs='+', help="number of periodic images of cell to create: scalar (factor in all 3 dirs) or 3-vector (factor in each dir)")
+grp.add_argument("-v",type=int,nargs=9, metavar=("A1_1","A1_2","A1_3","A2_1","A2_2","A2_3","A3_1","A3_2","A3_3"),
+    help="3 supercell vectors in primitive cell lattice coords")
+parser_supercell.add_argument("-wrap",type=bool,default=None,help="wrap position into cell after creating supercell")
 def parse_supercell(davtk_state, renderer, args):
     args = parser_supercell.parse_args(args)
     if args.all_frames:
         frame_list=None
     else:
         frame_list="cur"
-    if len(args.n) == 1:
-        args.n *= 3
-    elif len(args.n) != 3 and len(args.n) != 9:
-        raise ValueError("wrong number of elements (not 1 or 3 or 9) in n "+str(args.n))
-    davtk_state.supercell(args.n, frames=frame_list)
+
+    if args.n is not None:
+        if len(args.n) == 1:
+            n_dup = args.n*3
+        elif len(args.n) == 3:
+            n_dup = args.n
+        else:
+            raise ValueError("wrong number of elements (not 1 or 3) in n={}".format(args.n))
+        if args.wrap is None:
+            wrap = False
+    elif args.v is not None:
+        n_dup = args.v
+        if args.wrap is None:
+            wrap = True
+    else:
+        raise ValueError("supercell didn't get -n or -v")
+
+    davtk_state.supercell(n_dup, wrap, frames=frame_list)
     return None
 parsers["supercell"] = (parse_supercell, parser_supercell.format_usage(), parser_supercell.format_help())
 

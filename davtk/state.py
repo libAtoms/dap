@@ -1228,9 +1228,10 @@ class DaVTKState(object):
                                 ang = 180.0/np.pi * np.arccos(np.dot(v1,v2)/(v1_dist*v2_dist))
                                 print("bond-angle {} {} {} angle {}".format(i_at, j_at, k_at, ang))
 
-    def supercell(self, n_dup, frames=None):
+    def supercell(self, n_dup, wrap=True, frames=None):
         for frame_i in self.frame_list(frames):
             at = self.at_list[frame_i]
+
             # store original info if this is first duplicate
             if "dup_orig_n" not in at.info:
                 at.info["dup_orig_n"] = len(at)
@@ -1238,32 +1239,35 @@ class DaVTKState(object):
                 at.info["dup_orig_cell"] = at.get_cell()
             if "dup_orig_index" not in at.arrays:
                 at.new_array("dup_orig_index",np.array(range(len(at))))
-            # store current info and duplicate atoms
-            if len(n_dup) == 3:
-                P = np.diag(n_dup)
-            else:
-                P = n_dup
-            new_at = make_supercell(at, P)
-            ase.io.write(sys.stdout, at, format="extxyz")
-            ase.io.write(sys.stdout, new_at, format="extxyz")
-            sys.exit(1)
 
-            # prev_n = len(at)
-            # prev_cell = at.get_cell()
-            # prev_pos = at.get_positions()
-            # p = list(prev_pos)
-            # for i0 in range(n_dup[0]):
-                # for i1 in range(n_dup[1]):
-                    # for i2 in range(n_dup[2]):
-                        # if (i0, i1, i2) == (0, 0, 0):
-                            # continue
-                        # at.extend(at[0:prev_n])
-                        # p.extend(prev_pos + np.dot([i0,i1,i2], prev_cell))
-            # at.set_positions(p)
-            # at.set_cell(np.dot(np.diagflat([n_dup[0], n_dup[1], n_dup[2]]), prev_cell), False)
-            # # need to duplicate bonds
-            # if hasattr(at, "bonds"):
-                # at.bonds.reinit()
+            if len(n_dup) == 3:
+                at *= n_dup
+            else:
+                P = np.reshape(n_dup,(3,3))
+                if np.dot(P[0],np.cross(P[1],P[2])) < 0:
+                    raise RuntimeError("Supercell vectors need have positive triple scalar product, reorder 2 or flip 1")
+                new_at = make_supercell(at, P)
+
+                # eliminate atoms in new_at that are at same positions as old at
+                cinv = new_at.get_reciprocal_cell().T
+                at_in_new_lat = np.matmul(at.get_positions(), cinv)
+                new_lat_pos = new_at.get_scaled_positions()
+                keep_inds = list(range(len(new_at)))
+                for i_at in range(len(at)):
+                    d = new_lat_pos - at_in_new_lat[i_at]
+                    if np.min(np.linalg.norm(d-np.round(d),axis=1)) < 1.0e-6:
+                        keep_inds.remove(i_at)
+
+                at.set_cell(new_at.get_cell(), False)
+                at += new_at[keep_inds]
+
+            if wrap:
+                at.wrap()
+
+            # maybe some day figure out how to duplicate bonds
+            # for now just get rid of all of them
+            if hasattr(at, "bonds"):
+                at.bonds.reinit()
 
         self.update(frames)
 
