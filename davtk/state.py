@@ -1241,11 +1241,13 @@ class DaVTKState(object):
                 at.new_array("dup_orig_index",np.array(range(len(at))))
 
             if len(n_dup) == 3:
+                if np.any(np.logical_and(np.logical_not(at.get_pbc()),n_dup != 1)):
+                    raise RuntimeError("Trying to duplicate along direction that is not periodic")
                 at *= n_dup
             else:
                 P = np.reshape(n_dup,(3,3))
                 if np.dot(P[0],np.cross(P[1],P[2])) < 0:
-                    raise RuntimeError("Supercell vectors need have positive triple scalar product, reorder 2 or flip 1")
+                    raise RuntimeError("Supercell vectors need have positive scalar triple product, reorder 2 or flip 1")
                 new_at = make_supercell(at, P)
 
                 # eliminate atoms in new_at that are at same positions as old at
