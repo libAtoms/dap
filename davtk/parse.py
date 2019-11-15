@@ -389,6 +389,7 @@ add_material_args_to_parser(parser_bond)
 group = parser_bond.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store_true', help="delete existing bond")
 group.add_argument("-list", action='store_true', help="list existing bond")
+group.add_argument("-no_pbc", action='store_true', help="no bonds across periodic boundary conditions")
 def parse_bond(davtk_state, renderer, args):
     args = parser_bond.parse_args(args)
 
@@ -431,9 +432,9 @@ def parse_bond(davtk_state, renderer, args):
                     raise RuntimeError("bond by n (indices) can't specify -T or -T2")
                 davtk_state.bond(at, args.name, args.T, args.T2, ("n", args.n))
             elif args.cutoff:
-                davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", args.cutoff))
+                davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", args.cutoff), no_pbc=args.no_pbc)
             elif args.auto:
-                davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", None))
+                davtk_state.bond(at, args.name, args.T, args.T2, ("cutoff", None), no_pbc=args.no_pbc)
     else: # not creating, either delete or list or just modifying an existing name
         if args.delete:
             for at in ats:

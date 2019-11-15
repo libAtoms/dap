@@ -36,7 +36,7 @@ class DavTKAtomTypes(object):
             return self.add_autogen(key)
 
     def add_autogen(self, name):
-        print("autogenerating {} with color {}".format(name, self.colors[self.autogen_used]))
+        sys.stderr.write("autogenerating {} with color {}\n".format(name, self.colors[self.autogen_used]))
         self.set_type(name=name, color=self.colors[self.autogen_used], radius = 0.5)
         self.autogen_used += 1
         return self.types[name]
@@ -96,8 +96,7 @@ class DavTKAtomTypes(object):
         if bonding_radius is not None:
             self.types[name]["bonding_radius"] = bonding_radius
 
-        update_prop(self.types[name]["prop"], types.SimpleNamespace( color=color, specular=specular, 
-                    specular_radius = specular_radius, ambient=ambient, opacity=opacity ) )
+        update_prop(self.types[name]["prop"], types.SimpleNamespace(**self.types[name]))
 
 class DavTKSettings(object):
     def __init__(self):

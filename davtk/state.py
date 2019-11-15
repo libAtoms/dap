@@ -8,16 +8,6 @@ from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from ase.build.supercells import make_supercell
 
-def reset_dict_property(prop_dict):
-    if "prop" not in prop_dict:
-        prop_dict["prop"] = vtk.vtkProperty()
-    if prop_dict["color"] is not None:
-        prop_dict["prop"].SetColor(prop_dict["color"])
-    prop_dict["prop"].SetOpacity(prop_dict["opacity"])
-    prop_dict["prop"].SetSpecular(prop_dict["specular"])
-    prop_dict["prop"].SetSpecularPower(1.0/prop_dict["specular_radius"])
-    prop_dict["prop"].SetAmbient(prop_dict["ambient"])
-
 def bond_vector(cell, pos, i_at, j_at, S, dist=True):
     D = pos[j_at] - pos[i_at] + np.dot(S, cell)
     if dist:
@@ -98,7 +88,7 @@ class DavTKBonds(object):
     def reinit(self):
         self.bonds = [ [] for i in range(len(self.at)) ]
 
-    def cutoff(self, name, in_cutoff, at_type, at_type2):
+    def cutoff(self, name, in_cutoff, at_type, at_type2, across_pbc=False):
 
         def none_zero(x):
             return x if x is not None else 0.0
@@ -129,7 +119,7 @@ class DavTKBonds(object):
         nn_list = ase.neighborlist.neighbor_list('ijdS', self.at, max_cutoff, self_interaction=True)
         for (i, j, d, S) in zip(nn_list[0], nn_list[1], nn_list[2], nn_list[3]):
             try:
-                if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_type_match(atom_type_list, i, j, at_type, at_type2):
+                if d > 0.0 and d >= u_cutoff_min(i,j) and d <= u_cutoff_max(i, j) and pair_type_match(atom_type_list, i, j, at_type, at_type2) and (across_pbc or np.all(S == 0)):
                     if i == j and S in (b["S"] for b in self.bonds[i]): # don't create opposite bonds for i-i (periodic image)
                         continue
                     self.bonds[i].append({ "j" : j, "S" : np.array(S), "name" : name, "picked" : False})
@@ -1273,7 +1263,7 @@ class DaVTKState(object):
 
         self.update(frames)
 
-    def bond(self, at, name, at_type1, at_type2, criterion):
+    def bond(self, at, name, at_type1, at_type2, criterion, no_pbc=False):
         if name is None:
             name = "default"
 
@@ -1295,7 +1285,7 @@ class DaVTKState(object):
                 raise ValueError("tried to bond pair, but number of indices passed {} != 2".format(len(indices)))
             at.bonds.pair_mic(name, indices[0], indices[1])
         elif criterion[0] == "cutoff":
-            at.bonds.cutoff(name, criterion[1], at_type1, at_type2)
+            at.bonds.cutoff(name, criterion[1], at_type1, at_type2, across_pbc=not no_pbc)
         else:
             raise ValueError("Unknown bonding criterion type '{}'".format(criterion[0]))
 
