@@ -27,11 +27,7 @@ else:
         raise ValueError("Got {} formats, but different number of atoms files {}".format(len(args.format), len(args.atoms_files)))
 at_list = []
 for (filename, fmt) in zip(args.atoms_files, args.format):
-    if "@" in filename:
-        r = None
-    else:
-        r = ":"
-    for at in ase.io.read(filename, r, format=fmt):
+    for at in ase.io.read(filename, index=":", format=fmt):
         if not "_vtk_filename" in at.info:
             at.info["_vtk_filename"] = filename
         at_list.append(at)
