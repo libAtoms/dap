@@ -16,7 +16,7 @@ args = cli_parse.parse_args()
 
 
 import sys, re
-import ase.io
+import ase, ase.io
 from davtk import dap
 
 # read atoms from atoms_files
@@ -27,7 +27,14 @@ else:
         raise ValueError("Got {} formats, but different number of atoms files {}".format(len(args.format), len(args.atoms_files)))
 at_list = []
 for (filename, fmt) in zip(args.atoms_files, args.format):
-    for at in ase.io.read(filename, index=":", format=fmt):
+    if "@" in filename:
+        r = None
+    else:
+        r = ":"
+    ats = ase.io.read(filename, r, format=fmt)
+    if isinstance(ats, ase.Atoms):
+        ats = [ ats ]
+    for at in ats:
         if not "_vtk_filename" in at.info:
             at.info["_vtk_filename"] = filename
         at_list.append(at)
