@@ -1573,7 +1573,7 @@ class DaVTKState(object):
                     for D in points_data:
                         points.InsertNextPoint(p+D)
                     polygons = vtk.vtkCellArray()
-                    for m in re.findall('[0-9]+(?:_[0-9]+)+', polygons_str):
+                    for m in polygons_str.split("__"):
                         polygon_data = [int(i) for i in m.split("_")]
                         polygon = vtk.vtkPolygon()
                         polygon.GetPointIds().SetNumberOfIds(len(polygon_data))
