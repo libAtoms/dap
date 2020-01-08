@@ -1484,9 +1484,10 @@ class DaVTKState(object):
         point_strings = [ "" ] * len(at)
         face_strings = [ "" ] * len(at)
         for l in atom_lists:
+            i0 = int((len(point_strings[l[0]].split("_"))-1)/3)
             for i in l:
                 point_strings[l[0]] += "_".join(["{}".format(x) for x in at.get_distance(l[0], i, mic=True, vector=True)]) + "_"
-            face_strings[l[0]] += "_".join(["{}".format(i) for i in l]) + "__"
+            face_strings[l[0]] += "_".join(["{}".format(i0+i) for i in range(len(l))]) + "__"
         for i in range(len(at)):
             point_strings[i] = re.sub(r'_$', '', point_strings[i])
             face_strings[i] = re.sub(r'__$', '', face_strings[i])
