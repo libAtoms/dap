@@ -1480,7 +1480,31 @@ class DaVTKState(object):
                         at.info["_vtk_vectors"][k.replace("_vtk_vectors_","")] = v
                 del at.info["__vtk_vectors_INFO"]
 
-    def polyhedra(self, at, name, center_at_type, neighb_at_type, cutoff=None, bond_name=None):
+    def arb_polyhedra(self, at, name, atom_lists):
+        point_strings = [ "" ] * len(at)
+        face_strings = [ "" ] * len(at)
+        for l in atom_lists:
+            for i in l:
+                point_strings[l[0]] += "_".join(["{}".format(x) for x in at.get_distance(l[0], i, mic=True, vector=True)]) + "_"
+            face_strings[l[0]] += "_".join(["{}".format(i) for i in l]) + "__"
+        for i in range(len(at)):
+            point_strings[i] = re.sub(r'_$', '', point_strings[i])
+            face_strings[i] = re.sub(r'__$', '', face_strings[i])
+
+        strings = []
+        for i in range(len(at)):
+            if len(point_strings[i]) > 0 and len(face_strings[i]) > 0:
+                strings.append(point_strings[i]+"___"+face_strings[i])
+            else:
+                strings.append("_NONE_")
+
+        try:
+            del at.arrays["_vtk_polyhedra_"+name]
+        except KeyError:
+            pass
+        at.new_array("_vtk_polyhedra_"+name, np.array(strings))
+
+    def coordination_polyhedra(self, at, name, center_at_type, neighb_at_type, cutoff=None, bond_name=None):
         if cutoff is None: # no cutoff, use existing bonds
             if not hasattr(at, "bonds"):
                 warn("coordination polyhedra without cutoff require bonds already exist") 

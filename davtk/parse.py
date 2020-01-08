@@ -614,7 +614,7 @@ def parse_polyhedra(davtk_state, renderer, args):
     if creating_polyhedra:
         # actually create
         for at in ats:
-            davtk_state.polyhedra(at, args.name, args.T, args.Tn, args.cutoff, args.bond_name)
+            davtk_state.coordination_polyhedra(at, args.name, args.T, args.Tn, args.cutoff, args.bond_name)
     else: # not creating, either delete or list or just modifying an existing name
         if args.T is not None or args.Tn is not None:
             raise RuntimeError("polyhedra got -T but no other polyhedra creation args")
@@ -641,6 +641,66 @@ def parse_polyhedra(davtk_state, renderer, args):
     else:
         return "color_only"
 parsers["polyhedra"] = (parse_polyhedra, parser_polyhedra.format_usage(), parser_polyhedra.format_help())
+
+parser_arb_polyhedra = ThrowingArgumentParser(prog="arb_polyhedra",description="draw arbitrary polyhedra connecting listed atoms")
+parser_arb_polyhedra.add_argument("-all_frames", action="store_true", help="apply to all frames")
+parser_arb_polyhedra.add_argument("-name", help="name of polyhedron set, for later reference with -delete", default=None)
+parser_arb_polyhedra.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for polyhedra", default=None)
+add_material_args_to_parser(parser_arb_polyhedra)
+group = parser_arb_polyhedra.add_mutually_exclusive_group()
+group.add_argument("-indices", type=int, action='append', nargs='+', help="atomic indices of polyhedron", default=None)
+group.add_argument("-delete", action='store', metavar="NAME", help="name of polyhedra to delete")
+group.add_argument("-list", action='store_true', help="list existing polyhedra")
+def parse_arb_polyhedra(davtk_state, renderer, args):
+    args = parser_arb_polyhedra.parse_args(args)
+
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    creating_polyhedra = args.indices is not None
+
+    if args.name is None and not args.delete and not args.list:
+        raise RuntimeError("-name required when creating or modifying polyhedra")
+
+    # create new property if needed
+    if args.name not in davtk_state.polyhedra_prop:
+        prop = new_prop( types.SimpleNamespace( color = (0.5, 0.5, 1.0), opacity = 0.5,
+            specular = 0.7, specular_radius = 0.1, ambient = 0.1 ) )
+        davtk_state.polyhedra_prop[args.name] = prop
+
+    if not args.delete is not None and not args.list:
+        # update property
+        update_prop(davtk_state.polyhedra_prop[args.name], args)
+
+    if creating_polyhedra:
+        # actually create
+        for at in ats:
+            davtk_state.arb_polyhedra(at, args.name, args.indices)
+    else: # not creating, either delete or list or just modifying an existing name
+        if args.delete is not None:
+            if args.name is not None:
+                raise RuntimeError("polyhedra got -delete and -name")
+            for at in ats:
+                if "_vtk_polyhedra_"+args.delete in at.arrays:
+                    del at.arrays["_vtk_polyhedra_"+args.delete]
+            # TODO: look for unused polyhedra names and remove their props ?
+        elif args.list:
+            if args.name is not None:
+                raise RuntimeError("polyhedra got -list and -name")
+            if len(davtk_state.polyhedra_prop) > 0:
+                names = list(set([n.replace("_vtk_polyhedra_","") for at in ats for n in at.arrays if n.startswith("_vtk_polyhedra")]))
+                print("polyhedra sets:",names)
+            else:
+                print("no polyhedra set names defined")
+        # else: just modifying existing property
+
+    if creating_polyhedra or args.delete:
+        return "cur"
+    else:
+        return "color_only"
+parsers["arb_polyhedra"] = (parse_arb_polyhedra, parser_arb_polyhedra.format_usage(), parser_arb_polyhedra.format_help())
 
 parser_volume = ThrowingArgumentParser(prog="volume",description="read volumetric data from file")
 parser_volume.add_argument("filename",nargs='?',help="File to read from. Text dap internal format, *.CHGCAR, *.PARCHG, or *.WAVECAR")
