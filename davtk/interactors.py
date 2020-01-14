@@ -21,7 +21,7 @@ def pick_actors(at, actors, point_sets):
                 else:
                     raise RuntimeError("pick_actors() should never get here")
 
-                at.arrays["_vtk_picked"][i_at_list] = not at.arrays["_vtk_picked"][i_at_list]
+                at.arrays["_vtk_picked"][i_at_list] = np.logical_not(at.arrays["_vtk_picked"][i_at_list])
             elif actor._vtk_type == "bonds_glyphs":
                 for point in points:
                     (i_at, i_bond) = actor.i_at_bond[point]
