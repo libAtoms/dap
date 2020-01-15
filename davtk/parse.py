@@ -860,7 +860,7 @@ parsers["volume"] = (parse_volume, parser_volume.format_usage(), parser_volume.f
 parser_view = ThrowingArgumentParser(prog="view",description="set view position and orientation")
 parser_view.add_argument("-lattice",action='store_true',help="use lattice A1 A2 A3 instead of cartesian X Y Z directions")
 parser_view.add_argument("-dir",nargs=6,type=float,metavar=("ALONG_X","ALONG_Y","ALONG_Z","UP_X","UP_Y","UP_Z"), help="view and up directions", default=None)
-parser_view.add_argument("-mag",type=float,help="view magnification (relative to current)")
+parser_view.add_argument("-mag",type=float,help="view magnification (relative to current)",default=1.0)
 def parse_view(davtk_state, renderer, args):
     args = parser_view.parse_args(args)
 
