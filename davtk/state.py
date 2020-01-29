@@ -239,6 +239,7 @@ class DaVTKState(object):
         self.polyhedra_actors = []
 
         self.cell_box_actor = None
+        self.primitive_cell_box_actors = {}
 
         self.frame_label_actor = None
 
@@ -393,7 +394,7 @@ class DaVTKState(object):
 
         self.renderer.SetBackground(self.settings["background_color"])
 
-        self.update_cell_box(at.get_cell(), what == "settings" or what == "color_only")
+        self.update_cell_boxes(at, what == "settings" or what == "color_only")
         self.update_atom_spheres(at)
         self.update_atom_labels(at)
         self.update_bonds(at, what == "color_only")
@@ -422,16 +423,32 @@ class DaVTKState(object):
                     self.volume_reps_actors.append(actor)
                     self.renderer.AddActor(actor)
 
-    def update_cell_box(self, cell, settings_only=False):
+    def update_cell_boxes(self, at, settings_only=False):
+        # real cell box
         if self.cell_box_actor is None:
             actor = vtk.vtkActor()
             actor._vtk_type = "cell_box"
             actor.PickableOff()
             actor.SetProperty(self.settings["cell_box"]["prop"])
             self.cell_box_actor = actor
+        self.draw_cell_box(at.get_cell(), origin=(0,0,0), actor=self.cell_box_actor)
 
-        actor = self.cell_box_actor
+        # additional primitive cell box (make extensible?)
+        if "_vtk_primitive_cells" in at.info:
+            for (name, origin) in at.info["_vtk_primitive_cells"].items():
+                if name not in self.primitive_cell_box_actors or self.primitive_cell_box_actors[name] is None:
+                    actor = vtk.vtkActor()
+                    actor._vtk_type = "cell_box"
+                    actor.PickableOff()
+                    actor.SetProperty(self.settings["cell_box"]["prop"])
+                    self.primitive_cell_box_actors[name] = actor
+                if isinstance(origin,int) or len(origin) == 1:
+                    origin = at.positions[origin]
+                else:
+                    origin = np.array(origin)
+                self.draw_cell_box(at.info[name].T, origin=origin, actor=self.primitive_cell_box_actors[name])
 
+    def draw_cell_box(self, cell, origin, actor, settings_only=False):
         if settings_only:
             return
 
@@ -439,7 +456,7 @@ class DaVTKState(object):
         for i0 in range(2):
             for i1 in range(2):
                 for i2 in range(2):
-                    pts.InsertNextPoint(i0*cell[0] + i1*cell[1] + i2*cell[2])
+                    pts.InsertNextPoint(origin + i0*cell[0] + i1*cell[1] + i2*cell[2])
         # 0 0 0    0 0 1    0 1 0    0 1 1     1 0 0  1 0 1   1 1 0   1 1 1
         lines = vtk.vtkCellArray()
         segment_point_ids = [ ((0,0),(1,1)) , ((0,0),(1,2)) , ((0,0),(1,4)) , ((0,1),(1,3)) , ((0,1),(1,5)) , ((0,2),(1,3)) ,

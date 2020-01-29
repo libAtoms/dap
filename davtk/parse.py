@@ -871,6 +871,39 @@ def parse_view(davtk_state, renderer, args):
 
     return "settings"
 parsers["view"] = (parse_view, parser_view.format_usage(), parser_view.format_help())
+
+parser_primitive_cell = ThrowingArgumentParser(prog="primitive_cell",description="set primitive cell position")
+parser_primitive_cell.add_argument("-all_frames", action="store_true")
+parser_primitive_cell.add_argument("-name","-n",help="name of info field", required=True)
+grp = parser_primitive_cell.add_mutually_exclusive_group(required=True)
+grp.add_argument("-position","-p",type=float,nargs=3,help="Cartesian position of primitive cell box origin")
+grp.add_argument("-atom","-a",type=int,help="Index of atom for primitive cell box origin")
+grp.add_argument("-delete",action='store_true',help="Disable primitive cell box")
+def parse_primitive_cell(davtk_state, renderer, args):
+    args = parser_primitive_cell.parse_args(args)
+
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    for at in ats:
+        if args.delete:
+            if args.name in at.info["_vtk_primitive_cells"]:
+                del at.info["_vtk_primitive_cells"]
+            else:
+                raise ValueError("-name {} not found".format(args.name))
+        else:
+            if args.atom is not None:
+                origin = args.atom
+            else:
+                origin = args.position
+            if "_vtk_primitive_cells" not in at.info:
+                at.info["_vtk_primitive_cells"] = {}
+            at.info["_vtk_primitive_cells"][args.name] = origin
+
+    return "cur"
+parsers["primitive_cell"] = (parse_primitive_cell, parser_primitive_cell.format_usage(), parser_primitive_cell.format_help())
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):
