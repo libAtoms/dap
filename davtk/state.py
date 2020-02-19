@@ -239,6 +239,7 @@ class DaVTKState(object):
         self.polyhedra_actors = []
 
         self.cell_box_actor = None
+        self.primitive_cell_box_actors = {}
 
         self.frame_label_actor = None
 
@@ -393,7 +394,7 @@ class DaVTKState(object):
 
         self.renderer.SetBackground(self.settings["background_color"])
 
-        self.update_cell_box(at.get_cell(), what == "settings" or what == "color_only")
+        self.update_cell_boxes(at, what == "settings" or what == "color_only")
         self.update_atom_spheres(at)
         self.update_atom_labels(at)
         self.update_bonds(at, what == "color_only")
@@ -422,16 +423,32 @@ class DaVTKState(object):
                     self.volume_reps_actors.append(actor)
                     self.renderer.AddActor(actor)
 
-    def update_cell_box(self, cell, settings_only=False):
+    def update_cell_boxes(self, at, settings_only=False):
+        # real cell box
         if self.cell_box_actor is None:
             actor = vtk.vtkActor()
             actor._vtk_type = "cell_box"
             actor.PickableOff()
             actor.SetProperty(self.settings["cell_box"]["prop"])
             self.cell_box_actor = actor
+        self.draw_cell_box(at.get_cell(), origin=(0,0,0), actor=self.cell_box_actor)
 
-        actor = self.cell_box_actor
+        # additional primitive cell box (make extensible?)
+        if "_vtk_primitive_cells" in at.info:
+            for (name, origin) in at.info["_vtk_primitive_cells"].items():
+                if name not in self.primitive_cell_box_actors or self.primitive_cell_box_actors[name] is None:
+                    actor = vtk.vtkActor()
+                    actor._vtk_type = "cell_box"
+                    actor.PickableOff()
+                    actor.SetProperty(self.settings["cell_box"]["prop"])
+                    self.primitive_cell_box_actors[name] = actor
+                if isinstance(origin,int) or len(origin) == 1:
+                    origin = at.positions[origin]
+                else:
+                    origin = np.array(origin)
+                self.draw_cell_box(at.info[name].T, origin=origin, actor=self.primitive_cell_box_actors[name])
 
+    def draw_cell_box(self, cell, origin, actor, settings_only=False):
         if settings_only:
             return
 
@@ -439,7 +456,7 @@ class DaVTKState(object):
         for i0 in range(2):
             for i1 in range(2):
                 for i2 in range(2):
-                    pts.InsertNextPoint(i0*cell[0] + i1*cell[1] + i2*cell[2])
+                    pts.InsertNextPoint(origin + i0*cell[0] + i1*cell[1] + i2*cell[2])
         # 0 0 0    0 0 1    0 1 0    0 1 1     1 0 0  1 0 1   1 1 0   1 1 1
         lines = vtk.vtkCellArray()
         segment_point_ids = [ ((0,0),(1,1)) , ((0,0),(1,2)) , ((0,0),(1,4)) , ((0,1),(1,3)) , ((0,1),(1,5)) , ((0,2),(1,3)) ,
@@ -880,7 +897,7 @@ class DaVTKState(object):
     def update_legend(self, at):
 
         # remove, free, and re-create (recycling seems to suffer from bug perhaps addressed
-        # in merge request 3904)
+        # in vtk merge request 3904)
         for actor in self.legend_sphere_actors + self.legend_label_actors:
             self.renderer.RemoveActor(actor)
         self.legend_sphere_actors = []
@@ -923,14 +940,14 @@ class DaVTKState(object):
             legend_sphere_actor.SetScale(r, r, r)
 
             legend_sphere_actor.PickableOff()
-            legend_sphere_actor.VisibilityOn()
+            legend_sphere_actor.VisibilityOff()
 
             m = vtk.vtkTextMapper()
             m.SetInput(at_type)
             m.SetTextProperty(self.settings["atom_label"]["prop"])
             legend_label_actor.SetMapper(m)
             legend_label_actor.PickableOff()
-            legend_label_actor.VisibilityOn()
+            legend_label_actor.VisibilityOff()
 
         # figure out max sizes
         for actor in self.legend_sphere_actors + self.legend_label_actors:
@@ -979,6 +996,9 @@ class DaVTKState(object):
             label_pos_display = [ sphere_pos_display[0]+label_x_offset, sphere_pos_display[1]+label_y_offset]
             legend_label_actor.SetPosition(label_pos_display)
 
+        for (legend_sphere_actor, legend_label_actor) in zip(self.legend_sphere_actors, self.legend_label_actors):
+            legend_label_actor.VisibilityOn()
+            legend_sphere_actor.VisibilityOn()
 
     def string_dollar_sub(self, string, at, i_at=None):
         dict_frame = at.info
