@@ -897,7 +897,7 @@ class DaVTKState(object):
     def update_legend(self, at):
 
         # remove, free, and re-create (recycling seems to suffer from bug perhaps addressed
-        # in merge request 3904)
+        # in vtk merge request 3904)
         for actor in self.legend_sphere_actors + self.legend_label_actors:
             self.renderer.RemoveActor(actor)
         self.legend_sphere_actors = []
@@ -940,14 +940,14 @@ class DaVTKState(object):
             legend_sphere_actor.SetScale(r, r, r)
 
             legend_sphere_actor.PickableOff()
-            legend_sphere_actor.VisibilityOn()
+            legend_sphere_actor.VisibilityOff()
 
             m = vtk.vtkTextMapper()
             m.SetInput(at_type)
             m.SetTextProperty(self.settings["atom_label"]["prop"])
             legend_label_actor.SetMapper(m)
             legend_label_actor.PickableOff()
-            legend_label_actor.VisibilityOn()
+            legend_label_actor.VisibilityOff()
 
         # figure out max sizes
         for actor in self.legend_sphere_actors + self.legend_label_actors:
@@ -996,6 +996,9 @@ class DaVTKState(object):
             label_pos_display = [ sphere_pos_display[0]+label_x_offset, sphere_pos_display[1]+label_y_offset]
             legend_label_actor.SetPosition(label_pos_display)
 
+        for (legend_sphere_actor, legend_label_actor) in zip(self.legend_sphere_actors, self.legend_label_actors):
+            legend_label_actor.VisibilityOn()
+            legend_sphere_actor.VisibilityOn()
 
     def string_dollar_sub(self, string, at, i_at=None):
         dict_frame = at.info
