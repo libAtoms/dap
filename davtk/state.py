@@ -593,7 +593,7 @@ class DaVTKState(object):
 
             id_glyphs = vtk.vtkIdFilter()
             id_glyphs.SetInputConnection(glyphs.GetOutputPort())
-            id_glyphs.SetIdsArrayName("IDs")
+            id_glyphs.SetPointIdsArrayName("IDs")
             id_glyphs.FieldDataOn()
 
             # create mapper and set color LUT
@@ -877,7 +877,7 @@ class DaVTKState(object):
 
             id_glyphs = vtk.vtkIdFilter()
             id_glyphs.SetInputConnection(glyphs.GetOutputPort())
-            id_glyphs.SetIdsArrayName("IDs")
+            id_glyphs.SetPointIdsArrayName("IDs")
             id_glyphs.FieldDataOn()
 
             glyphs_mapper = vtk.vtkPolyDataMapper()
