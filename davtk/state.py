@@ -648,7 +648,7 @@ class DaVTKState(object):
         if len(vectors.shape) == 2 and vectors.shape[1] == 3: # 3-vectors
             if vector_color == "sign":
                 raise ValueError("Can't color vectors by sign when they are not actually scalars")
-            vectors_use = vectors
+            vectors_use = vectors.copy()
             orientation = None
         elif len(vectors.shape) == 1: # scalars
             vectors_use = np.outer(vectors, orientation)
