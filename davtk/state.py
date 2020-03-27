@@ -7,6 +7,7 @@ import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from ase.build.supercells import make_supercell
+from types import SimpleNamespace
 
 def bond_vector(cell, pos, i_at, j_at, S, dist=True):
     D = pos[j_at] - pos[i_at] + np.dot(S, cell)
@@ -1563,8 +1564,13 @@ class DaVTKState(object):
                 points[i].append(D)
 
         for i_at in range(len(at)):
-            if len(points[i_at]) > 0:
-                hull = scipy.spatial.ConvexHull(np.array(points[i_at]))
+            if len(points[i_at]) >= 3:
+                if len(points[i_at]) >= 4:
+                    hull = scipy.spatial.ConvexHull(np.array(points[i_at]))
+                else:
+                    # fake hull with just the triangle
+                    hull = SimpleNamespace()
+                    hull.simplices = [[0,1,2]]
 
                 for point in points[i_at]:
                     strings[i_at] += "_".join([str(v) for v in point]) + "_"
