@@ -47,6 +47,11 @@ def get_atom_type_list(settings, at):
     else:
         atom_type_list = [str(val) for val in at.arrays[atom_type_field]]
 
+    if "_vtk_override_type" in at.arrays:
+        o = at.arrays["_vtk_override_type"]
+        for i in np.where(o != "_NONE_")[0]:
+            atom_type_list[i] = o[i]
+
     return atom_type_list
 
 def get_atom_prop(settings, atom_type, i=None, arrays=None):
@@ -506,6 +511,7 @@ class DaVTKState(object):
 
         return vis_images
 
+    # create list of plotting info for each atom, but sorted by atom type
     def atoms_plotting_info(self, at):
         atom_type_list = get_atom_type_list(self.settings, at)
         pos = at.positions
@@ -526,25 +532,22 @@ class DaVTKState(object):
             i_at_lists[at_type] = []
 
         vis_images = self.visible_images(at)
+        picked_a = at.arrays.get("_vtk_picked",[False]*len(at))
 
         # create position, radius, and colormap value lists, separately for each atom type
         for i_at in range(len(at)):
             at_type = atom_type_list[i_at]
-            try:
-                picked = at.arrays["_vtk_picked"][i_at]
-            except KeyError:
-                picked = False
             r = get_atom_radius(self.settings, at_type, i_at, at)
 
             colormap = self.settings["atom_types"][at_type]["colormap"]
             if colormap is None: # fixed color
-                if picked:
+                if picked_a[i_at]:
                     colormap_val = (1.0, 0.0, 0.0)
                 else:
                     colormap_val = (0.0, 0.0, 0.0)
             else:
                 (colormap_name, colormap_field) = colormap
-                if picked: # every colormap has picked color at max range + 1.0
+                if picked_a[i_at]: # every colormap has picked color at max range + 1.0
                     colormap_val = (self.settings["colormaps"][colormap_name][-1][0]+1.0, 0.0, 0.0)
                 else:
                     colormap_val = (np.linalg.norm(at.arrays[colormap_field]), 0.0, 0.0)

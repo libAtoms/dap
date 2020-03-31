@@ -904,6 +904,37 @@ def parse_primitive_cell(davtk_state, renderer, args):
 
     return "cur"
 parsers["primitive_cell"] = (parse_primitive_cell, parser_primitive_cell.format_usage(), parser_primitive_cell.format_help())
+
+parser_atom_override_type = ThrowingArgumentParser(prog="atom_override_type",description="override type of an atom")
+parser_atom_override_type.add_argument("-all_frames", action="store_true")
+parser_atom_override_type.add_argument("-value","-val","-v",help="value to override with")
+parser_atom_override_type.add_argument("-index","-i",nargs='+',type=int,help="indices of atom(s) to override")
+parser_atom_override_type.add_argument("-clear","-c",action="store_true",help="clear overridden values for specified indices or all if not specified")
+def parse_atom_override_type(davtk_state, renderer, args):
+    args = parser_atom_override_type.parse_args(args)
+
+    if args.clear and args.value is not None:
+        raise ValueError("Can't -clear and also set a value with -value")
+
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    for at in ats:
+        if args.clear:
+            if args.index is None:
+                del at.arrays["_vtk_override_type"]
+                continue
+            else:
+                args.value="_NONE_"
+
+        if "_vtk_override_type" not in at.arrays:
+            at.new_array("_vtk_override_type", np.array(["_NONE_"]*len(at)).astype(object))
+        at.arrays["_vtk_override_type"][np.array(args.index)] = args.value
+
+    return "cur"
+parsers["atom_override_type"] = (parse_atom_override_type, parser_atom_override_type.format_usage(), parser_atom_override_type.format_help())
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):
