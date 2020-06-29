@@ -95,7 +95,7 @@ def parse_restore_view(davtk_state, renderer, args):
 parsers["restore_view"] = (parse_restore_view, parser_restore_view.format_usage(), parser_restore_view.format_help(), None)
 
 parser_save_view = ThrowingArgumentParser(prog="save_view",description="store viewing transform in ASE atoms object")
-parser_save_view.add_argument("-all_frames",action="store_true")
+parser_save_view.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_save_view.add_argument("-in_config",action="store_true",help="save data in configuration info dict")
 parser_save_view.add_argument("-name",action="store",type=str,help="name of info field to save view into", default="_vtk_view")
 def parse_save_view(davtk_state, renderer, args):
@@ -191,7 +191,7 @@ def parse_prev(davtk_state, renderer, args):
 parsers["prev"] = (parse_prev, parser_prev.format_usage(), parser_prev.format_help())
 
 parser_unpick = ThrowingArgumentParser(prog="unpick", description="unpick picked atoms and/or bonds (default both)")
-parser_unpick.add_argument("-all_frames", action="store_true")
+parser_unpick.add_argument("-all_frames", action="store_true",help="apply to all frames")
 parser_unpick.add_argument("-atoms", action="store_true")
 parser_unpick.add_argument("-bonds", action="store_true")
 def parse_unpick(davtk_state, renderer, args):
@@ -215,7 +215,7 @@ def parse_unpick(davtk_state, renderer, args):
 parsers["unpick"] = (parse_unpick, parser_unpick.format_usage(), parser_unpick.format_help())
 
 parser_pick = ThrowingArgumentParser(prog="pick", description="pick atom(s) by ID")
-parser_pick.add_argument("-all_frames",action="store_true")
+parser_pick.add_argument("-all_frames",action="store_true",help="apply to all frames")
 parser_pick.add_argument("n",type=int,nargs='+')
 def parse_pick(davtk_state, renderer, args):
     args = parser_pick.parse_args(args)
@@ -873,7 +873,7 @@ def parse_view(davtk_state, renderer, args):
 parsers["view"] = (parse_view, parser_view.format_usage(), parser_view.format_help())
 
 parser_primitive_cell = ThrowingArgumentParser(prog="primitive_cell",description="set primitive cell position")
-parser_primitive_cell.add_argument("-all_frames", action="store_true")
+parser_primitive_cell.add_argument("-all_frames", action="store_true",help="apply to all frames")
 parser_primitive_cell.add_argument("-name","-n",help="name of info field", required=True)
 grp = parser_primitive_cell.add_mutually_exclusive_group(required=True)
 grp.add_argument("-position","-p",type=float,nargs=3,help="Cartesian position of primitive cell box origin")
@@ -904,6 +904,37 @@ def parse_primitive_cell(davtk_state, renderer, args):
 
     return "cur"
 parsers["primitive_cell"] = (parse_primitive_cell, parser_primitive_cell.format_usage(), parser_primitive_cell.format_help())
+
+parser_atom_override_type = ThrowingArgumentParser(prog="atom_override_type",description="override type of an atom")
+parser_atom_override_type.add_argument("-all_frames", action="store_true",help="apply to all frames")
+parser_atom_override_type.add_argument("-value","-val","-v",help="value to override with")
+parser_atom_override_type.add_argument("-index","-i",nargs='+',type=int,help="indices of atom(s) to override")
+parser_atom_override_type.add_argument("-clear","-c",action="store_true",help="clear overridden values for specified indices or all if not specified")
+def parse_atom_override_type(davtk_state, renderer, args):
+    args = parser_atom_override_type.parse_args(args)
+
+    if args.clear and args.value is not None:
+        raise ValueError("Can't -clear and also set a value with -value")
+
+    if args.all_frames:
+        ats = davtk_state.at_list
+    else:
+        ats = [davtk_state.cur_at()]
+
+    for at in ats:
+        if args.clear:
+            if args.index is None:
+                del at.arrays["_vtk_override_type"]
+                continue
+            else:
+                args.value="_NONE_"
+
+        if "_vtk_override_type" not in at.arrays:
+            at.new_array("_vtk_override_type", np.array(["_NONE_"]*len(at)).astype(object))
+        at.arrays["_vtk_override_type"][np.array(args.index)] = args.value
+
+    return "cur"
+parsers["atom_override_type"] = (parse_atom_override_type, parser_atom_override_type.format_usage(), parser_atom_override_type.format_help())
 ################################################################################
 
 def parse_line(line, settings, state, renderer=None):
