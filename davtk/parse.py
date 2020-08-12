@@ -138,7 +138,8 @@ def parse_movie(davtk_state, renderer, args):
             # start ffmpeg
             process = (
                 ffmpeg
-                .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(data.shape[1],data.shape[0]))
+                .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(data.shape[1],data.shape[0]),
+                       framerate=args.framerate)
                 .output(args.output_file, pix_fmt='yuv420p', framerate=args.framerate)
                 .overwrite_output()
                 .run_async(pipe_stdin=True)
