@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 import os, glob
 
 setup(name='dap',
-      version='0.8.18',
+      version='0.8.19',
       description='Display atomic configuration',
       author='Noam Bernstein',
       author_email='noam.bernstein@nrl.navy.mil',
