@@ -483,31 +483,60 @@ class DaVTKState(object):
         self.renderer.AddActor(actor)
 
     def visible_images(self, at):
-        pos = at.positions
-        cell = at.get_cell()
-        cell_inv = at.get_reciprocal_cell().T
-
         vis_images = []
         if "_vtk_images" in at.info:
-            rv = at.info["_vtk_images"]
+            if at.info['_vtk_images_cell_field'] == '_CELL_':
+                use_cell = at.get_cell()
+                use_cell_inv = at.get_reciprocal_cell().T
+            elif at.info['_vtk_images_cell_field'] == '_CART_':
+                use_cell = np.eye(3)
+                use_cell_inv = np.eye(3)
+            else:
+                use_cell = at.info[at.info['_vtk_images_cell_field']]
+                use_cell_inv = np.linalg.inv(use_cell)
+
+            range_vec = at.info["_vtk_images"]
+
+            (s0_min, s1_min, s2_min) = [1e38]*3
+            (s0_max, s1_max, s2_max) = [-1e38]*3
+            for s0 in (range_vec[0], range_vec[1]):
+                for s1 in (range_vec[2], range_vec[3]):
+                    for s2 in (range_vec[4], range_vec[5]):
+                        p_cart = np.dot((s0,s1,s2), use_cell)
+                        p_shift = np.dot(p_cart, at.get_reciprocal_cell().T)
+                        s0_min = min(s0_min, p_shift[0])
+                        s1_min = min(s1_min, p_shift[1])
+                        s2_min = min(s2_min, p_shift[2])
+                        s0_max = max(s0_max, p_shift[0])
+                        s1_max = max(s1_max, p_shift[1])
+                        s2_max = max(s2_max, p_shift[2])
+            s0_min = int(np.floor(s0_min))
+            s1_min = int(np.floor(s1_min))
+            s2_min = int(np.floor(s2_min))
+            s0_max = int(np.ceil(s0_max))
+            s1_max = int(np.ceil(s1_max))
+            s2_max = int(np.ceil(s2_max))
+
             for i_at in range(len(at)):
                 p_list = []
                 vis_images.append(p_list)
 
-                for s0 in range(int(math.floor(rv[0])), int(math.ceil(rv[1]))):
-                    for s1 in range(int(math.floor(rv[2])), int(math.ceil(rv[3]))):
-                        for s2 in range(int(math.floor(rv[4])), int(math.ceil(rv[5]))):
-
+                # images will loop over cell, but inclusion will be
+                # tested over _vtk_images_cell_field
+                for s0 in range(s0_min, s0_max+1):
+                    for s1 in range(s1_min, s1_max+1):
+                        for s2 in range(s2_min, s2_max+1):
                             s = (s0, s1, s2)
-                            p = pos[i_at] + np.dot(s, cell)
-                            p_scaled = np.dot(p, cell_inv)
-                            if (p_scaled[0] >= rv[0] and p_scaled[0] < rv[1] and
-                                p_scaled[1] >= rv[2] and p_scaled[1] < rv[3] and
-                                p_scaled[2] >= rv[4] and p_scaled[2] < rv[5]):
+                            p = at.positions[i_at] + np.dot(s, at.cell)
+                            p_scaled = np.dot(p, use_cell_inv)
+                            if (p_scaled[0] >= range_vec[0] and p_scaled[0] < range_vec[1] and
+                                p_scaled[1] >= range_vec[2] and p_scaled[1] < range_vec[3] and
+                                p_scaled[2] >= range_vec[4] and p_scaled[2] < range_vec[5]):
                                 p_list.append((p, s))
+
         else:
             for i_at in range(len(at)):
-                vis_images.append([(pos[i_at], (0,0,0))])
+                vis_images.append([(at.positions[i_at], (0,0,0))])
 
         return vis_images
 

@@ -294,7 +294,10 @@ parsers["supercell"] = (parse_supercell, parser_supercell.format_usage(), parser
 
 parser_images = ThrowingArgumentParser(prog="images",description="show images of cell")
 parser_images.add_argument("-all_frames",action="store_true",help="apply to all frames")
-parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of images to display.  If scalar or 3-vector, padding in addition to original cell (i.e. -R -- 1+R).  If 6-vector, r0_min -- r0_max, r1_min -- r1_max, r2_min -- r2_max.  If scalar < 0, reset")
+parser_images.add_argument("-lattice_field",help="Field to use for lattice, _CART_ for Cartesian axes", default='_CELL_')
+parser_images.add_argument("-r",type=float,nargs='+', help="range in lattice coordinates (floating point) of images to display. "
+    "If scalar or 3-vector, padding in addition to original cell (i.e. -R -- 1+R).  If 6-vector, r0_min -- r0_max, "
+    "r1_min -- r1_max, r2_min -- r2_max.  If scalar < 0, reset")
 def parse_images(davtk_state, renderer, args):
     args = parser_images.parse_args(args)
 
@@ -317,10 +320,12 @@ def parse_images(davtk_state, renderer, args):
         if args.r is None:
             try:
                 del at.info["_vtk_images"]
+                del at.info["_vtk_images_cell_field"]
             except KeyError:
                 pass
         else:
             at.info["_vtk_images"] = args.r
+            at.info["_vtk_images_cell_field"] = args.lattice_field
 
     davtk_state.update()
 
