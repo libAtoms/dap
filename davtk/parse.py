@@ -597,8 +597,8 @@ def parse_polyhedra(davtk_state, renderer, args):
 
     creating_polyhedra = args.cutoff is not None or args.bond_name is not None
 
-    if args.name is None and not args.delete and not args.list:
-        raise RuntimeError("-name required when creating or modifying polyhedra")
+    if args.name is None and not args.list:
+        raise RuntimeError("-name required when creating, modifying, or deleting polyhedra")
 
     if creating_polyhedra:
         # check for conflicting args

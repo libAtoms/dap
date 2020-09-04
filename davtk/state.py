@@ -1641,7 +1641,7 @@ class DaVTKState(object):
         pos = at.positions
 
         for name in self.polyhedra_prop:
-            if "_vtk_polyhedra_"+name not in at.arrays:
+            if name is None or "_vtk_polyhedra_"+name not in at.arrays:
                 continue
 
             for (i_at, string) in enumerate(at.arrays["_vtk_polyhedra_"+name]):
