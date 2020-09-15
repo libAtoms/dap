@@ -731,6 +731,9 @@ volume_subparsers["WAVECAR"].add_argument("-component",choices=["total","spin","
 #
 volume_subparsers["CHGCAR"] = ThrowingArgumentParser(prog="file.CHGCAR -file_args", description="CHGCAR specific arguments")
 volume_subparsers["CHGCAR"].add_argument("-component",choices=["total","spin","up","down"], help="spin component to plot", default="total")
+#
+volume_subparsers["internal"] = ThrowingArgumentParser(prog="file.other -file_args", description="dap internal format specific arguments")
+volume_subparsers["internal"].add_argument("-column", type=int, help="column (after indices) for dap internal text format", default=0)
 
 def parse_volume(davtk_state, renderer, args):
     args_list = args
@@ -843,6 +846,7 @@ def parse_volume(davtk_state, renderer, args):
                         wavecar = np.abs(wavecar)**2
                     data = np.ascontiguousarray(wavecar.T)
             else:
+                sub_args = volume_subparsers["internal"].parse_args(args.file_args)
                 with open(args.filename) as fin:
                     extents = [int(i) for i in fin.readline().rstrip().split()]
                     if len(extents) != 3:
@@ -851,8 +855,14 @@ def parse_volume(davtk_state, renderer, args):
                     # order of indices in data is being reversed
                     data = np.zeros(extents[::-1])
                     for l in fin:
-                        (i0, i1, i2, v) = l.rstrip().split()
-                        data[int(i2),int(i1),int(i0)] = float(v)
+                        fields = l.rstrip().split()
+                        (i0, i1, i2) = fields[0:3]
+                        v = fields[3 + sub_args.column]
+                        try:
+                            (i0, i1, i2) = (int(i0), int(i1), int(i2))
+                        except:
+                            (i0, i1, i2) = (int(np.round(float(i0)*extents[0])), int(np.round(float(i1)*extents[1])), int(np.round(float(i2)*extents[2])))
+                        data[i2, i1, i0] = float(v)
 
             if args.isosurface is not None:
                 davtk_state.add_volume_rep(args.name, data, "isosurface", (args.isosurface,), ["volume"] + args_list)
