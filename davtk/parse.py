@@ -464,11 +464,27 @@ def parse_bond(davtk_state, renderer, args):
 parsers["bond"] = (parse_bond, parser_bond.format_usage(), parser_bond.format_help())
 
 parser_snapshot = ThrowingArgumentParser(prog="snapshot",description="write snapshot")
+parser_snapshot.add_argument("-slice",type=str,help="slice (start:end:step) to generate snapshots for", default=None)
 parser_snapshot.add_argument("-mag",type=int,help="magnification", default=1)
-parser_snapshot.add_argument("file",type=str,help="filename (png format)")
+parser_snapshot.add_argument("file",type=str,help="filename (png format), with single format() {} string for int argument if -slice is not None")
 def parse_snapshot(davtk_state, renderer, args):
     args = parser_snapshot.parse_args(args)
-    davtk_state.snapshot(args.file, args.mag)
+
+    if args.slice is not None:
+        if args.file.format(1) == args.file:
+            raise RuntimeError('Need format string in file argument when slice is not None')
+        range_slice = [int(s) if len(s) > 0 else None for s in args.slice.split(':')]
+        if len(range_slice) > 3:
+            raise RuntimeError('-slice format not [start[:[end][:step]]]')
+        range_slice += [None] * (3-len(range_slice))
+        for frame_i in range(len(davtk_state.at_list))[slice(*range_slice)]:
+            davtk_state.update(str(frame_i))
+            davtk_state.snapshot(args.file.format(frame_i), args.mag)
+    else:
+        davtk_state.snapshot(args.file, args.mag)
+
+    return None
+
 parsers["snapshot"] = (parse_snapshot, parser_snapshot.format_usage(), parser_snapshot.format_help())
 
 parser_X = ThrowingArgumentParser(prog="X",description="execute python code (Atoms object available as 'atoms', DavTKSettings as 'settings')")
