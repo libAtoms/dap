@@ -452,7 +452,7 @@ class DaVTKState(object):
                     origin = at.positions[origin]
                 else:
                     origin = np.array(origin)
-                self.draw_cell_box(at.info[name].T, origin=origin, actor=self.primitive_cell_box_actors[name])
+                self.draw_cell_box(at.info[name], origin=origin, actor=self.primitive_cell_box_actors[name])
 
     def draw_cell_box(self, cell, origin, actor, settings_only=False):
         if settings_only:
