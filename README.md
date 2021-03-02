@@ -82,9 +82,9 @@ and install it with
 (assuming only one version's wheel file is present)
 
 The installation process should also install prerequisites (ASE and
-vtk) using pip if needed.  Note that pymatgen is required for WAVECAR
-plotting, but that is _not_ automatically installed as a dependency - 
-you'll need to pip install it manually.
+vtk) using pip if needed.  Optional packages which can in installed with pip:
+  - pymatgen is required for WAVECAR plotting
+  - ffmpeg-python is required for making proper movie files (e.g. mp4) rather than raw image png files.
 
 ----------------------------------------------------------------------------------------------------
 
