@@ -1,4 +1,4 @@
-# **d**ispay **a**toms with **p**ython (dap)
+# <span style="color:blue">**d**</span>isplay <span style="color:blue">**a**</span>toms with <span style="color:blue">**p**</span>ython (dap)
 
 ## OVERVIEW
 
