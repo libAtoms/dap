@@ -41,7 +41,7 @@ dap is a program to "Display Atoms" with "Python", based on [ASE](https://wiki.f
     measure picked objects (position, distance, angle)
         measurement display is in CLI window
 
-####################################################################################################
+****************************************************************************************************
 
 # USAGE:
 ```
@@ -65,7 +65,7 @@ commands from a file.
 GUI help is available by typing 'h' in the GUI window (but displayed in the CLI window).
 CLI help is available with 'usage' or, for each command, with 'command -h' in the CLI winow
 
-####################################################################################################
+****************************************************************************************************
 
 # TODO (in expected order of implementation)
 ##    MAYBE DONE?
