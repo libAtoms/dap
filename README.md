@@ -1,4 +1,4 @@
-# <span style="color:blue">**d**</span>isplay <span style="color:blue">**a**</span>toms with <span style="color:blue">**p**</span>ython (dap)
+# {-**d**-}isplay {-**a**-}toms with {-**p**-}ython (dap)
 
 ## OVERVIEW
 
