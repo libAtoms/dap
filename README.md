@@ -6,7 +6,7 @@ dap is a program to **d**isplay **a**toms with **p**ython, based on [ASE](https:
 
 ## FUNCTIONALITY
 
-### Basic Objects:
+### Basic Objects
   - display atoms from any `ase.io.read` compatible format
     - atom color/radius by fixed value or based on colormap of arbitrary scalar `Atoms.arrays` property
     - atomic labels from ID# or other property (e.g. Z, species, or arbitrary `Atoms.arrays` property)
@@ -27,11 +27,11 @@ dap is a program to **d**isplay **a**toms with **p**ython, based on [ASE](https:
   - frame label from arbitrary `Atoms.info` field
   - labels (frame and atom) do python evaluation of expressions in $(EXPR) and substitute `Atoms.info` for ${INFO} and `Atoms.arrays` for $${ARRAY}
 
-### File Output:
+### File Output
   - arbitrary snapshots by rendering at integer multiples of display resolution
   - automated movie creation (built-in raw frame output, or actual movie file with ffmpeg-python package and ffmpeg executable in path)
 
-### Other:
+### Other
   - arbitrary python/ASE functions applied to atomic configurations
   - save and restore full state of display (settings, atoms, bonds, etc., as well as view orientation, but not window size) 
     when using `ase.io.write` format that supports info and arrays, e.g. extxyz.
@@ -44,7 +44,7 @@ dap is a program to **d**isplay **a**toms with **p**ython, based on [ASE](https:
 
 ----------------------------------------------------------------------------------------------------
 
-## USAGE:
+## USAGE
 ```
 dap [ -g WIDTHxHEIGHT ] [ -e 'command ... [ ; command ... ] ' ] atoms_filename [ atoms_filename ... ]
 ```
@@ -58,6 +58,33 @@ commands from a file.
 
 GUI help is available by typing 'h' in the GUI window (but displayed in the CLI window).
 CLI help is available with 'usage' or, for each command, with 'command -h' in the CLI winow
+
+----------------------------------------------------------------------------------------------------
+
+## INSTALLATION
+
+Make sure the python3 and pip3 executables you want are in your path.
+
+To install directly from this source, do (in this directory which contains the dap executable)
+```
+    pip3 install .
+```
+
+You can also create a wheel for for distribution with
+```
+    make clean
+    make dist
+```
+and install it with
+```
+    pip3 install dist/dap-*-py3-none-any.whl
+```
+(assuming only one version's wheel file is present)
+
+The installation process should also install prerequisites (ASE and
+vtk) using pip if needed.  Note that pymatgen is required for WAVECAR
+plotting, but that is _not_ automatically installed as a dependency - 
+you'll need to pip install it manually.
 
 ----------------------------------------------------------------------------------------------------
 
