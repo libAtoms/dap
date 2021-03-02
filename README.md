@@ -5,7 +5,7 @@ dap is a program to "Display Atoms" with "Python", based on [ASE](https://wiki.f
 # FUNCTIONALITY
 
 ## Basic Objects:
-  - display atoms from any ase.io.read compatible format
+  - display atoms from any `ase.io.read` compatible format
     - atom color/radius by fixed value or based on colormap of arbitrary scalar `Atoms.arrays` property
     - atomic labels from ID# or other property (e.g. Z, species, or arbitrary `Atoms.arrays` property)
   - create bonds by cutoff or indices (optionally filtered by type)
@@ -15,9 +15,9 @@ dap is a program to "Display Atoms" with "Python", based on [ASE](https://wiki.f
     - a simple native ASCII format
     - CHGCAR using `VaspChargeDensity` from `ase.calculators.vasp `
     - WAVECAR using `Wavecar` from `pymatgen.io.vasp.outputs` (patched to read gamma-point only runs)
-  - display vectors associated with each atom (like magnetic moments), either from real 3-vector field, or from scalar field (up/down)
-  - display coordination polyhedra given atom type of center and bonds or cutoff to neighbors
-  - display periodic images (or slice original image) within some (floating point) range of lattice coordinates
+  - display vectors associated with each atom (like magnetic moments), either from real 3-vector field, or from scalar field (up/down, can be colored by sign)
+  - display coordination polyhedra given atom type of center, and either existing bonds or cutoff to neighbors
+  - display periodic images (or slice original image) along cell vectors within some (floating point) range of lattice coordinates
 
 ## Display
   - multiple configurations interpreted as trajectories (i.e. identical camera view)
@@ -26,25 +26,25 @@ dap is a program to "Display Atoms" with "Python", based on [ASE](https://wiki.f
   - labels (frame and atom) do python evaluation of expressions in $(EXPR) and substitute `Atoms.info` for ${INFO} and `Atoms.arrays` for $${ARRAY}
 
 ## File Output:
-  - snapshots by rendering at arbitrary integer multiples of display resolution
-  - automated movie creation (requires ffmpeg executable in path)
+  - arbitrary snapshots by rendering at integer multiples of display resolution
+  - automated movie creation (built-in raw frame output, or actual movie file with ffmpeg-python package and ffmpeg executable in path)
 
 ## Other:
-  - arbitrary ASE functions applied to atomic configurations
-  - save and restore full state of display (settings, atoms, bonds, etc., as well as view orientation, but not window size)
+  - arbitrary python/ASE functions applied to atomic configurations
+  - save and restore full state of display (settings, atoms, bonds, etc., as well as view orientation, but not window size) 
+    when using `ase.io.write` format that supports info and arrays, e.g. extxyz.
   - command history using GNU readline 
 
 # GUI
-  - rotate, zoom, translate
-  - pick by point or area
-  - measure picked objects (position, distance, angle)
-    - measurement display is in CLI window
+  - rotate, translate, zoom (zoom can also be controlled by command line)
+  - pick by point or area (picked status stored as `Atoms.arrays` attribute so it is available to python functions)
+  - measure picked objects (position, distance, angle), quantities displayed in _CLI_ window
 
 ****************************************************************************************************
 
 # USAGE:
 ```
-    dap [ -g WIDTHxHEIGHT ] [ -e 'command ... [ ; command ... ] ' ] atoms_filename [ atoms_filename ... ]
+dap [ -g WIDTHxHEIGHT ] [ -e 'command ... [ ; command ... ] ' ] atoms_filename [ atoms_filename ... ]
 ```
 Input atoms files can be any ase.io.read compatible format.
 
