@@ -46,7 +46,7 @@ dap is a program to "Display Atoms" with "Python", based on [ASE](https://wiki.f
 ```
 dap [ -g WIDTHxHEIGHT ] [ -e 'command ... [ ; command ... ] ' ] atoms_filename [ atoms_filename ... ]
 ```
-Input atoms files can be any ase.io.read compatible format.
+Input atoms files can be any `ase.io.read` compatible format.
 
 Settings commands (which are required to define atomic/bond types before the atoms files are read in) 
 are read from '~/.daprc' and then `$PWD/.daprc'
@@ -62,14 +62,13 @@ CLI help is available with 'usage' or, for each command, with 'command -h' in th
 # TODO (in expected order of implementation)
 ##    MAYBE DONE?
   - get rid of bond\_type and surface\_type, replace with direct color/material/radius arguments to bond, volume, and polyhedra commands
-  - read WAVECAR (medium - graphics easy, but need to read binary and do FFT)
 
 ##    STARTED
   - optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]
 
 ##    NOT EVEN STARTED
   - color isosurfaces by a scalar (medium)
-  - measure angle for atoms, not just bonds ? (easy)
+  - measure angle for atoms, not just bonds ? (easy, but may generate too much output - add -verbose flag?)
   - display measurements in GUI ? (medium)
   - better examples (easy)
   - slices through volumetric data (maybe also voxel visualization) (depends on vtk support)
