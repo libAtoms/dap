@@ -1,8 +1,8 @@
-# *d*ispay *a*toms with *p*ython (dap)
+# **d**ispay **a**toms with **p**ython (dap)
 
 ## OVERVIEW
 
-dap is a program to *D*isplay *A*toms with *P*ython, based on [ASE](https://wiki.fysik.dtu.dk/ase) and [vtk](https://pypi.org/project/vtk)
+dap is a program to **D**isplay **A**toms with **P**ython, based on [ASE](https://wiki.fysik.dtu.dk/ase) and [vtk](https://pypi.org/project/vtk)
 
 ## FUNCTIONALITY
 
