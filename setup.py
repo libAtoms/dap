@@ -9,13 +9,12 @@ setup(name='dap',
       author='Noam Bernstein',
       author_email='noam.bernstein@nrl.navy.mil',
       packages=find_packages(),
-      data_files=[('config',['daprc', 'README', 'Makefile'] + glob.glob('example.*'))],
+      data_files=[('config',['daprc'] + glob.glob('example.*'))],
       scripts=['dap'],
-      install_requires=['ase','vtk','ffmpeg-python']
+      install_requires=['ase','vtk']
      )
 
 print("")
-print("Don't forget to check out README in this directory")
 print("See daprc for some example settings, and make your own in ~/.daprc")
 print("")
 print("More examples at example.* in this directory, view with")

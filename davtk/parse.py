@@ -4,7 +4,10 @@ import sys, re, os, types
 import numpy as np
 import ase.io
 from ase.calculators.vasp import VaspChargeDensity
-import ffmpeg
+try:
+    import ffmpeg
+except ModuleNotFoundError:
+    ffmpeg=None
 import argparse
 
 from davtk.parse_utils import ThrowingArgumentParser, add_material_args_to_parser
@@ -118,36 +121,61 @@ parsers["save_view"] = (parse_save_view, parser_save_view.format_usage(), parser
 parser_movie = ThrowingArgumentParser(prog="movie",description="make a movie")
 parser_movie.add_argument("-range",type=str,help="range of configs, in slice format start:[end+1]:[step]",default="::")
 parser_movie.add_argument("-framerate",type=float,help="frames per second display rate", default=10.0)
-parser_movie.add_argument("-tmpdir",type=str,help="temporary directory for snapshots",default=".")
-parser_movie.add_argument("-ffmpeg_args",type=str,help="other ffmpeg args",default="-b:v 10M -pix_fmt yuv420p")
-parser_movie.add_argument("output_file",type=str,help="output file name")
+# parser_movie.add_argument("-tmpdir",type=str,help="temporary directory for snapshots",default=".")
+parser_movie.add_argument("-mag",type=int,help="magnification", default=1)
+grp = parser_movie.add_mutually_exclusive_group()
+grp.add_argument("-ffmpeg_args",type=str,help="other ffmpeg args",default="-b:v 10M -pix_fmt yuv420p")
+grp.add_argument("-raw_frames", dest="use_ffmpeg", action="store_false", help="Save raw frames without making into a movie with ffmpeg. "
+                                                                              "Requires that output_file contain a format-style substitution "
+                                                                              "for the frame number")
+parser_movie.add_argument("output_file", type=str, help="Output file name, with ffmpeg-compatible suffix for movie (e.g. .mp4)"
+                                                        "or frame-number format substitution (e.g. {:.03d}) and .png suffix for "
+                                                        "individual frames")
 def parse_movie(davtk_state, renderer, args):
     args = parser_movie.parse_args(args)
     m = re.search("^(\d*)(?::(\d*)(?::(\d*))?)?$", args.range)
+    if not m:
+        raise SyntaxError("range '{}' is not in the expected format".format(args.range))
     range_start = 0 if m.group(1) is None or len(m.group(1)) == 0 else int(m.group(1))
     range_end = len(davtk_state.at_list) if m.group(2) is None or len(m.group(2)) == 0 else int(m.group(2))
     range_interval = 1 if m.group(3) is None or len(m.group(3)) == 0 else int(m.group(3))
     frames = list(range(range_start, range_end, range_interval))
 
+    if args.use_ffmpeg:
+        if ffmpeg is None:
+            raise RuntimeError('movie requires ffmpeg-python python module, unless -raw_frames is used')
+    else:
+        # check for format string in output_file
+        try:
+            if args.output_file.format(0) == args.output_file:
+                raise RuntimeError('No format string in -output_file "'+args.output_file+'"')
+        except IndexError as exc:
+            raise RuntimeError('Too many format strings in -output_file "'+args.output_file+'"') from exc
+
     for frame_i in frames:
         davtk_state.update(str(frame_i))
-        data = davtk_state.snapshot().astype(np.uint8)
-        data = np.ascontiguousarray(np.flip(data, axis=0))
 
-        if frame_i == frames[0]:
-            # start ffmpeg
-            process = (
-                ffmpeg
-                .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(data.shape[1],data.shape[0]),
-                       framerate=args.framerate)
-                .output(args.output_file, pix_fmt='yuv420p', framerate=args.framerate)
-                .overwrite_output()
-                .run_async(pipe_stdin=True)
-            )
+        if args.use_ffmpeg:
+            data = davtk_state.snapshot(mag=args.mag).astype(np.uint8)
+            data = np.ascontiguousarray(np.flip(data, axis=0))
+            if frame_i == frames[0]:
+                # start ffmpeg
+                process = (
+                    ffmpeg
+                    .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(data.shape[1],data.shape[0]),
+                           framerate=args.framerate)
+                    .output(args.output_file, pix_fmt='yuv420p', framerate=args.framerate)
+                    .overwrite_output()
+                    .run_async(pipe_stdin=True)
+                )
 
-        process.stdin.write(data)
-    process.stdin.close()
-    process.wait()
+            process.stdin.write(data)
+        else:
+            davtk_state.snapshot(args.output_file.format(frame_i), mag=args.mag)
+
+    if args.use_ffmpeg:
+        process.stdin.close()
+        process.wait()
 
     # frames.append(frames[-1])
     # fmt_core = "0{}d".format(int(np.log10(len(frames)-1)+1))
