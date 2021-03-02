@@ -731,9 +731,9 @@ group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
 group.add_argument("-list", action='store_true', help="list existing volume representations")
 group.add_argument("-isosurface",type=float,action='store',metavar="THRESHOLD", help="isosurface threshold")
-group.add_argument("-volumetric",type=float,action='store',metavar="SCALE", help="volumetric value_to_opacity_factor and color")
+group.add_argument("-volumetric",type=float,action='store',metavar="SCALE", help="volumetric value_to_opacity_factor")
 #
-parser_volume.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for volumetric representation", default=None)
+parser_volume.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color of representation", default=None)
 add_material_args_to_parser(parser_volume)
 parser_volume.add_argument("-file_args", nargs=argparse.REMAINDER, help="file-type specific arguments (use '-file_args -h' for file-type specific help)", default=[])
 #
