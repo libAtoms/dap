@@ -1,0 +1,13 @@
+# set the atom_type to be based on species (chemical symbol), rather than default Z (atomic number)
+atom_type_field species
+
+# define simple atom type, Si (Z=14), red
+atom_type Si -color 1 0 1 -radius 0.5 -bonding_radius 2.8
+
+# example colormap
+colormap blue_white_red -P 0.0 0.0 0.0 1.0  -P 1.0 1.0 1.0 1.0   -P 2.0 1.0 0.0 0.0
+
+#atom type with color and radius set by maps from values
+atom_type C -colormap blue_white_red col_val -radius_field rad_val 0.5 -bonding_radius 1.8
+
+atom_label -string $${species}
