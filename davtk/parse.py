@@ -753,7 +753,7 @@ def parse_arb_polyhedra(davtk_state, renderer, args):
 parsers["arb_polyhedra"] = (parse_arb_polyhedra, parser_arb_polyhedra.format_usage(), parser_arb_polyhedra.format_help())
 
 parser_volume = ThrowingArgumentParser(prog="volume",description="read volumetric data from file")
-parser_volume.add_argument("filename",nargs='?',help="File to read from. Text dap internal format, *.CHGCAR, *.PARCHG, or *.WAVECAR")
+parser_volume.add_argument("filename",nargs='?',help="File to read from. Text dap internal format, *.CHGCAR, *.PARCHG, *.WAVECAR, *.cube")
 parser_volume.add_argument("-name",type=str, help="name to assign (default to filename)", default=None)
 group = parser_volume.add_mutually_exclusive_group()
 group.add_argument("-delete", action='store', metavar="NAME", help="name of volume to delete", default=None)
@@ -813,7 +813,7 @@ def parse_volume(davtk_state, renderer, args):
                 w *= norm_factor/np.sum(w)
 
         if creating_rep:
-            if args.filename.endswith("CHGCAR") or args.filename.endswith("PARCHG"):
+            if args.filename.endswith(".CHGCAR") or args.filename.endswith(".PARCHG"):
                 sub_args = volume_subparsers["CHGCAR"].parse_args(args.file_args)
 
                 chgcar = VaspChargeDensity(args.filename)
@@ -832,7 +832,7 @@ def parse_volume(davtk_state, renderer, args):
                         raise RuntimeError("volume CHGCAR should never get here")
                 # normalize(data)
                 data = np.ascontiguousarray(data.T)
-            elif args.filename.endswith("WAVECAR"):
+            elif args.filename.endswith(".WAVECAR"):
                 sub_args = volume_subparsers["WAVECAR"].parse_args(args.file_args)
 
                 ##
@@ -889,6 +889,9 @@ def parse_volume(davtk_state, renderer, args):
                     if not is_sq_modulus:
                         wavecar = np.abs(wavecar)**2
                     data = np.ascontiguousarray(wavecar.T)
+            elif args.filename.endswith(".cube"):
+                data, _ = ase.io.cube.read_cube_data(args.filename)
+                data = np.ascontiguousarray(data.T)
             else:
                 sub_args = volume_subparsers["internal"].parse_args(args.file_args)
                 with open(args.filename) as fin:

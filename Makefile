@@ -1,7 +1,6 @@
 dist: FORCE
 	python setup.py bdist_wheel
-	rm -rf dap.egg-info build
-	rm -rf dist/*.egg
+	rm -rf dap.egg-info build dist/*.egg
 	@echo ""
 	@echo "NOTE: wheel should be in dist/"
 
