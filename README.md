@@ -86,6 +86,11 @@ vtk) using pip if needed.  Optional packages which can in installed with pip:
   - pymatgen is required for WAVECAR plotting
   - ffmpeg-python is required for making proper movie files (e.g. mp4) rather than raw image png files.
 
+### Windows
+
+dap has successfully been used on Windows with conda, and installing vtk via conda.  So far it has
+not been made to work with WSL2 and vtk from pip
+
 ----------------------------------------------------------------------------------------------------
 
 ## TODO (in expected order of implementation)
