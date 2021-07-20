@@ -13,7 +13,7 @@ class Viewer(object):
         # read settings from home dir and current dir
         settings = DavTKSettings()
         try:
-            parse_file(os.path.join(Path.home(),".daprc"), settings=settings)
+            parse_file(Path.home() / ".daprc", settings=settings)
         except IOError:
             pass
         try:
