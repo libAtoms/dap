@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os, re, threading, queue
 import vtk
+from pathlib import Path
 from davtk.settings import DavTKSettings
 from davtk.parse import parse_file
 from davtk.state import *
@@ -12,7 +13,7 @@ class Viewer(object):
         # read settings from home dir and current dir
         settings = DavTKSettings()
         try:
-            parse_file(os.path.join(os.environ["HOME"],".daprc"), settings=settings)
+            parse_file(Path.home() / ".daprc", settings=settings)
         except IOError:
             pass
         try:
