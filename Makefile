@@ -1,11 +1,11 @@
 dist: FORCE
-	python setup.py bdist_wheel
+	python3 setup.py bdist_wheel
 	rm -rf dap.egg-info build dist/*.egg
 	@echo ""
 	@echo "NOTE: wheel should be in dist/"
 
 install: FORCE
-	python setup.py install --user
+	python3 setup.py install --user
 
 clean:
 	rm -rf dist dap.egg-info build

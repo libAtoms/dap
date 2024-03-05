@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+from davtk.dap import viewer
+
+def cmd_readline(cmd_queue):
+    import readline
+
+    while True:
+        try:
+            l = input("> ")
+        except EOFError:
+            l = "exit"
+
+        if l.strip() == "exit":
+            viewer.exit()
+            sys.exit(0)
+
+        cmd_queue.put(l.strip())
+
+viewer.start(cmd_readline, viewer.cmd_queue)

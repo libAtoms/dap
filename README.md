@@ -51,7 +51,7 @@ dap [ -g WIDTHxHEIGHT ] [ -e 'command ... [ ; command ... ] ' ] atoms_filename [
 Input atoms files can be any `ase.io.read` compatible format.
 
 Settings commands (which are required to define atomic types before the atoms files are read in) 
-are read from '$HOME/.daprc' and then `$PWD/.daprc'
+are read from '\$HOME/.daprc' and then `\$PWD/.daprc'
 
 Additional commands can be passed with '-e', and these include 'read commands\_filename' to read 
 commands from a file.
