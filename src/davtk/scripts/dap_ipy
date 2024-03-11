@@ -1,0 +1,7 @@
+#!/usr/bin/env ipython3 --gui qt -i
+
+from davtk.dap import viewer as v, at_list
+v.interactive = True
+
+print("Available symbols:\nat_list: list(Atoms)\nv: Viewer")
+

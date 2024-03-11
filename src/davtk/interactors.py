@@ -1,10 +1,9 @@
-from __future__ import print_function
-
 import sys, queue
 import numpy as np
 import vtk
-from davtk.parse import parse_line
 from davtk.parse_utils import ArgumentParserHelp
+
+from PyQt6.QtCore import QTimer
 
 def pick_actors(at, actors, point_sets):
     new_bond_pick_statuses = {}
@@ -35,10 +34,10 @@ def pick_actors(at, actors, point_sets):
         at.bonds.set_picked(i_at, i_bond, stat)
 
 class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
-    def __init__(self,davtk_state,parent=None):
+    def __init__(self, viewer, parent=None):
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.prev_style = None
-        self.davtk_state = davtk_state
+        self.viewer = viewer
 
     def set_prev_style(self, prev_style):
         self.prev_style = prev_style
@@ -49,7 +48,7 @@ class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
 
         picker = vtk.vtkAreaPicker()
         picker.AreaPick(p0[0], p0[1], p1[0], p1[1], self.GetDefaultRenderer())
-        at = self.davtk_state.cur_at()
+        at = self.viewer.davtk_state.cur_at()
         actors = picker.GetProp3Ds()
         points = []
         # find selected points
@@ -69,8 +68,8 @@ class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
                 points[-1].append(int(IDs.GetTuple(ID_i)[0]/actor.point_to_input_point))
             points[-1] = set(points[-1])
 
-        pick_actors(self.davtk_state.cur_at(), actors, points)
-        self.davtk_state.update()
+        pick_actors(self.viewer.davtk_state.cur_at(), actors, points)
+        self.viewer.davtk_state.update()
 
         self.OnLeftButtonUp()
 
@@ -85,12 +84,13 @@ class RubberbandSelect(vtk.vtkInteractorStyleAreaSelectHover):
 
 class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
 
-    def __init__(self,settings,davtk_state,select_style,parent=None):
+    def __init__(self, viewer, select_style, parent=None):
         self.AddObserver("LeftButtonPressEvent",self.leftButtonPressEvent)
         self.AddObserver("LeftButtonReleaseEvent",self.leftButtonReleaseEvent)
         self.AddObserver("RightButtonPressEvent",self.rightButtonPressEvent)
         self.AddObserver("CharEvent",self.charEvent)
-        self.AddObserver("TimerEvent",self.timerEvent)
+        # No need for observer when using QTimer instead (see note below)
+        # self.AddObserver("TimerEvent",self.timerEvent)
 
         if parent is not None:
             self.parent = parent
@@ -100,23 +100,32 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         # may slow things down?
         self.parent.AddObserver("ModifiedEvent",self.modifiedEvent)
 
-        self.davtk_state = davtk_state
-        self.settings = settings
+        self.viewer = viewer
         self.select_style = select_style
 
         self.prev_size = (0,0)
 
-    def timerEvent(self,obj,event):
+        # timer via QTimer, as per
+        #      https://stackoverflow.com/a/51608426
+        # except that we _need_ to pass parent, apparently, otherwise
+        # timer events aren't generated (or maybe just processed) except
+        # on mouse click
+        timer = QTimer(viewer.renwin)
+        timer.timeout.connect(self.timerEvent)
+        timer.start(100)
+
+
+    def timerEvent(self, obj=None, event=None):
         try:
-            line = self.davtk_state.cmd_queue.get(block=False)
+            line = self.viewer.davtk_state.cmd_queue.get(block=False)
         except queue.Empty:
             return
         try:
-            refresh = parse_line(line.rstrip(), self.settings, self.davtk_state, self.GetDefaultRenderer())
+            refresh = self.viewer._parse_line(line)
             if refresh == "exit":
                 sys.exit(0)
             else:
-                self.davtk_state.update(what=refresh)
+                self.viewer.davtk_state.update(what=refresh)
         except ArgumentParserHelp:
             pass
         except Exception as e:
@@ -132,7 +141,7 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
         new_size = obj.GetSize()
         if new_size != self.prev_size:
             self.prev_size = new_size
-            self.davtk_state.update()
+            self.viewer.davtk_state.update()
 
     def charEvent(self,obj,event):
         k = self.parent.GetKeySym()
@@ -140,18 +149,20 @@ class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
             self.GetInteractor().SetInteractorStyle(self.select_style)
             self.select_style.set_prev_style(self)
         elif k == 'd':
-            self.davtk_state.delete(atoms="picked", bonds="picked", frames="cur")
+            self.viewer.davtk_state.delete(self.viewer.cur_at(), atom_selection="picked", bond_selection="picked")
+            self.viewer.davtk_state.update()
         elif k == 'm':
-            self.davtk_state.measure()
+            self.viewer.davtk_state.measure()
         elif k == 'b':
-            self.davtk_state.bond(name=None, at_type1='*', at_type2='*', criterion="picked", frames="cur")
+            self.viewer.davtk_state.bond(self.viewer.cur_at(), name=None, at_type1='*', at_type2='*', criterion="picked")
+            self.viewer.davtk_state.update()
         elif k == 'l':
-            self.davtk_state.settings["atom_label"]["show"] = not self.davtk_state.settings["atom_label"]["show"]
-            self.davtk_state.update()
+            self.viewer.davtk_state.settings["atom_label"]["show"] = not self.viewer.davtk_state.settings["atom_label"]["show"]
+            self.viewer.davtk_state.update()
         elif k == 'plus':
-            self.davtk_state.update('+'+str(self.davtk_state.settings["frame_step"]))
+            self.viewer.davtk_state.update('+'+str(self.viewer.davtk_state.settings["frame_step"]))
         elif k == 'minus':
-            self.davtk_state.update('-'+str(self.davtk_state.settings["frame_step"]))
+            self.viewer.davtk_state.update('-'+str(self.viewer.davtk_state.settings["frame_step"]))
         elif k in [ 'h', '?' ]:
             print("""GUI usage
 h: help (this message)
@@ -176,22 +187,22 @@ Mouse scroll (two finger up/down drag on OS X): zoom
         # self.OnChar() # Forward Events to superclass handler
 
     def leftButtonPressEvent(self,obj,event):
-        self.show_atom_labels_prev = self.davtk_state.settings["atom_label"]["show"]
-        self.davtk_state.settings["atom_label"]["show"] = False
+        self.show_atom_labels_prev = self.viewer.davtk_state.settings["atom_label"]["show"]
+        self.viewer.davtk_state.settings["atom_label"]["show"] = False
 
-        self.show_legend_prev = self.davtk_state.settings["legend"]['show']
-        self.davtk_state.settings["legend"]["show"] = False
+        self.show_legend_prev = self.viewer.davtk_state.settings["legend"]['show']
+        self.viewer.davtk_state.settings["legend"]["show"] = False
 
-        self.davtk_state.update("rotate")
+        self.viewer.davtk_state.update("rotate")
         self.OnLeftButtonDown()
         return
 
     def leftButtonReleaseEvent(self,obj,event):
-        self.davtk_state.settings["atom_label"]["show"] = self.show_atom_labels_prev
+        self.viewer.davtk_state.settings["atom_label"]["show"] = self.show_atom_labels_prev
 
-        self.davtk_state.settings["legend"]['show'] = self.show_legend_prev
+        self.viewer.davtk_state.settings["legend"]['show'] = self.show_legend_prev
 
-        self.davtk_state.update("rotate")
+        self.viewer.davtk_state.update("rotate")
         self.OnLeftButtonUp()
 
     def rightButtonPressEvent(self,obj,event):
@@ -204,15 +215,15 @@ Mouse scroll (two finger up/down drag on OS X): zoom
 
         # If something was selected
         if pickedActor:
-            at = self.davtk_state.cur_at()
+            at = self.viewer.davtk_state.cur_at()
             point = picker.GetPointId()
             try:
                 point = int(point/pickedActor.point_to_input_point)
             except AttributeError:
                 pass
-            pick_actors(self.davtk_state.cur_at(), [pickedActor], [[point]])
+            pick_actors(self.viewer.davtk_state.cur_at(), [pickedActor], [[point]])
 
-        self.davtk_state.update()
+        self.viewer.davtk_state.update()
 
         self.GetInteractor().Render()
 

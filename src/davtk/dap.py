@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-
-from __future__ import print_function
-
 import argparse
 import pkg_resources  # part of setuptools
 
@@ -13,11 +9,9 @@ cli_parse.add_argument("--version","-v", action='version', version='%(prog)s '+p
 cli_parse.add_argument("atoms_files",nargs="+",type=str,help="atoms files in any ase.io.read format, optionally including '@START:END:STEP' interval")
 args = cli_parse.parse_args()
 
-
-
 import sys, re
 import ase, ase.io
-from davtk import dap
+from davtk.viewer import Viewer
 
 # read atoms from atoms_files
 if args.format is None:
@@ -43,16 +37,4 @@ m = re.search("^(\d+)x(\d+)$", args.geometry)
 if not m:
     raise ValueError("-geometry '{}' not NxM".format(args.geometry))
 win_size = (int(m.group(1)), int(m.group(2)))
-viewer = dap.Viewer(at_list, win_size, "dap " + " ".join(args.atoms_files), args.execute_commands)
-
-def cmd_readline(cmd_queue):
-    import readline
-
-    while True:
-        l = input("> ")
-        cmd_queue.put(l.rstrip())
-        if l.rstrip() == "exit":
-            print("exiting action thread")
-            sys.exit(0)
-
-viewer.start(cmd_readline, viewer.get_cmd_queue())
+viewer = Viewer(at_list, win_size, "dap " + " ".join(args.atoms_files), args.execute_commands)

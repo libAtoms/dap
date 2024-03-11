@@ -3,6 +3,7 @@ from warnings import warn
 import numpy as np, scipy
 import vtk
 import ase.neighborlist
+from ase.cell import Cell
 import re
 from vtk.util.vtkImageImportFromArray import vtkImageImportFromArray
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
@@ -162,7 +163,7 @@ class DavTKBonds(object):
             for bond_str in bond_strs:
                 m = re.search('^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_(.*)$', bond_str)
                 if m:
-                    (j, S, picked, name) = ( int(m.group(1)), [int(m.group(i)) for i in range(2,5)], 
+                    (j, S, picked, name) = ( int(m.group(1)), [int(m.group(i)) for i in range(2,5)],
                                              str_to_bool(m.group(5)), m.group(6) )
                     self.bonds[at_i].append( {"j" : j, "S" : np.array(S), "name" : name, "picked" : picked } )
 
@@ -248,8 +249,6 @@ class DaVTKState(object):
         self.primitive_cell_box_actors = {}
 
         self.frame_label_actor = None
-
-        self.saved_views = {}
 
         self.active = False
 
@@ -487,7 +486,7 @@ class DaVTKState(object):
         if "_vtk_images" in at.info:
             if at.info['_vtk_images_cell_field'] == '_CELL_':
                 use_cell = at.get_cell()
-                use_cell_inv = at.get_reciprocal_cell().T
+                use_cell_inv = at.cell.reciprocal().T
             elif at.info['_vtk_images_cell_field'] == '_CART_':
                 use_cell = np.eye(3)
                 use_cell_inv = np.eye(3)
@@ -503,7 +502,7 @@ class DaVTKState(object):
                 for s1 in (range_vec[2], range_vec[3]):
                     for s2 in (range_vec[4], range_vec[5]):
                         p_cart = np.dot((s0,s1,s2), use_cell)
-                        p_shift = np.dot(p_cart, at.get_reciprocal_cell().T)
+                        p_shift = np.dot(p_cart, at.cell.reciprocal().T)
                         s0_min = min(s0_min, p_shift[0])
                         s1_min = min(s1_min, p_shift[1])
                         s2_min = min(s2_min, p_shift[2])
@@ -545,7 +544,7 @@ class DaVTKState(object):
         atom_type_list = get_atom_type_list(self.settings, at)
         pos = at.positions
         cell = at.get_cell()
-        cell_inv = at.get_reciprocal_cell().T
+        cell_inv = at.cell.reciprocal().T
         rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
 
         # create structures for each atom type
@@ -592,7 +591,7 @@ class DaVTKState(object):
     # need to see what can be optimized if settings_only is True
     def update_atom_spheres(self, at):
 
-        # get structures 
+        # get structures
         (unique_types, points_lists, radius_lists, colormap_vals_lists, i_at_lists) = self.atoms_plotting_info(at)
 
         # cleaup up actors
@@ -658,7 +657,7 @@ class DaVTKState(object):
 
         pos = at.get_positions()
         cell = at.get_cell()
-        cell_inv = at.get_reciprocal_cell().T
+        cell_inv = at.cell.reciprocal().T
         rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
 
         rad = at.info["_vtk_vectors"]["radius"]
@@ -666,12 +665,16 @@ class DaVTKState(object):
         if vector_color == "atom":
             atom_type_list = get_atom_type_list(self.settings, at)
 
-        if at.info["_vtk_vectors"]["field"] == "magmoms":
-            vectors = at.get_magnetic_moments()
-        elif at.info["_vtk_vectors"]["field"] == "initial_magmoms":
-            vectors = at.get_initial_magnetic_moments()
-        else:
-            vectors = at.arrays[at.info["_vtk_vectors"]["field"]]
+        try:
+            if at.info["_vtk_vectors"]["field"] == "magmoms":
+                vectors = at.get_magnetic_moments()
+            elif at.info["_vtk_vectors"]["field"] == "initial_magmoms":
+                vectors = at.get_initial_magnetic_moments()
+            else:
+                vectors = at.arrays[at.info["_vtk_vectors"]["field"]]
+        except KeyError as exc:
+            sys.stderr.write(f"Exception when looking for _vtk_vectors in field {at.info['_vtk_vectors']['field']} {exc}\n")
+            return
 
         # start out with fake orientation
         self.renderer.GetActiveCamera().OrthogonalizeViewUp()
@@ -691,7 +694,9 @@ class DaVTKState(object):
         vectors_use *= at.info["_vtk_vectors"]["scale"]
 
         vector_norms = np.linalg.norm(vectors_use, axis=1)
-        vectors_hat = (vectors_use.T / vector_norms).T
+        non_zero = np.where(vector_norms > 0)
+        vectors_hat = vectors_use.copy()
+        vectors_hat[non_zero] = (vectors_use[non_zero].T / np.maximum(vector_norms[non_zero], 1.0e-6)).T
 
         cyl_x_mapper = self.shapes["mappers"]["cylinder_x_end_origin"]
         arrow_x_mapper = self.shapes["mappers"]["arrow_x"]
@@ -711,7 +716,7 @@ class DaVTKState(object):
                 angle = -np.arccos(np.dot(vectors_hat[i_at], source_orient))*180.0/np.pi
 
             if vector_color == "atom":
-                at_type = atom_type_list[i_at] 
+                at_type = atom_type_list[i_at]
                 color = get_atom_prop(self.settings, at_type, i_at, at.arrays).GetColor()
             elif vector_color == "sign":
                 if vectors[i_at] < 0:
@@ -776,7 +781,7 @@ class DaVTKState(object):
 
         cell = at.get_cell()
         pos = at.get_positions()
-        cell_inv = at.get_reciprocal_cell().T
+        cell_inv = at.cell.reciprocal().T
         rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
 
         vis_images = self.visible_images(at)
@@ -1045,7 +1050,7 @@ class DaVTKState(object):
             init_magmoms = at.get_initial_magnetic_moments()
         except:
             init_magmoms = None
-        dict_atom_special_case = { "ID" : list(range(len(at))), 
+        dict_atom_special_case = { "ID" : list(range(len(at))),
                                    "Z" : at.get_atomic_numbers(),
                                    "species" : at.get_chemical_symbols(),
                                    "magmom" : magmoms,
@@ -1085,7 +1090,12 @@ class DaVTKState(object):
             if char_i == len(string)-1 and depth > 1:
                 raise RuntimeError("Failed to find closing of '$(' in '{}'".format(string))
             substring = string[p0+2:char_i]
-            string = string.replace('$('+substring+')',str(eval(substring)))
+            # define standard 'atoms' sybmol
+            atoms = at
+            try:
+                string = string.replace('$('+substring+')',str(eval(substring)))
+            except:
+                string = "EVAL ERROR"
 
         return string
 
@@ -1206,7 +1216,7 @@ class DaVTKState(object):
                 label_str = ""
             else:
                 label_str = self.string_dollar_sub(label_raw_string, at, i_at)
-            
+
             r = get_atom_radius(self.settings, atom_type_list[i_at], i_at, at)
             if dp_world > 0:
                 dp_disp = 3+0.7*r/dp_world
@@ -1241,12 +1251,13 @@ class DaVTKState(object):
         else:
             at_indices = n
 
-        p = at.get_positions()
-        c = at.get_cell()
+        p = at.positions
+        Z = at.numbers
+        c = at.cell
 
         print("measure:")
         for i_at in at_indices:
-            print("atom {} pos {} {} {}".format(i_at,p[i_at][0],p[i_at][1],p[i_at][2]))
+            print("atom {} Z {} pos {} {} {}".format(i_at, Z[i_at], p[i_at][0], p[i_at][1], p[i_at][2]))
         for i in range(len(at_indices)):
             i_at = at_indices[i]
             for j_at in at_indices[i+1:]:
@@ -1294,7 +1305,7 @@ class DaVTKState(object):
                 new_at = make_supercell(at, P)
 
                 # eliminate atoms in new_at that are at same positions as old at
-                cinv = new_at.get_reciprocal_cell().T
+                cinv = new_at.cell.reciprocal().T
                 at_in_new_lat = np.matmul(at.get_positions(), cinv)
                 new_lat_pos = new_at.get_scaled_positions()
                 keep_inds = list(range(len(new_at)))
@@ -1349,7 +1360,7 @@ class DaVTKState(object):
 
         if filename is not None:
             if not filename.endswith(".png"):
-                warn("creating PNG file with suffix that is not .png") 
+                warn("creating PNG file with suffix that is not .png")
             writer = vtk.vtkPNGWriter()
             writer.SetInputConnection(renderLarge.GetOutputPort())
             writer.SetFileName(filename)
@@ -1423,7 +1434,7 @@ class DaVTKState(object):
         return actor
 
     def add_volume_rep(self, name, data, style, params, cmd_string):
-        # at.volume_reps[name] is 3-element tuple: image, transform (only one for each data set), 
+        # at.volume_reps[name] is 3-element tuple: image, transform (only one for each data set),
         #     and list of (actor, command_string) tuples (could be multiple views of same data).
         at = self.cur_at()
         if not hasattr(at, "volume_reps"):
@@ -1434,7 +1445,7 @@ class DaVTKState(object):
             transform = vtk.vtkTransform()
             m = transform.GetMatrix()
             c = at.get_cell()
-            # scale so 0--1 spans entire cell vector.  Note that data storage is opposite 
+            # scale so 0--1 spans entire cell vector.  Note that data storage is opposite
             # of lattice vector ordering
             c[0,:] /= data.shape[2]
             c[1,:] /= data.shape[1]
@@ -1493,7 +1504,7 @@ class DaVTKState(object):
                 at.info["_vtk_commands"] = ""
 
             # save volume commands
-            if hasattr(at,"volume_reps") and len(at.volume_reps) > 0:
+            if hasattr(at, "volume_reps") and len(at.volume_reps) > 0:
                 for volume_rep in at.volume_reps.values():
                     for (_, cmd) in volume_rep[2]:
                         at.info["_vtk_commands"] += ' '.join(cmd) + " ; "
@@ -1561,7 +1572,7 @@ class DaVTKState(object):
     def coordination_polyhedra(self, at, name, center_at_type, neighb_at_type, cutoff=None, bond_name=None):
         if cutoff is None: # no cutoff, use existing bonds
             if not hasattr(at, "bonds"):
-                warn("coordination polyhedra without cutoff require bonds already exist") 
+                warn("coordination polyhedra without cutoff require bonds already exist")
                 return
             if bond_name is None:
                 bond_name = "default"
@@ -1684,13 +1695,40 @@ class DaVTKState(object):
         cam = self.renderer.GetActiveCamera()
 
         if along_up is not None:
-            along = along_up[0:3]
-            up = along_up[3:6]
+            if lattice is None:
+                cell = self.cur_at().cell
+            elif lattice in self.cur_at().info:
+                cell = Cell(self.cur_at().info[lattice])
+            else:
+                raise ValueError(f"Can't find primive lattice info Atoms.info key {lattice}")
 
-            if lattice:
-                cell = self.cur_at().get_cell()
-                along = np.dot(along, cell)
-                up = np.dot(up, cell)
+            def grab_vector(string, cell):
+                if re.match(r'^\s*\[', string):
+                    m = re.match(r'^\s*\[\s*(\S+)\s+(\S+)\s+(\S+)\s*\]', string)
+                    if not m:
+                        raise ValueError(f"Failed to parse lattice direction vector from '{string}'")
+                    v = [float(x) for x in [m.group(1), m.group(2), m.group(3)]]
+                    string = string.replace(m.group(0), "")
+                    return v @ cell, string
+                elif re.match(r'^\s*\(', string):
+                    m = re.match(r'^\s*\(\s*(\S+)\s+(\S+)\s+(\S+)\s*\)', string)
+                    if not m:
+                        raise ValueError(f"Failed to parse lattice direction vector from '{string}'")
+                    v = [float(x) for x in [m.group(1), m.group(2), m.group(3)]]
+                    string = string.replace(m.group(0), "")
+                    return v @ cell.reciprocal(), string
+                else:
+                    m = re.match(r'^\s*(\S+)\s+(\S+)\s+(\S+)', string)
+                    if not m:
+                        raise ValueError(f"Failed to parse lattice direction vector from '{string}'")
+                    v = [float(x) for x in [m.group(1), m.group(2), m.group(3)]]
+                    string = string.replace(m.group(0), "")
+                    return np.asarray(v), string
+
+            along_up_str = " ".join(along_up).strip()
+            along, along_up_str = grab_vector(along_up_str, cell)
+            up, _ = grab_vector(along_up_str, cell)
+
             along /= np.linalg.norm(along)
             up /= np.linalg.norm(up)
 
