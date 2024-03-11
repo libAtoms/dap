@@ -63,28 +63,22 @@ CLI help is available with 'usage' or, for each command, with 'command -h' in th
 
 ## INSTALLATION
 
-Make sure the python3 and pip3 executables you want are in your path.
+Make sure the python3 executable you want are in your path.
 
-To install directly from this source, do (in this directory which contains the dap executable)
+To install directly from github
 ```
-    pip3 install .
+    python3 -m pip install git+https://github.com/libAtoms/dap
 ```
 
-You can also create a wheel for for distribution with
+To install directly from source, do (in the cloned git repo dir)
 ```
-    make clean
-    make dist
+    python3 -m pip install .
 ```
-and install it with
-```
-    pip3 install dist/dap-*-py3-none-any.whl
-```
-(assuming only one version's wheel file is present)
 
 The installation process should also install prerequisites (ASE and
-vtk) using pip if needed.  Optional packages which can in installed with pip:
-  - pymatgen is required for WAVECAR plotting
-  - ffmpeg-python is required for making proper movie files (e.g. mp4) rather than raw image png files.
+vtk) using pip if needed.  Optional packages which can be installed with pip:
+  - `pymatgen`: required for VASP CHGCAR/WAVECAR plotting
+  - `ffmpeg-python`: required for making proper movie files (e.g. mp4) rather than raw image png files.
 
 ### Windows
 
@@ -94,17 +88,19 @@ not been made to work with WSL2 and vtk from pip
 ----------------------------------------------------------------------------------------------------
 
 ## TODO (in expected order of implementation)
-###    MAYBE DONE?
+
+###    PARTIALLY/MAYBE DONE?
+
   - get rid of bond\_type and surface\_type, replace with direct color/material/radius arguments to bond, volume, and polyhedra commands
 
 ###    STARTED
   - optimize rebuilding of scene to minimize cost, e.g. if only color changes are possible, don't recreate full objects unnecessarily (medium) [STARTED]
+  - better examples (easy)
 
 ###    NOT EVEN STARTED
   - color isosurfaces by a scalar (medium)
   - measure angle for atoms, not just bonds ? (easy, but may generate too much output - add -verbose flag?)
   - display measurements in GUI ? (medium)
-  - better examples (easy)
   - slices through volumetric data (maybe also voxel visualization) (depends on vtk support)
   - better integration with ASE data structures (varies)
   - read CHG as well as CHGCAR (easy)

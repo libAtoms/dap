@@ -12,7 +12,7 @@ setup(name='dap',
       package_dir={"": "src"},
       package_data={'davtk.scripts': ['*'], 'davtk.examples': ['*']},
       entry_points={'console_scripts': ['dap = davtk.cli.dap:main', 'dap_ipy = davtk.cli.dap_ipy:main']},
-      install_requires=['ase', 'vtk', 'PyQt6', 'numpy', 'scipy']
+      install_requires=['argparse', 'ase', 'vtk', 'PyQt6', 'numpy', 'scipy']
      )
 
 print("")
