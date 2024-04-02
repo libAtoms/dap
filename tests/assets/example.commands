@@ -7,7 +7,7 @@ legend
 bond -auto
 
 # bond only Si-C, with cutoff 3.5, bond name "alt"
-bond -name alt -cutoff 3.5 -T Si -T2 C -color 1 0 0 -radius 0.1
+bond -name alt -cutoff 3.5 -T Si -Tn C -color 1 0 0 -radius 0.1
 
 # create polyhedra in frame 2
 go 2

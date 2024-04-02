@@ -914,7 +914,7 @@ class Viewer(object):
     _parser_bond.add_argument("-all_frames",action="store_true",help="apply to all frames")
     _parser_bond.add_argument("-name",type=str,help="name of bond set", default="default")
     _parser_bond.add_argument("-T",type=str,help="Restrict one member to given atom_type", default="*")
-    _parser_bond.add_argument("-T2",type=str,help="Restrict other member to given atom_type", default="*")
+    _parser_bond.add_argument("-Tn",type=str,help="Restrict other member to given atom_type", default="*")
     _grp = _parser_bond.add_mutually_exclusive_group()
     _grp.add_argument("-picked", action='store_true', help="bond a pair of picked atoms with MIC")
     _grp.add_argument("-n", action='store', type=int, nargs=2, help="bond a pair of atoms with given IDs", default=None)
@@ -928,7 +928,7 @@ class Viewer(object):
     _grp.add_argument("-list_bonds", action='store_true', help="list existing bond")
     _parser_bond.add_argument("-no_pbc", action='store_true', help="no bonds across periodic boundary conditions")
     parsers["bond"] = _parser_bond
-    def bond(self, name="default", T="*", T2="*", picked=False, n=None, cutoff=None, auto=False,
+    def bond(self, name="default", T="*", Tn="*", picked=False, n=None, cutoff=None, auto=False,
                  radius=None, color=None, opacity=None, specular=None, specular_radius=None, ambient=None,
                  delete=False, list_bonds=False, no_pbc=False, all_frames=False):
         """Create bonds between atoms
@@ -939,7 +939,7 @@ class Viewer(object):
             name to attach to set of bonds
         T: str, default "*"
             atom type for one end of bond
-        T2: str, default "*"
+        Tn: str, default "*"
             atom type for other end of bond
         picked: bool
             bond all atoms that are picked
@@ -1000,17 +1000,17 @@ class Viewer(object):
             # actually create bonds
             for at in ats:
                 if picked:
-                    if T != '*' or T2 != '*':
-                        raise RuntimeError("bond by picked can't specify -T or -T2")
-                    davtk_state.bond(at, name, T, T2, "picked")
+                    if T != '*' or Tn != '*':
+                        raise RuntimeError("bond by picked can't specify -T or -Tn")
+                    davtk_state.bond(at, name, T, Tn, "picked")
                 elif n:
-                    if T != '*' or T2 != '*':
-                        raise RuntimeError("bond by n (indices) can't specify -T or -T2")
-                    davtk_state.bond(at, name, T, T2, ("n", n))
+                    if T != '*' or Tn != '*':
+                        raise RuntimeError("bond by n (indices) can't specify -T or -Tn")
+                    davtk_state.bond(at, name, T, Tn, ("n", n))
                 elif cutoff:
-                    davtk_state.bond(at, name, T, T2, ("cutoff", cutoff), no_pbc=no_pbc)
+                    davtk_state.bond(at, name, T, Tn, ("cutoff", cutoff), no_pbc=no_pbc)
                 elif auto:
-                    davtk_state.bond(at, name, T, T2, ("cutoff", None), no_pbc=no_pbc)
+                    davtk_state.bond(at, name, T, Tn, ("cutoff", None), no_pbc=no_pbc)
         else: # not creating, either delete or list or just modifying an existing name
             if delete:
                 for at in ats:
