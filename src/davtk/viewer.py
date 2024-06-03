@@ -335,26 +335,34 @@ class Viewer(object):
 
 
     _parser_help = ThrowingArgumentParser(prog="help", description="print help message")
-    _parser_help.add_argument("regexp", nargs="?", help="regexp to print help for", default=".")
+    _parser_help.add_argument("-full_text", "-f", action="store_true", help="search full text of help message")
+    _parser_help.add_argument("glob", nargs="?", help="glob (shell style) to print usage for", default="*")
     parsers["help"] = _parser_help
-    def help(self, regexp="."):
+    def help(self, full_text=False, glob="*"):
         """Print help message
 
         Parameters
         ----------
-        regexp: str, default "."
-            regexp to match for keywords to print help for
+        full_text: bool, default False
+            search for glob in full text of help message
+        glob: str, default "."
+            glob to match for keywords to print usage for
 
         Returns
         -------
         refresh: None
         """
-        for keyword in [k for k in sorted(self.davtk_state.settings.parsers.keys()) if (regexp is None or re.match(regexp, k))]:
-            print("--------------------------------------------------------------------------------")
-            print(keyword, self.davtk_state.settings.parsers[keyword].format_help(), end='')
-        for keyword in [k for k in sorted(self.parsers.keys()) if (regexp is None or re.match(regexp, k))]:
-            print("--------------------------------------------------------------------------------")
-            print(keyword, self.parsers[keyword].format_help(), end='')
+        regexp = re.sub(r"\?", ".", glob)
+        regexp = re.sub(r"\*", ".*", regexp)
+
+        for parsers in (self.davtk_state.settings.parsers, self.parsers):
+            for keyword in [k for k in sorted(parsers.keys()) if
+                            (regexp is None or
+                             re.match(regexp, k) or
+                             (full_text and re.search(regexp, parsers[k].format_help(), re.MULTILINE)))]:
+                print("--------------------------------------------------------------------------------")
+                print(keyword, self.davtk_state.settings.parsers[keyword].format_help(), end='')
+
         return None
 
 
