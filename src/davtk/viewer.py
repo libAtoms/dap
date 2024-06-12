@@ -312,9 +312,9 @@ class Viewer(object):
         Parameters
         ----------
         full_text: bool, default False
-            search for glob in full text of help message
+            search for glob in full text of usage message
         glob: str, default "*"
-            shell-styl glob to match for keywords to print usage for
+            shell-style glob to match for keywords to print usage for
 
         Returns
         -------
@@ -322,6 +322,7 @@ class Viewer(object):
         """
         regexp = re.sub(r"\?", ".", glob)
         regexp = re.sub(r"\*", ".*", regexp)
+        regexp = "^" + regexp + "$"
 
         for parsers, label in [(self.davtk_state.settings.parsers, "SETTINGS"),
                                (self.parsers, "COMMANDS")]:
@@ -354,6 +355,7 @@ class Viewer(object):
         """
         regexp = re.sub(r"\?", ".", glob)
         regexp = re.sub(r"\*", ".*", regexp)
+        regexp = "^" + regexp + "$"
 
         for parsers in (self.davtk_state.settings.parsers, self.parsers):
             for keyword in [k for k in sorted(parsers.keys()) if
@@ -542,7 +544,7 @@ class Viewer(object):
         -------
         refresh: None
         """
-        m = re.search("^(\d*)(?::(\d*)(?::(\d*))?)?$", frame_range)
+        m = re.search(r"^(\d*)(?::(\d*)(?::(\d*))?)?$", frame_range)
         if not m:
             raise SyntaxError("range '{}' is not in the expected format".format(frame_range))
         range_start = 0 if m.group(1) is None or len(m.group(1)) == 0 else int(m.group(1))
