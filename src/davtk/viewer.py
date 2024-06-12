@@ -361,7 +361,7 @@ class Viewer(object):
                              re.match(regexp, k) or
                              (full_text and re.search(regexp, parsers[k].format_help(), re.MULTILINE)))]:
                 print("--------------------------------------------------------------------------------")
-                print(keyword, self.davtk_state.settings.parsers[keyword].format_help(), end='')
+                print(keyword, parsers[keyword].format_help(), end='')
 
         return None
 
