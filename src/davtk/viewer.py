@@ -313,8 +313,8 @@ class Viewer(object):
         ----------
         full_text: bool, default False
             search for glob in full text of help message
-        glob: str, default "."
-            glob to match for keywords to print usage for
+        glob: str, default "*"
+            shell-styl glob to match for keywords to print usage for
 
         Returns
         -------
@@ -345,8 +345,8 @@ class Viewer(object):
         ----------
         full_text: bool, default False
             search for glob in full text of help message
-        glob: str, default "."
-            glob to match for keywords to print usage for
+        glob: str, default "*"
+            shell-style glob to match for keywords to print usage for
 
         Returns
         -------
