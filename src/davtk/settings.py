@@ -101,7 +101,7 @@ class DavTKSettings():
     parsers = {}
 
     _parser_atom_type_field = ThrowingArgumentParser(prog="atom_type_field", description="ASE at.arrays field to use for atom type")
-    _parser_atom_type_field.add_argument("field", help="name of field ('Z' for atomic numbers, 'species' for chemical symbols", default='Z')
+    _parser_atom_type_field.add_argument("field", help="name of field ('Z' for atomic numbers, 'species' for chemical symbols)", default='Z')
     parsers["atom_type_field"] = _parser_atom_type_field
 
     _parser_print_settings = ThrowingArgumentParser(prog="print_settings", description="print settings")
@@ -142,17 +142,17 @@ class DavTKSettings():
     parsers["atom_type"] = _parser_atom_type
 
     _parser_cell_box = ThrowingArgumentParser(prog="cell_box")
-    _parser_cell_box.add_argument("-color", nargs=3, type=float, metavar=['R', 'G', 'B'], default=None)
+    _parser_cell_box.add_argument("-color", nargs=3, type=float, metavar=('R', 'G', 'B'), default=None)
     _parser_cell_box.add_argument("-opacity", type=float, default=None)
     _parser_cell_box.add_argument("-width", type=float, default=None)
     parsers["cell_box"] = _parser_cell_box
 
     _parser_picked = ThrowingArgumentParser(prog="picked")
-    _parser_picked.add_argument("-color", nargs=3, type=float, metavar=['R', 'G', 'B'])
+    _parser_picked.add_argument("-color", nargs=3, type=float, metavar=('R', 'G', 'B'))
     parsers["picked"] = _parser_picked
 
     _parser_background_color = ThrowingArgumentParser(prog="background_color")
-    _parser_background_color.add_argument("-color", nargs=3, type=float, metavar=['R', 'G', 'B'])
+    _parser_background_color.add_argument("-color", nargs=3, type=float, metavar=('R', 'G', 'B'))
     parsers["background_color"] = _parser_background_color
 
     _parser_frame_label = ThrowingArgumentParser(prog="frame_label")

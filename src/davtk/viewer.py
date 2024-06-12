@@ -303,50 +303,70 @@ class Viewer(object):
     ####################################################################################################
 
     _parser_usage = ThrowingArgumentParser(prog="usage", description="print usage message")
-    _parser_usage.add_argument("regexp", nargs="?", help="regexp to print usage for", default=".")
+    _parser_usage.add_argument("-full_text", "-f", action="store_true", help="search full text of help message")
+    _parser_usage.add_argument("glob", nargs="?", help="glob (shell style) to print usage for", default="*")
     parsers["usage"] = _parser_usage
-    def usage(self, regexp="."):
+    def usage(self, full_text=False, glob="*"):
         """Print usage message
 
         Parameters
         ----------
-        regexp: str, default "."
-            regexp to match for keywords to print usage for
+        full_text: bool, default False
+            search for glob in full text of usage message
+        glob: str, default "*"
+            shell-style glob to match for keywords to print usage for
 
         Returns
         -------
         refresh: None
         """
-        print("\nSETTINGS:")
-        for keyword in [k for k in sorted(self.davtk_state.settings.parsers.keys()) if (regexp is None or re.match(regexp, k))]:
-            print(keyword, self.davtk_state.settings.parsers[keyword].format_usage(), end='')
-        print("\nCOMMANDS:")
-        for keyword in [k for k in sorted(self.parsers.keys()) if (regexp is None or re.match(regexp, k))]:
-            print(keyword, self.parsers[keyword].format_usage(), end='')
+        regexp = re.sub(r"\?", ".", glob)
+        regexp = re.sub(r"\*", ".*", regexp)
+        if not full_text:
+            regexp = "^" + regexp + "$"
+
+        for parsers, label in [(self.davtk_state.settings.parsers, "SETTINGS"),
+                               (self.parsers, "COMMANDS")]:
+            print(f"\n{label}:")
+            for keyword in [k for k in sorted(parsers.keys()) if
+                            (regexp is None or
+                             re.search(regexp, k) or
+                             (full_text and re.search(regexp, parsers[k].format_help(), re.MULTILINE)))]:
+                print(keyword, parsers[keyword].format_usage(), end='')
         return None
 
 
     _parser_help = ThrowingArgumentParser(prog="help", description="print help message")
-    _parser_help.add_argument("regexp", nargs="?", help="regexp to print help for", default=".")
+    _parser_help.add_argument("-full_text", "-f", action="store_true", help="search full text of help message")
+    _parser_help.add_argument("glob", nargs="?", help="glob (shell style) to print usage for", default="*")
     parsers["help"] = _parser_help
-    def help(self, regexp="."):
+    def help(self, full_text=False, glob="*"):
         """Print help message
 
         Parameters
         ----------
-        regexp: str, default "."
-            regexp to match for keywords to print help for
+        full_text: bool, default False
+            search for glob in full text of help message
+        glob: str, default "*"
+            shell-style glob to match for keywords to print usage for
 
         Returns
         -------
         refresh: None
         """
-        for keyword in [k for k in sorted(self.davtk_state.settings.parsers.keys()) if (regexp is None or re.match(regexp, k))]:
-            print("--------------------------------------------------------------------------------")
-            print(keyword, self.davtk_state.settings.parsers[keyword].format_help(), end='')
-        for keyword in [k for k in sorted(self.parsers.keys()) if (regexp is None or re.match(regexp, k))]:
-            print("--------------------------------------------------------------------------------")
-            print(keyword, self.parsers[keyword].format_help(), end='')
+        regexp = re.sub(r"\?", ".", glob)
+        regexp = re.sub(r"\*", ".*", regexp)
+        if not full_text:
+            regexp = "^" + regexp + "$"
+
+        for parsers in (self.davtk_state.settings.parsers, self.parsers):
+            for keyword in [k for k in sorted(parsers.keys()) if
+                            (regexp is None or
+                             re.match(regexp, k) or
+                             (full_text and re.search(regexp, parsers[k].format_help(), re.MULTILINE)))]:
+                print("--------------------------------------------------------------------------------")
+                print(keyword, parsers[keyword].format_help(), end='')
+
         return None
 
 
@@ -526,7 +546,7 @@ class Viewer(object):
         -------
         refresh: None
         """
-        m = re.search("^(\d*)(?::(\d*)(?::(\d*))?)?$", frame_range)
+        m = re.search(r"^(\d*)(?::(\d*)(?::(\d*))?)?$", frame_range)
         if not m:
             raise SyntaxError("range '{}' is not in the expected format".format(frame_range))
         range_start = 0 if m.group(1) is None or len(m.group(1)) == 0 else int(m.group(1))
@@ -848,7 +868,7 @@ class Viewer(object):
     _parser_vectors.add_argument("-field", type=str, help="atom field to use for vectors (scalar or 3-vector)", default=None)
     _parser_vectors.add_argument("-color", type=str, metavar=["COLOR_SCHEME"], nargs='+',
                                  help="The string 'atom' (color by atom), or one color: R G B, "
-                                      "two colors : RUP GUP BUP RDOWN GDOWN BDOWN", default=None)
+                                      "or two colors : RUP GUP BUP RDOWN GDOWN BDOWN", default=None)
     _parser_vectors.add_argument("-radius", type=float, help="cylinder radius", default=None)
     _parser_vectors.add_argument("-scale", type=float, help="scaling factor from field value to cylinder length", default=None)
     _parser_vectors.add_argument("-delete", action='store_true', help="disable")
