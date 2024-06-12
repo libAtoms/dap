@@ -322,7 +322,8 @@ class Viewer(object):
         """
         regexp = re.sub(r"\?", ".", glob)
         regexp = re.sub(r"\*", ".*", regexp)
-        regexp = "^" + regexp + "$"
+        if not full_text:
+            regexp = "^" + regexp + "$"
 
         for parsers, label in [(self.davtk_state.settings.parsers, "SETTINGS"),
                                (self.parsers, "COMMANDS")]:
@@ -355,7 +356,8 @@ class Viewer(object):
         """
         regexp = re.sub(r"\?", ".", glob)
         regexp = re.sub(r"\*", ".*", regexp)
-        regexp = "^" + regexp + "$"
+        if not full_text:
+            regexp = "^" + regexp + "$"
 
         for parsers in (self.davtk_state.settings.parsers, self.parsers):
             for keyword in [k for k in sorted(parsers.keys()) if
