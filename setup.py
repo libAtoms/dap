@@ -4,10 +4,10 @@ from setuptools import setup, find_namespace_packages
 import os, glob
 
 setup(name='dap',
-      version='0.9.3',
+      version='0.9.4',
       description='Display atomic configuration',
       author='Noam Bernstein',
-      author_email='noam.bernstein@nrl.navy.mil',
+      author_email='noam.bernstein.civ@us.navy.mil',
       packages=find_namespace_packages(where="src"),
       package_dir={"": "src"},
       package_data={'davtk.scripts': ['*'], 'davtk.examples': ['*']},
