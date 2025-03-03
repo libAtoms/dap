@@ -1669,12 +1669,12 @@ class Viewer(object):
                     origin = atom
                 else:
                     origin = position
-            if args.name not in at.info:
-                warnings.warn(f"alternate_cell_box info field {args.name} not in at.info")
+            if name not in at.info:
+                warnings.warn(f"alternate_cell_box info field {name} not in at.info")
             else:
                 if "_vtk_alternate_cell_box" not in at.info:
                     at.info["_vtk_alternate_cell_box"] = {}
-                at.info["_vtk_alternate_cell_box"][args.name] = origin
+                at.info["_vtk_alternate_cell_box"][name] = origin
 
         return "cur"
 

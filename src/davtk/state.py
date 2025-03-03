@@ -439,8 +439,8 @@ class DaVTKState(object):
         self.draw_cell_box(at.get_cell(), origin=(0,0,0), actor=self.cell_box_actor)
 
         # additional primitive cell box (make extensible?)
-        if "_vtk_primitive_cells" in at.info:
-            for (name, origin) in at.info["_vtk_primitive_cells"].items():
+        if "_vtk_alternate_cell_box" in at.info:
+            for (name, origin) in at.info["_vtk_alternate_cell_box"].items():
                 if name not in self.primitive_cell_box_actors or self.primitive_cell_box_actors[name] is None:
                     actor = vtk.vtkActor()
                     actor._vtk_type = "cell_box"
