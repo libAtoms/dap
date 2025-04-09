@@ -879,7 +879,7 @@ class Viewer(object):
         Parameters
         ----------
         field: str, default "magmoms"
-            Atoms.arrays key (either scalar of 3-vector) or special keys "magmoms" or "initial_magmoms"
+            Atoms.arrays key (either scalar of 3-vector) or special keys "forces" or "magmoms" or "initial_magmoms"
         color: "atom" / (v, v, v) / (v, v, v, v, v, v) v is str or float
             color, either by atom or a color triplet or two triplets one for up and one for down (for scalar "vector" properties)
         radius: float

@@ -666,7 +666,9 @@ class DaVTKState(object):
             atom_type_list = get_atom_type_list(self.settings, at)
 
         try:
-            if at.info["_vtk_vectors"]["field"] == "magmoms":
+            if at.info["_vtk_vectors"]["field"] == "forces":
+                vectors = at.get_forces()
+            elif at.info["_vtk_vectors"]["field"] == "magmoms":
                 vectors = at.get_magnetic_moments()
             elif at.info["_vtk_vectors"]["field"] == "initial_magmoms":
                 vectors = at.get_initial_magnetic_moments()
