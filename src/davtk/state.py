@@ -1728,8 +1728,14 @@ class DaVTKState(object):
                     return np.asarray(v), string
 
             along_up_str = " ".join(along_up).strip()
-            along, along_up_str = grab_vector(along_up_str, cell)
-            up, _ = grab_vector(along_up_str, cell)
+            try:
+                along, along_up_str = grab_vector(along_up_str, cell)
+            except Exception as exc:
+                raise ValueError(f"Failed to parse along vector from {along_up_str}")
+            try:
+                up, _ = grab_vector(along_up_str, cell)
+            except Exception as exc:
+                raise ValueError(f"Failed to parse up vector from {along_up_str}")
 
             along /= np.linalg.norm(along)
             up /= np.linalg.norm(up)
