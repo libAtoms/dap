@@ -935,22 +935,21 @@ class Viewer(object):
     _parser_bond.add_argument("-name",type=str,help="name of bond set", default="default")
     _parser_bond.add_argument("-T",type=str,help="Restrict one member to given atom_type", default="*")
     _parser_bond.add_argument("-Tn",type=str,help="Restrict other member to given atom_type", default="*")
-    _grp = _parser_bond.add_mutually_exclusive_group()
-    _grp.add_argument("-picked", action='store_true', help="bond a pair of picked atoms with MIC")
-    _grp.add_argument("-n", action='store', type=int, nargs=2, help="bond a pair of atoms with given IDs", default=None)
-    _grp.add_argument("-cutoff", "-cut", "-c", action='store', type=float, nargs='+', help="bond atoms with max (one argument) or min-max (two arguments) cutoffs", default=None)
-    _grp.add_argument("-auto", action='store_true', help="bond by previously set per-atom bonding radius")
     _parser_bond.add_argument("-radius", type=float, help="radius of bond cylinders", default=None)
     _parser_bond.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for bonds", default=None)
     add_material_args_to_parser(_parser_bond, "bonds")
     _grp = _parser_bond.add_mutually_exclusive_group()
-    _grp.add_argument("-delete", action='store_true', help="delete existing bond")
+    _grp.add_argument("-picked", action='store_true', help="bond a pair of picked atoms with MIC")
+    _grp.add_argument("-indices", action='store', type=int, nargs=2, help="bond a pair of atoms with given IDs", default=None)
+    _grp.add_argument("-cutoff", "-cut", "-c", action='store', type=float, nargs='+', help="bond atoms with max (one argument) or min-max (two arguments) cutoffs", default=None)
+    _grp.add_argument("-auto", action='store_true', help="bond by previously set per-atom bonding radius")
+    _grp.add_argument("-delete", help="delete bonds with this name, 'picked' for deleting picked bonds")
     _grp.add_argument("-list_bonds", action='store_true', help="list existing bond")
     _parser_bond.add_argument("-no_pbc", action='store_true', help="no bonds across periodic boundary conditions")
     parsers["bond"] = _parser_bond
-    def bond(self, name="default", T="*", Tn="*", picked=False, n=None, cutoff=None, auto=False,
+    def bond(self, name="default", T="*", Tn="*", picked=False, indices=None, cutoff=None, auto=False,
                  radius=None, color=None, opacity=None, specular=None, specular_radius=None, ambient=None,
-                 delete=False, list_bonds=False, no_pbc=False, all_frames=False):
+                 delete=None, list_bonds=False, no_pbc=False, all_frames=False):
         """Create bonds between atoms
 
         Parameters
@@ -963,7 +962,7 @@ class Viewer(object):
             atom type for other end of bond
         picked: bool
             bond all atoms that are picked
-        n: list(int)
+        indices: list(int)
             ids of atoms to bond
         cutoff: float
             bond all atoms within cutoff
@@ -981,8 +980,8 @@ class Viewer(object):
             shininess of specular reflection
         ambient: float
             amount of ambient color
-        delete: bool
-            delete bonds with specified name
+        delete: str
+            delete bonds with this name
         list_bonds: bool
             list bond sets that exist
         no_pbc: bool
@@ -993,23 +992,20 @@ class Viewer(object):
         ats = self._get_ats(all_frames)
         davtk_state = self.davtk_state
 
-        creating_bonds = picked or (n is not None) or (cutoff is not None) or auto
+        creating_bonds = picked or (indices is not None) or (cutoff is not None) or auto
+        modifying_bonds = not (creating_bonds or delete or list_bonds)
 
-        if creating_bonds:
-            # check for conflicting args
-            if delete or list_bonds:
-                raise RuntimeError("can't create bonds and also -delete or -list_bonds")
-            if cutoff is not None and len(cutoff) > 2:
-                raise ValueError("bond got -cutoff with {} > 2 values".format(len(cutoff)))
-
-        # create new property if needed (even if not creating bonds)
-        if name not in davtk_state.bond_prop:
+        # create new property if needed
+        if creating_bonds and name not in davtk_state.bond_prop:
             prop = new_prop( types.SimpleNamespace( color = (1.0, 1.0, 1.0), opacity = 1.0,
                 specular = 0.0, specular_radius = 0.1, ambient = 0.2 ) )
             prop.radius = 0.2
             davtk_state.bond_prop[name] = prop
-
-        if not delete and not list_bonds:
+        # update to desired values
+        if creating_bonds or modifying_bonds:
+            if name not in davtk_state.bond_prop:
+                sys.stderr.write(f"ERROR: can't modify {name} which is not a known bond type name {sorted(list(davtk_state.bond_prop.keys()))}")
+                return
             # update property
             update_prop(davtk_state.bond_prop[name], types.SimpleNamespace(color=color, opacity=opacity,
                         specular=specular, specular_radius=specular_radius, ambient=ambient))
@@ -1017,30 +1013,29 @@ class Viewer(object):
                 davtk_state.bond_prop[name].radius = radius
 
         if creating_bonds:
+            if cutoff is not None and len(cutoff) > 2:
+                raise ValueError("bond got -cutoff with {} > 2 values".format(len(cutoff)))
             # actually create bonds
             for at in ats:
                 if picked:
                     if T != '*' or Tn != '*':
                         raise RuntimeError("bond by picked can't specify -T or -Tn")
                     davtk_state.bond(at, name, T, Tn, "picked")
-                elif n:
+                elif indices:
                     if T != '*' or Tn != '*':
-                        raise RuntimeError("bond by n (indices) can't specify -T or -Tn")
-                    davtk_state.bond(at, name, T, Tn, ("n", n))
+                        raise RuntimeError("bond by indices can't specify -T or -Tn")
+                    davtk_state.bond(at, name, T, Tn, ("n", indices))
                 elif cutoff:
                     davtk_state.bond(at, name, T, Tn, ("cutoff", cutoff), no_pbc=no_pbc)
                 elif auto:
                     davtk_state.bond(at, name, T, Tn, ("cutoff", None), no_pbc=no_pbc)
-        else: # not creating, either delete or list or just modifying an existing name
-            if delete:
-                for at in ats:
-                    davtk_state.delete(at, atom_selection=None, bond_selection=name)
-            elif list_bonds:
-                if len(davtk_state.bond_prop) > 0:
-                    print("defined (not necessarily used) bond names: ", list(davtk_state.bond_prop.keys()))
-                else:
-                    print("no bond names defined")
-            # else: just modifying existing proprerty
+        elif delete is not None:
+            for at in ats:
+                davtk_state.delete(at, atom_selection=None, bond_selection=delete)
+        elif list_bonds:
+            bond_names = sorted(list(set([b["name"] for at in ats for bl in at.bonds for b in bl])))
+            print("bond names: ", bond_names)
+        # else: just modifying existing proprerty
 
         # TODO
         # look for unused bond names and remove their props
@@ -1255,7 +1250,7 @@ class Viewer(object):
         creating_polyhedra = cutoff is not None or bond_name is not None or indices is not None
         modifying_polyhedra = not (creating_polyhedra or delete or list_polys)
 
-        polyhedra_names = list(set([n.replace("_vtk_polyhedra_","") for at in ats for n in at.arrays if n.startswith("_vtk_polyhedra")]))
+        polyhedra_names = sorted(list(set([n.replace("_vtk_polyhedra_","") for at in ats for n in at.arrays if n.startswith("_vtk_polyhedra")])))
 
         # create new property if needed
         if creating_polyhedra and name not in davtk_state.polyhedra_prop:
@@ -1265,7 +1260,8 @@ class Viewer(object):
         # update to desired values
         if creating_polyhedra or modifying_polyhedra:
             if name not in davtk_state.polyhedra_prop:
-                sys.stderr.write(f"ERROR: can't modify {name} which is not a known polyhedra name {polyhedra_names}")
+                sys.stderr.write(f"ERROR: can't modify {name} which is not a known polyhedra property name {sorted(list(davtk_state.polyhedra_prop.keys()))}")
+                return
             # update property
             update_prop(davtk_state.polyhedra_prop[name], types.SimpleNamespace(color=color, opacity=opacity,
                         specular=specular, specular_radius=specular_radius, ambient=ambient))
