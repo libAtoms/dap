@@ -1,0 +1,19 @@
+[project]
+
+name = "dap"
+requires-python = ">=3.9"
+dependencies = ["ase", "vtk", "PyQt6", "numpy", "scipy"]
+
+readme = "README.md"
+license = { file = "LICENSE" }
+dynamic = ["version"]
+
+[project.scripts]
+    dap = "davtk.cli.dap:main"
+    dap_ipy = "davtk.cli.dap_ipy:main"
+
+[tool.setuptools.packages.find]
+    exclude = ["test*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "davtk.__version__"}
