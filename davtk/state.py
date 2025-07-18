@@ -379,7 +379,7 @@ class DaVTKState(object):
 
         if what is None or what == "cur":
             what = "+0"
-        if not re.search('^(rotate|settings|color_only|[+-]?\d+)$', what):
+        if not re.search(r'^(rotate|settings|color_only|[+-]?\d+)$', what):
             raise ValueError("update what='{}', not 'rotate' or 'settings' or 'color_only' or int or [+|-]int".format(what))
 
         if what not in ["settings", "color_only", "rotate"]:
@@ -1059,21 +1059,21 @@ class DaVTKState(object):
                                    "initial_magmoms" : init_magmoms
                                  }
         # substitute $${} from at.arrays
-        for substr in re.findall('\$\${([^}]*)}', string):
+        for substr in re.findall(r'\$\${([^}]*)}', string):
             if i_at is None:
                 raise ValueError("found $${{}} substitution for '{}' but i_at is None. Perhaps incorrectly set a per-atom property ($${...}) in a per-frame context?".format(substr))
             if dict_atom_special_case is not None and substr in dict_atom_special_case:
-                string = re.sub('\$\${'+substr+'}',str(dict_atom_special_case[substr][i_at]),string,count=1)
+                string = re.sub(r'\$\${'+substr+'}',str(dict_atom_special_case[substr][i_at]),string,count=1)
             elif dict_atom is not None and substr in dict_atom:
-                string = re.sub('\$\${'+substr+'}',str(dict_atom[substr][i_at]),string,count=1)
+                string = re.sub(r'\$\${'+substr+'}',str(dict_atom[substr][i_at]),string,count=1)
             else:
                 raise ValueError("Tried to do $${{}} substitution on undefined per-atom field '{}'".format(substr))
         # substitute ${} from at.info
-        for substr in re.findall('(?:^|[^$])\${([^}]*)}', string):
+        for substr in re.findall(r'(?:^|[^$])\${([^}]*)}', string):
             if dict_frame_special_case is not None and substr in dict_frame_special_case:
-                string = re.sub('\${'+substr+'}',str(dict_frame_special_case[substr]),string,count=1)
+                string = re.sub(r'\${'+substr+'}',str(dict_frame_special_case[substr]),string,count=1)
             elif dict_frame is not None and substr in dict_frame:
-                string = re.sub('\${'+substr+'}',str(dict_frame[substr]),string,count=1)
+                string = re.sub(r'\${'+substr+'}',str(dict_frame[substr]),string,count=1)
             else:
                 raise ValueError("Tried to do ${{}} substitution on undefined per-frame field '{}'".format(substr))
 
@@ -1207,7 +1207,7 @@ class DaVTKState(object):
             label_raw_string = None
             if "_vtk_label" in at.arrays: # try per-atom value first
                 label_raw_string = at.arrays["_vtk_label"][i_at]
-                if re.search('^\s*$', label_raw_string) or re.search('^"?\s*"?$', label_raw_string) or re.search("^'?\s*'?$", label_raw_string):
+                if re.search(r'^\s*$', label_raw_string) or re.search(r'^"?\s*"?$', label_raw_string) or re.search(r"^'?\s*'?$", label_raw_string):
                     label_raw_string = None
             if label_raw_string is None: # use string from per-config or global setting
                 if "_vtk_atom_label_string" in at.info:
@@ -1526,7 +1526,7 @@ class DaVTKState(object):
         for at in ats:
             if at.info["_vtk_commands"].endswith("; "):
                 at.info["_vtk_commands"] = at.info["_vtk_commands"][:-2]
-            if re.search('^[\s;]*$', at.info["_vtk_commands"]):
+            if re.search(r'^[\s;]*$', at.info["_vtk_commands"]):
                 del at.info["_vtk_commands"]
 
     def prep_after_atoms_read(self, ats=None):

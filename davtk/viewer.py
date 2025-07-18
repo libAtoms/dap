@@ -942,7 +942,7 @@ class Viewer(object):
     _grp.add_argument("-auto", action='store_true', help="bond by previously set per-atom bonding radius")
     _parser_bond.add_argument("-radius", type=float, help="radius of bond cylinders", default=None)
     _parser_bond.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for bonds", default=None)
-    add_material_args_to_parser(_parser_bond)
+    add_material_args_to_parser(_parser_bond, "bonds")
     _grp = _parser_bond.add_mutually_exclusive_group()
     _grp.add_argument("-delete", action='store_true', help="delete existing bond")
     _grp.add_argument("-list_bonds", action='store_true', help="list existing bond")
@@ -1089,7 +1089,7 @@ class Viewer(object):
 
     _parser_X = ThrowingArgumentParser(prog="X",description="execute python code (Atoms object available as 'atoms', "
         "DavTKSettings as 'settings'). Use '--' to separate command from X's arguments")
-    _parser_X.add_argument("-all_frames", "-a", action="store_true", help="apply to all frames")
+    _parser_X.add_argument("-all_frames", action="store_true", help="apply to all frames")
     _parser_X.add_argument("-global_context", "-g", action="store_true", help="run in global scope (for 'import', e.g.)")
     _parser_X.add_argument("command_line", nargs='+', help="X command line words")
     parsers["X"] = _parser_X
@@ -1244,17 +1244,70 @@ class Viewer(object):
         return None
 
 
+    def _polyhedra(self, name, T, Tn, color, opacity, specular, specular_radius, ambient,
+                   cutoff, bond_name, indices, delete, list_polys, all_frames):
+
+        assert not (indices is not None and (T is not None or Tn is not None or cutoff is not None or bond_name is not None))
+
+        ats = self._get_ats(all_frames)
+        davtk_state = self.davtk_state
+
+        creating_polyhedra = cutoff is not None or bond_name is not None or indices is not None
+        modifying_polyhedra = not (creating_polyhedra or delete or list_polys)
+
+        polyhedra_names = list(set([n.replace("_vtk_polyhedra_","") for at in ats for n in at.arrays if n.startswith("_vtk_polyhedra")]))
+
+        # create new property if needed
+        if creating_polyhedra and name not in davtk_state.polyhedra_prop:
+            prop = new_prop( types.SimpleNamespace( color = (0.5, 0.5, 1.0), opacity = 0.5,
+                specular = 0.7, specular_radius = 0.1, ambient = 0.1 ) )
+            davtk_state.polyhedra_prop[name] = prop
+        # update to desired values
+        if creating_polyhedra or modifying_polyhedra:
+            if name not in davtk_state.polyhedra_prop:
+                sys.stderr.write(f"ERROR: can't modify {name} which is not a known polyhedra name {polyhedra_names}")
+            # update property
+            update_prop(davtk_state.polyhedra_prop[name], types.SimpleNamespace(color=color, opacity=opacity,
+                        specular=specular, specular_radius=specular_radius, ambient=ambient))
+
+        if creating_polyhedra:
+            # actualy create
+            if indices is not None:
+                for at in ats:
+                    davtk_state.arb_polyhedra(at, name, indices)
+            else:
+                # check for required args (cutoff/bond_name already checked above)
+                if T is None:
+                    raise RuntimeError("polyhedra requires -T to create new polyhedra")
+                for at in ats:
+                    davtk_state.coordination_polyhedra(at, name, T, Tn, cutoff, bond_name)
+        elif delete is not None:
+            for at in ats:
+                if "_vtk_polyhedra_" + delete in at.arrays:
+                    del at.arrays["_vtk_polyhedra_" + delete]
+            # TODO: look for unused polyhedra names and remove their props ?
+        elif list_polys:
+            print("polyhedra sets:", polyhedra_names)
+            return
+        # else: just modifying existing property
+
+        if creating_polyhedra or delete:
+            return "cur"
+        else:
+            return "color_only"
+
+
     # Logic of which arguments can coexist is way too messy here. Not sure how to fix.
     _parser_polyhedra = ThrowingArgumentParser(prog="polyhedra",description="draw coordination polyhedra")
     _parser_polyhedra.add_argument("-all_frames", action="store_true", help="apply to all frames")
-    _parser_polyhedra.add_argument("-name", help="name of polyhedron set, for later reference with -delete", default=None)
-    _parser_polyhedra.add_argument("-T", type=str, help="atom_type for polyhedron center, required",  default=None)
+    _parser_polyhedra.add_argument("-name", help="name of polyhedron set", default="default")
+    _parser_polyhedra.add_argument("-T", type=str, help="atom_type for polyhedron center, required for creating",  default=None)
     _parser_polyhedra.add_argument("-Tn", type=str, help="atom_type for polyhedron neighbors",  default=None)
     _parser_polyhedra.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for polyhedra", default=None)
-    add_material_args_to_parser(_parser_polyhedra)
+    add_material_args_to_parser(_parser_polyhedra, "polyhedra")
     _grp = _parser_polyhedra.add_mutually_exclusive_group()
     _grp.add_argument("-cutoff", type=float, help="center-neighbor cutoff distance",  default=None)
-    _grp.add_argument("-bond_name", help="name of bond to use for neighbors",  default=None)
+    _grp.add_argument("-bond_name", help="name of existing bond to use for neighbors", default=None)
     _grp.add_argument("-delete", action='store', metavar="NAME", help="name of polyhedra to delete")
     _grp.add_argument("-list_polys", action='store_true', help="list existing polyhedra")
     parsers["polyhedra"] = _parser_polyhedra
@@ -1269,7 +1322,7 @@ class Viewer(object):
         T: str
             atom type of center of polyhedra
         Tn: str
-            atom type of corners of polyhedra
+            atom type of corners of polyhedra, defaults to any atom
         color: (float, float, float)
             polyhedron color
         opacity: float
@@ -1291,68 +1344,15 @@ class Viewer(object):
         all_frames: bool, default False
             apply to all frames rather than just current
         """
-        ats = self._get_ats(all_frames)
-        davtk_state = self.davtk_state
-
-        creating_polyhedra = cutoff is not None or bond_name is not None
-
-        if name is None and not list_polys:
-            raise RuntimeError("-name required when creating, modifying, or deleting polyhedra")
-
-        if creating_polyhedra:
-            # check for conflicting args
-            if delete is not None or list_polys:
-                raise RuntimeError("can't create polyhedra and also -delete or -list")
-            if T is None:
-                raise RuntimeError("polyhedra requires -T to create new polyhedra")
-
-        # create new property if needed
-        if name not in davtk_state.polyhedra_prop:
-            prop = new_prop( types.SimpleNamespace( color = (0.5, 0.5, 1.0), opacity = 0.5,
-                specular = 0.7, specular_radius = 0.1, ambient = 0.1 ) )
-            davtk_state.polyhedra_prop[name] = prop
-
-        if not delete is not None and not list_polys:
-            # update property
-            update_prop(davtk_state.polyhedra_prop[name], types.SimpleNamespace(color=color, opacity=opacity,
-                        specular=specular, specular_radius=specular_radius, ambient=ambient))
-
-        if creating_polyhedra:
-            # actually create
-            for at in ats:
-                davtk_state.coordination_polyhedra(at, name, T, Tn, cutoff, bond_name)
-        else: # not creating, either delete or list or just modifying an existing name
-            if T is not None or Tn is not None:
-                raise RuntimeError("polyhedra got -T but neither -cutoff nor -bond_name")
-            if delete is not None:
-                if name is not None:
-                    raise RuntimeError("polyhedra got -delete and -name")
-                for at in ats:
-                    if "_vtk_polyhedra_" + delete in at.arrays:
-                        del at.arrays["_vtk_polyhedra_" + args.delete]
-                # TODO: look for unused polyhedra names and remove their props ?
-            elif list_polys:
-                if name is not None:
-                    raise RuntimeError("polyhedra got -list and -name")
-                if len(davtk_state.polyhedra_prop) > 0:
-                    names = list(set([n.replace("_vtk_polyhedra_","") for at in ats for n in at.arrays if n.startswith("_vtk_polyhedra")]))
-                    print("polyhedra sets:",names)
-                else:
-                    print("no polyhedra set names defined")
-            # else: just modifying existing property
-
-
-        if creating_polyhedra or delete:
-            return "cur"
-        else:
-            return "color_only"
+        return self._polyhedra(name, T, Tn, color, opacity, specular, specular_radius, ambient,
+                               cutoff, bond_name, None, delete, list_polys, all_frames)
 
 
     _parser_arb_polyhedra = ThrowingArgumentParser(prog="arb_polyhedra",description="draw arbitrary polyhedra connecting listed atoms")
     _parser_arb_polyhedra.add_argument("-all_frames", action="store_true", help="apply to all frames")
-    _parser_arb_polyhedra.add_argument("-name", help="name of polyhedron set, for later reference with -delete", default=None)
+    _parser_arb_polyhedra.add_argument("-name", help="name of polyhedron set, for later reference with -delete", default="default")
     _parser_arb_polyhedra.add_argument("-color", nargs=3, type=float, metavar=("R","G","B"), help="color for polyhedra", default=None)
-    add_material_args_to_parser(_parser_arb_polyhedra)
+    add_material_args_to_parser(_parser_arb_polyhedra, "polyhedra")
     _grp = _parser_arb_polyhedra.add_mutually_exclusive_group()
     _grp.add_argument("-indices", type=int, action='append', nargs='+', help="atomic indices of polyhedron", default=None)
     _grp.add_argument("-delete", action='store', metavar="NAME", help="name of polyhedra to delete")
@@ -1385,51 +1385,8 @@ class Viewer(object):
         all_frames: bool, default False
             apply to all frames rather than just current
         """
-        ats = self._get_ats(all_frames)
-        davtk_state = self.davtk_state
-
-        creating_polyhedra = indices is not None
-
-        if name is None and not delete and not list_polys:
-            raise RuntimeError("name required when creating or modifying polyhedra")
-
-        # create new property if needed
-        if name not in davtk_state.polyhedra_prop:
-            prop = new_prop( types.SimpleNamespace( color = (0.5, 0.5, 1.0), opacity = 0.5,
-                specular = 0.7, specular_radius = 0.1, ambient = 0.1 ) )
-            davtk_state.polyhedra_prop[name] = prop
-
-        if not (delete is not None) and not list_polys:
-            # update property
-            update_prop(davtk_state.polyhedra_prop[name], types.SimpleNamespace(color=color, opacity=opacity,
-                        specular=specular, specular_radius=specular_radius, ambient=ambient))
-
-        if creating_polyhedra:
-            # actually create
-            for at in ats:
-                davtk_state.arb_polyhedra(at, name, indices)
-        else: # not creating, either delete or list or just modifying an existing name
-            if delete is not None:
-                if name is not None:
-                    raise RuntimeError("polyhedra got delete and name")
-                for at in ats:
-                    if "_vtk_polyhedra_" + delete in at.arrays:
-                        del at.arrays["_vtk_polyhedra_" + delete]
-                # TODO: look for unused polyhedra names and remove their props ?
-            elif list_polys:
-                if name is not None:
-                    raise RuntimeError("polyhedra got list_polys and name")
-                if len(davtk_state.polyhedra_prop) > 0:
-                    names = list(set([n.replace("_vtk_polyhedra_","") for at in ats for n in at.arrays if n.startswith("_vtk_polyhedra")]))
-                    print("polyhedra sets:",names)
-                else:
-                    print("no polyhedra set names defined")
-            # else: just modifying existing property
-
-        if creating_polyhedra or delete:
-            return "cur"
-        else:
-            return "color_only"
+        return self._polyhedra(name, None, None, color, opacity, specular, specular_radius, ambient,
+                               None, None, indices, delete, list_polys, all_frames)
 
 
     _parser_volume = ThrowingArgumentParser(prog="volume", description="read volumetric data from file")
@@ -1441,7 +1398,7 @@ class Viewer(object):
     _grp.add_argument("-isosurface", type=float, action='store', metavar="THRESHOLD", help="isosurface threshold")
     _grp.add_argument("-volumetric", type=float, action='store', metavar="SCALE", help="volumetric value_to_opacity_factor")
     _parser_volume.add_argument("-color", nargs=3, type=float, metavar=("R", "G", "B"), help="color of representation", default=None)
-    add_material_args_to_parser(_parser_volume)
+    add_material_args_to_parser(_parser_volume, "representation")
     _parser_volume.add_argument("-file_args", nargs=argparse.REMAINDER, help="file-type specific arguments (use '-file_args -h' for file-type specific help)", default=[])
     #
     _volume_subparsers = {}

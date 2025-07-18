@@ -138,7 +138,7 @@ class DavTKSettings():
     _grp.add_argument("-radius", "-rad", "-r", type=float, default=None)
     _grp.add_argument("-radius_field", nargs=2, metavar=("RADIUS_FIELD", "FACTOR"), default=None)
     _parser_atom_type.add_argument("-bonding_radius", type=float, default=None)
-    add_material_args_to_parser(_parser_atom_type)
+    add_material_args_to_parser(_parser_atom_type, "atom_type")
     parsers["atom_type"] = _parser_atom_type
 
     _parser_cell_box = ThrowingArgumentParser(prog="cell_box")
