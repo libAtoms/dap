@@ -15,5 +15,8 @@ dynamic = ["version"]
 [tool.setuptools.packages.find]
     exclude = ["test*"]
 
+[tool.setuptools.package-data]
+    davtk = ["scripts/*"]
+
 [tool.setuptools.dynamic]
 version = {attr = "davtk.__version__"}
