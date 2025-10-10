@@ -1,11 +1,11 @@
 import argparse
-import pkg_resources  # part of setuptools
+from .__version__ import __version__
 
 cli_parse = argparse.ArgumentParser()
 cli_parse.add_argument("--geometry","-g",type=str,default="1000x1000")
 cli_parse.add_argument("--execute_commands","-e",action='append',type=str, help="commands to execute (';' separated)", default=[])
 cli_parse.add_argument("--format","-f",type=str, nargs='+', help="formats for each atoms file", default = None)
-cli_parse.add_argument("--version","-v", action='version', version='%(prog)s '+pkg_resources.require("dap")[0].version)
+cli_parse.add_argument("--version","-v", action='version', version='%(prog)s ' + __version__)
 cli_parse.add_argument("atoms_files",nargs="+",type=str,help="atoms files in any ase.io.read format, optionally including '@START:END:STEP' interval")
 args = cli_parse.parse_args()
 
