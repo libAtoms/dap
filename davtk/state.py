@@ -652,7 +652,7 @@ class DaVTKState(object):
             self.renderer.RemoveActor(actor)
         self.vector_actors = []
 
-        if at.info.get("_vtk_vectors", None) is None:
+        if len(at.info.get("_vtk_vectors", {})) == 0:
             return
 
         pos = at.get_positions()
@@ -660,115 +660,116 @@ class DaVTKState(object):
         cell_inv = at.cell.reciprocal().T
         rv = at.info.get("_vtk_images", (0.0, 1.0, 0.0, 1.0, 0.0, 1.0))
 
-        rad = at.info["_vtk_vectors"]["radius"]
-        vector_color = at.info["_vtk_vectors"]["color"]
-        if vector_color == "atom":
-            atom_type_list = get_atom_type_list(self.settings, at)
-
-        try:
-            if at.info["_vtk_vectors"]["field"] == "forces":
-                vectors = at.get_forces()
-            elif at.info["_vtk_vectors"]["field"] == "magmoms":
-                vectors = at.get_magnetic_moments()
-            elif at.info["_vtk_vectors"]["field"] == "initial_magmoms":
-                vectors = at.get_initial_magnetic_moments()
-            else:
-                vectors = at.arrays[at.info["_vtk_vectors"]["field"]]
-        except KeyError as exc:
-            sys.stderr.write(f"Exception when looking for _vtk_vectors in field {at.info['_vtk_vectors']['field']} {exc}\n")
-            return
-
-        # start out with fake orientation
-        self.renderer.GetActiveCamera().OrthogonalizeViewUp()
-        orientation = [ 0.0, 1.0, 0.0 ]
-
-        # use vector field shape to determine whether orientation is meaningful
-        if len(vectors.shape) == 2 and vectors.shape[1] == 3: # 3-vectors
-            if vector_color == "sign":
-                raise ValueError("Can't color vectors by sign when they are not actually scalars")
-            vectors_use = vectors.copy()
-            orientation = None
-        elif len(vectors.shape) == 1: # scalars
-            vectors_use = np.outer(vectors, orientation)
-        else:
-            raise ValueError("Don't know how to draw vectors for field with shape {}".format(vectors.shape))
-
-        vectors_use *= at.info["_vtk_vectors"]["scale"]
-
-        vector_norms = np.linalg.norm(vectors_use, axis=1)
-        non_zero = np.where(vector_norms > 0)
-        vectors_hat = vectors_use.copy()
-        vectors_hat[non_zero] = (vectors_use[non_zero].T / np.maximum(vector_norms[non_zero], 1.0e-6)).T
-
-        cyl_x_mapper = self.shapes["mappers"]["cylinder_x_end_origin"]
-        arrow_x_mapper = self.shapes["mappers"]["arrow_x"]
-        cone_x_source = self.shapes["sources"]["cone_x"][0]
-        source_orient = [1.0, 0.0, 0.0]
-
-        vis_images = self.visible_images(at)
-
-        for i_at in range(len(at)):
-
-            axis = np.cross(vectors_hat[i_at], source_orient)
-            if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to source_orient,  set angle to 0, axis irrelevant
-                axis = (1.0,0.0,0.0)
-                angle = 0.0
-            else:
-                axis /= np.linalg.norm(axis)
-                angle = -np.arccos(np.dot(vectors_hat[i_at], source_orient))*180.0/np.pi
-
+        for _vtk_vectors in at.info["_vtk_vectors"].values():
+            rad = _vtk_vectors["radius"]
+            vector_color = _vtk_vectors["color"]
             if vector_color == "atom":
-                at_type = atom_type_list[i_at]
-                color = get_atom_prop(self.settings, at_type, i_at, at.arrays).GetColor()
-            elif vector_color == "sign":
-                if vectors[i_at] < 0:
-                    color = at.info["_vtk_vectors"]["sign_colors"][3:6]
+                atom_type_list = get_atom_type_list(self.settings, at)
+
+            try:
+                if _vtk_vectors["field"] == "forces":
+                    vectors = at.get_forces()
+                elif _vtk_vectors["field"] == "magmoms":
+                    vectors = at.get_magnetic_moments()
+                elif _vtk_vectors["field"] == "initial_magmoms":
+                    vectors = at.get_initial_magnetic_moments()
                 else:
-                    color = at.info["_vtk_vectors"]["sign_colors"][0:3]
+                    vectors = at.arrays[_vtk_vectors["field"]]
+            except KeyError as exc:
+                sys.stderr.write(f"Exception when looking for _vtk_vectors in field {at.info['_vtk_vectors']['field']} {exc}\n")
+                return
+
+            # start out with fake orientation
+            self.renderer.GetActiveCamera().OrthogonalizeViewUp()
+            orientation = [ 0.0, 1.0, 0.0 ]
+
+            # use vector field shape to determine whether orientation is meaningful
+            if len(vectors.shape) == 2 and vectors.shape[1] == 3: # 3-vectors
+                if vector_color == "sign":
+                    raise ValueError("Can't color vectors by sign when they are not actually scalars")
+                vectors_use = vectors.copy()
+                orientation = None
+            elif len(vectors.shape) == 1: # scalars
+                vectors_use = np.outer(vectors, orientation)
             else:
-                color = at.info["_vtk_vectors"]["color"]
+                raise ValueError("Don't know how to draw vectors for field with shape {}".format(vectors.shape))
 
-            for (p, s) in vis_images[i_at]:
-                if orientation is not None:
-                    actors = [vtk.vtkFollower(),vtk.vtkFollower(),vtk.vtkFollower()]
-                    for actor in actors:
-                        actor.SetCamera(self.renderer.GetActiveCamera())
-                        actor.SetPosition(p)
-                        # assumes source_orient = \hat{x}
+            vectors_use *= _vtk_vectors["scale"]
 
-                    actors[0].SetMapper(cyl_x_mapper)
-                    actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
-                    actors[0].SetScale(vector_norms[i_at]/2.0-3.0*rad, rad, rad)
-                    actors[1].SetMapper(cyl_x_mapper)
-                    actors[1].RotateWXYZ(angle+180.0, axis[0], axis[1], axis[2])
-                    actors[1].SetScale(vector_norms[i_at]/2.0, rad, rad)
+            vector_norms = np.linalg.norm(vectors_use, axis=1)
+            non_zero = np.where(vector_norms > 0)
+            vectors_hat = vectors_use.copy()
+            vectors_hat[non_zero] = (vectors_use[non_zero].T / np.maximum(vector_norms[non_zero], 1.0e-6)).T
 
-                    cone = vtk.vtkTransformPolyDataFilter()
-                    t = vtk.vtkTransform()
-                    t.Translate((vector_norms[i_at]/2.0-1.5*rad) / (3.0*rad), 0.0, 0.0)
-                    cone.SetTransform(t)
-                    cone.SetInputConnection(cone_x_source.GetOutputPort())
-                    cone_mapper = vtk.vtkPolyDataMapper()
-                    cone_mapper.SetInputConnection(cone.GetOutputPort())
-                    actors[2].SetMapper(cone_mapper)
-                    actors[2].RotateWXYZ(angle, axis[0], axis[1], axis[2])
-                    actors[2].SetScale(rad*3.0, rad*2.5, rad*2.5)
+            cyl_x_mapper = self.shapes["mappers"]["cylinder_x_end_origin"]
+            arrow_x_mapper = self.shapes["mappers"]["arrow_x"]
+            cone_x_source = self.shapes["sources"]["cone_x"][0]
+            source_orient = [1.0, 0.0, 0.0]
 
+            vis_images = self.visible_images(at)
+
+            for i_at in range(len(at)):
+
+                axis = np.cross(vectors_hat[i_at], source_orient)
+                if np.linalg.norm(axis) < 1.0e-4: # essentially parallel to source_orient,  set angle to 0, axis irrelevant
+                    axis = (1.0,0.0,0.0)
+                    angle = 0.0
                 else:
-                    actors = [vtk.vtkActor()]
-                    actors[0].SetMapper(arrow_x_mapper)
-                    # assumes source_orient = \hat{x}
-                    actors[0].SetScale(vector_norms[i_at], rad, rad)
-                    actors[0].SetPosition(pos[i_at]-vector_norms[i_at]/2.0*vectors_hat[i_at])
-                    actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                    axis /= np.linalg.norm(axis)
+                    angle = -np.arccos(np.dot(vectors_hat[i_at], source_orient))*180.0/np.pi
 
-                for actor in actors:
-                    actor._vtk_type = "vector"
-                    actor.VisibilityOn()
-                    actor.PickableOff()
-                    actor.GetProperty().SetColor(color)
-                    self.renderer.AddActor(actor)
-                    self.vector_actors.append(actor)
+                if vector_color == "atom":
+                    at_type = atom_type_list[i_at]
+                    color = get_atom_prop(self.settings, at_type, i_at, at.arrays).GetColor()
+                elif vector_color == "sign":
+                    if vectors[i_at] < 0:
+                        color = _vtk_vectors["sign_colors"][3:6]
+                    else:
+                        color = _vtk_vectors["sign_colors"][0:3]
+                else:
+                    color = _vtk_vectors["color"]
+
+                for (p, s) in vis_images[i_at]:
+                    if orientation is not None:
+                        actors = [vtk.vtkFollower(),vtk.vtkFollower(),vtk.vtkFollower()]
+                        for actor in actors:
+                            actor.SetCamera(self.renderer.GetActiveCamera())
+                            actor.SetPosition(p)
+                            # assumes source_orient = \hat{x}
+
+                        actors[0].SetMapper(cyl_x_mapper)
+                        actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                        actors[0].SetScale(vector_norms[i_at]/2.0-3.0*rad, rad, rad)
+                        actors[1].SetMapper(cyl_x_mapper)
+                        actors[1].RotateWXYZ(angle+180.0, axis[0], axis[1], axis[2])
+                        actors[1].SetScale(vector_norms[i_at]/2.0, rad, rad)
+
+                        cone = vtk.vtkTransformPolyDataFilter()
+                        t = vtk.vtkTransform()
+                        t.Translate((vector_norms[i_at]/2.0-1.5*rad) / (3.0*rad), 0.0, 0.0)
+                        cone.SetTransform(t)
+                        cone.SetInputConnection(cone_x_source.GetOutputPort())
+                        cone_mapper = vtk.vtkPolyDataMapper()
+                        cone_mapper.SetInputConnection(cone.GetOutputPort())
+                        actors[2].SetMapper(cone_mapper)
+                        actors[2].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+                        actors[2].SetScale(rad*3.0, rad*2.5, rad*2.5)
+
+                    else:
+                        actors = [vtk.vtkActor()]
+                        actors[0].SetMapper(arrow_x_mapper)
+                        # assumes source_orient = \hat{x}
+                        actors[0].SetScale(vector_norms[i_at], rad, rad)
+                        actors[0].SetPosition(pos[i_at]-vector_norms[i_at]/2.0*vectors_hat[i_at])
+                        actors[0].RotateWXYZ(angle, axis[0], axis[1], axis[2])
+
+                    for actor in actors:
+                        actor._vtk_type = "vector"
+                        actor.VisibilityOn()
+                        actor.PickableOff()
+                        actor.GetProperty().SetColor(color)
+                        self.renderer.AddActor(actor)
+                        self.vector_actors.append(actor)
 
     # need to see what can be optimized if settings_only is True
     def update_bonds(self, at, color_only):

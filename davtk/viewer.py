@@ -865,7 +865,7 @@ class Viewer(object):
 
     _parser_vectors = ThrowingArgumentParser(prog="vectors", description="Draw vectors")
     _parser_vectors.add_argument("-all_frames", action="store_true", help="apply to all frames")
-    _parser_vectors.add_argument("-field", type=str, help="atom field to use for vectors (scalar or 3-vector)", default=None)
+    _parser_vectors.add_argument("-field", type=str, help="atom field to use for vectors (scalar or 3-vector)", default="magmoms")
     _parser_vectors.add_argument("-color", type=str, metavar=["COLOR_SCHEME"], nargs='+',
                                  help="The string 'atom' (color by atom), or one color: R G B, "
                                       "or two colors : RUP GUP BUP RDOWN GDOWN BDOWN", default=None)
@@ -892,7 +892,7 @@ class Viewer(object):
             apply to all frames rather than just current
         """
         if delete:
-            assert field is None and color is None and radius is None and scale is None, "Got delete, no other arguments may be specified"
+            assert color is None and radius is None and scale is None, "Got delete, only field argument may be specified"
 
         if color is not None and isinstance(color, str):
             color = [color]
@@ -920,14 +920,21 @@ class Viewer(object):
 
         for at in ats:
             if delete:
-                del at.info["_vtk_vectors"]
-            else:
-                if "_vtk_vectors" not in at.info:
-                    at.info["_vtk_vectors"] = { "field" : "magmoms", "color" : "atom", "radius" : 0.1, "scale" : 1.0,
-                                                "sign_colors" : [1.0, 0.0, 0.0,    0.0, 0.0, 1.0] }
-                for p in ["field", "color", "sign_colors", "radius", "scale" ]:
-                    if locals()[p] is not None:
-                        at.info["_vtk_vectors"][p] = locals()[p]
+                if field in at.info.get("_vtk_vectors", {}):
+                    del at.info["_vtk_vectors"][field]
+                else:
+                    warnings.warn(f"Unknown vectors field {field}")
+                continue
+
+            if "_vtk_vectors" not in at.info:
+                at.info["_vtk_vectors"] = {}
+            if field not in at.info["_vtk_vectors"]:
+                at.info["_vtk_vectors"][field] = {"field" : field, "color" : "atom", "radius" : 0.1, "scale" : 1.0,
+                                                  "sign_colors" : [1.0, 0.0, 0.0,    0.0, 0.0, 1.0]}
+            for p in ["field", "color", "sign_colors", "radius", "scale" ]:
+                if locals()[p] is not None:
+                    at.info["_vtk_vectors"][field][p] = locals()[p]
+
         return None
 
     _parser_bond = ThrowingArgumentParser(prog="bond",description="Create bonds")
