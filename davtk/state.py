@@ -676,7 +676,7 @@ class DaVTKState(object):
                 else:
                     vectors = at.arrays[_vtk_vectors["field"]]
             except KeyError as exc:
-                sys.stderr.write(f"Exception when looking for _vtk_vectors in field {at.info['_vtk_vectors']['field']} {exc}\n")
+                sys.stderr.write(f"Exception when looking for _vtk_vectors in field {_vtk_vectors['field']} {exc}\n")
                 return
 
             # start out with fake orientation
