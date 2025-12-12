@@ -1610,7 +1610,7 @@ class Viewer(object):
         position: (float, float, float)
             cartesian position to offset box origin
         atom: int
-            index of ato to offset box origin
+            index of atom to offset box origin
         delete: bool
             delete alternate cell box
         all_frames: bool, default False
@@ -1623,18 +1623,21 @@ class Viewer(object):
                 if name in at.info["_vtk_alternate_cell_box"]:
                     del at.info["_vtk_alternate_cell_box"][name]
                 else:
-                    raise ValueError("-name {} not found".format(name))
-            else:
-                if atom is not None:
-                    origin = atom
-                else:
-                    origin = position
+                    warnings.warn(f"alternate_cell_box -name {name} not found")
+                continue
+
+            # set or add
             if name not in at.info:
                 warnings.warn(f"alternate_cell_box info field {name} not in at.info")
+                continue
+
+            if atom is not None:
+                origin = atom
             else:
-                if "_vtk_alternate_cell_box" not in at.info:
-                    at.info["_vtk_alternate_cell_box"] = {}
-                at.info["_vtk_alternate_cell_box"][name] = origin
+                origin = position
+            if "_vtk_alternate_cell_box" not in at.info:
+                at.info["_vtk_alternate_cell_box"] = {}
+            at.info["_vtk_alternate_cell_box"][name] = origin
 
         return "cur"
 

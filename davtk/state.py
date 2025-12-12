@@ -399,7 +399,7 @@ class DaVTKState(object):
 
         self.renderer.SetBackground(self.settings["background_color"])
 
-        self.update_cell_boxes(at, what == "settings" or what == "color_only")
+        self.update_cell_boxes(at, what == "settings" or what == "color_only" or what == "cur")
         self.update_atom_spheres(at)
         self.update_atom_labels(at)
         self.update_bonds(at, what == "color_only")
@@ -439,6 +439,11 @@ class DaVTKState(object):
         self.draw_cell_box(at.get_cell(), origin=(0,0,0), actor=self.cell_box_actor)
 
         # additional primitive cell box (make extensible?)
+        # delete all
+        for actor in self.primitive_cell_box_actors.values():
+            self.renderer.RemoveActor(actor)
+        self.primitive_cell_box_actors = {}
+        # add needed
         if "_vtk_alternate_cell_box" in at.info:
             for (name, origin) in at.info["_vtk_alternate_cell_box"].items():
                 if name not in self.primitive_cell_box_actors or self.primitive_cell_box_actors[name] is None:
