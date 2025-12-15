@@ -1594,15 +1594,18 @@ class Viewer(object):
         return "settings"
 
 
-    _parser_alternate_cell_box = ThrowingArgumentParser(prog="alternate_cell_box",description="alternate (e.g. primitive) cell box to display")
-    _parser_alternate_cell_box.add_argument("-all_frames", action="store_true",help="apply to all frames")
-    _parser_alternate_cell_box.add_argument("-name","-n",help="name of info field", required=True)
+    _parser_alternate_cell_box = ThrowingArgumentParser(prog="alternate_cell_box", description="alternate (e.g. primitive) cell box to display")
+    _parser_alternate_cell_box.add_argument("-all_frames", action="store_true", help="apply to all frames")
+    _parser_alternate_cell_box.add_argument("-name", "-n", help="name of info field", required=True)
     _grp = _parser_alternate_cell_box.add_mutually_exclusive_group(required=True)
-    _grp.add_argument("-position","-p",type=float,nargs=3,help="Cartesian position of alternate cell box origin")
-    _grp.add_argument("-atom","-a",type=int,help="Index of atom for alternate cell box origin")
-    _grp.add_argument("-delete",action='store_true',help="Disable alternate cell box")
+    _grp.add_argument("-position", "-p", type=float, nargs=3, help="Cartesian position of alternate cell box origin")
+    _grp.add_argument("-atom", "-a", type=int, help="Index of atom for alternate cell box origin")
+    _grp.add_argument("-delete", action='store_true', help="Disable alternate cell box")
+    _parser_alternate_cell_box.add_argument("-color", nargs=3, type=float, metavar=('R', 'G', 'B'))
+    _parser_alternate_cell_box.add_argument("-opacity", type=float)
+    _parser_alternate_cell_box.add_argument("-width", type=float)
     parsers["alternate_cell_box"] = _parser_alternate_cell_box
-    def alternate_cell_box(self, name, position=None, atom=None, delete=None, all_frames=False):
+    def alternate_cell_box(self, name, position=None, atom=None, delete=None, all_frames=False, color=None, opacity=None, width=None):
         """Display an alternate cell box (e.g. from a supercell or from a primitive cell
 
         Parameters
@@ -1637,7 +1640,7 @@ class Viewer(object):
                 origin = position
             if "_vtk_alternate_cell_box" not in at.info:
                 at.info["_vtk_alternate_cell_box"] = {}
-            at.info["_vtk_alternate_cell_box"][name] = origin
+            at.info["_vtk_alternate_cell_box"][name] = (origin, color, opacity, width)
 
         return "cur"
 

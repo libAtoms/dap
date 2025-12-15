@@ -246,7 +246,7 @@ class DaVTKState(object):
         self.polyhedra_actors = []
 
         self.cell_box_actor = None
-        self.primitive_cell_box_actors = {}
+        self.alternate_cell_box_actors = {}
 
         self.frame_label_actor = None
 
@@ -438,25 +438,33 @@ class DaVTKState(object):
             self.cell_box_actor = actor
         self.draw_cell_box(at.get_cell(), origin=(0,0,0), actor=self.cell_box_actor)
 
-        # additional primitive cell box (make extensible?)
+        # additional cell box (make extensible?)
         # delete all
-        for actor in self.primitive_cell_box_actors.values():
+        for actor in self.alternate_cell_box_actors.values():
             self.renderer.RemoveActor(actor)
-        self.primitive_cell_box_actors = {}
+        self.alternate_cell_box_actors = {}
         # add needed
         if "_vtk_alternate_cell_box" in at.info:
-            for (name, origin) in at.info["_vtk_alternate_cell_box"].items():
-                if name not in self.primitive_cell_box_actors or self.primitive_cell_box_actors[name] is None:
+            for (name, (origin, color, opacity, width)) in at.info["_vtk_alternate_cell_box"].items():
+                if name not in self.alternate_cell_box_actors or self.alternate_cell_box_actors[name] is None:
                     actor = vtk.vtkActor()
                     actor._vtk_type = "cell_box"
                     actor.PickableOff()
-                    actor.SetProperty(self.settings["cell_box"]["prop"])
-                    self.primitive_cell_box_actors[name] = actor
+                    prop_def = self.settings["cell_box"]["prop"]
+                    if (color, opacity, width) == (None, None, None):
+                        prop = prop_def
+                    else:
+                        prop = vtk.vtkProperty()
+                        prop.SetColor(color if color is not None else prop_def.GetColor())
+                        prop.SetOpacity(opacity if opacity is not None else prop_def.GetOpacity())
+                        prop.SetLineWidth(width if width is not None else prop_def.GetLineWidth())
+                    actor.SetProperty(prop)
+                    self.alternate_cell_box_actors[name] = actor
                 if isinstance(origin,int) or len(origin) == 1:
                     origin = at.positions[origin]
                 else:
                     origin = np.array(origin)
-                self.draw_cell_box(at.info[name], origin=origin, actor=self.primitive_cell_box_actors[name])
+                self.draw_cell_box(at.info[name], origin=origin, actor=self.alternate_cell_box_actors[name])
 
     def draw_cell_box(self, cell, origin, actor, settings_only=False):
         if settings_only:

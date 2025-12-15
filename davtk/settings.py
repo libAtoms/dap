@@ -178,7 +178,8 @@ class DavTKSettings():
 
     def __init__(self):
         self.data = { "atom_types" : DavTKAtomTypes(), "colormaps" : {},
-            "cell_box" : { "color" : [1.0, 1.0, 1.0], "opacity" : 1.0, "line_width" : 2.0, "prop" : None }, "background_color" : [0.0, 0.0, 0.0],
+            "cell_box" : { "color" : [1.0, 1.0, 1.0], "opacity" : 1.0, "line_width" : 2.0, "prop" : None },
+            "background_color" : [0.0, 0.0, 0.0],
             "picked" : { "color" : [1.0, 1.0, 0.0], "opacity" : 1.0,  "prop" : None },
             "frame_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 36, "prop" : None, "string" : "${config_n}", "show" : True },
             "atom_label" : { "color" : [1.0, 1.0, 1.0], "fontsize" : 24 , "prop" : None, "string" : "$${ID}", "show" : False},
