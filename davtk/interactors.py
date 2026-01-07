@@ -3,7 +3,7 @@ import numpy as np
 import vtk
 from davtk.parse_utils import ArgumentParserHelp
 
-from PyQt6.QtCore import QTimer
+from PySide6.QtCore import QTimer
 
 def pick_actors(at, actors, point_sets):
     new_bond_pick_statuses = {}

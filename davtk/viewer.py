@@ -15,7 +15,7 @@ from davtk.state import *
 from davtk.interactors import *
 
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 from davtk.parse_utils import ThrowingArgumentParser, add_material_args_to_parser
 from davtk.vtk_utils import new_prop, update_prop
@@ -1103,7 +1103,7 @@ class Viewer(object):
         for atoms in ats:
             globals()["atoms"] = atoms
             if global_context:
-                exec(ase_command) in globals(), globals()
+                exec(ase_command, globals())
             else:
                 exec(ase_command)
 

@@ -2,8 +2,8 @@
 
 name = "dap"
 requires-python = ">=3.9"
-# dependencies = ["ase", "vtk", "PyQt6==6.9.1", "numpy", "scipy"]
-dependencies = ["ase", "vtk", "PyQt6<6.10", "numpy", "scipy"]
+# dependencies = ["ase", "vtk", "PyQt6<6.10", "numpy", "scipy"]
+dependencies = ["ase", "vtk", "PySide6<6.10", "numpy", "scipy"]
 
 readme = "README.md"
 license = { file = "LICENSE" }
