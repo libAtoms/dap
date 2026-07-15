@@ -636,7 +636,7 @@ class DaVTKState(object):
             glyphs.SetColorModeToColorByVector()
             glyphs.Update()
 
-            id_glyphs = vtk.vtkIdFilter()
+            id_glyphs = vtk.vtkGenerateIds()
             id_glyphs.SetInputConnection(glyphs.GetOutputPort())
             id_glyphs.SetPointIdsArrayName("IDs")
             id_glyphs.FieldDataOn()
@@ -929,7 +929,7 @@ class DaVTKState(object):
 
             glyphs.SetGlyphMethod(place_glyph)
 
-            id_glyphs = vtk.vtkIdFilter()
+            id_glyphs = vtk.vtkGenerateIds()
             id_glyphs.SetInputConnection(glyphs.GetOutputPort())
             id_glyphs.SetPointIdsArrayName("IDs")
             id_glyphs.FieldDataOn()
