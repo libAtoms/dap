@@ -14,7 +14,10 @@ from davtk.settings import DavTKSettings
 from davtk.state import *
 from davtk.interactors import *
 
-from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+# from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+# workaround from vtk discourse
+#      https://discourse.vtk.org/t/issue-with-qvtkrenderwindowinteractor-and-pyside6-6-10-1-on-macos/16225/10?u=noamb
+from .QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from davtk.parse_utils import ThrowingArgumentParser, add_material_args_to_parser
